@@ -1,3 +1,5 @@
+// helpers/gitHelpers.js
+
 /**
  * Clones a GitHub repository to a target directory.
  * @param {string} repoUrl - The GitHub repository URL.
@@ -14,6 +16,8 @@ async function cloneRepo(repoUrl, targetDir, token, execPromise) {
         'https://',
         `https://${token}@`
       );
+    } else {
+      throw new Error('Invalid GitHub repository URL');
     }
   
     const command = `git clone ${cloneUrl} ${targetDir}`;
