@@ -47,7 +47,7 @@ async function createInstance({ instanceName, projectPath, githubRepo, githubTok
 
   // Define container configuration for Code‑Server
   const containerConfig = {
-    Image: 'codercom/code-server:latest',
+    Image: 'my-code-server-with-extension',
     name: instanceName,
     Env: [
       `DOCKER_USER=${process.env.USER || 'coder'}`
