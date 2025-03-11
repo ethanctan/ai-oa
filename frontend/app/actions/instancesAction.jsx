@@ -16,7 +16,7 @@ export async function action({ request }) {
       throw new Error("Failed to delete instance");
     }
     const result = await response.json();
-    return json(result);
+    return Response.json(result);
   }
   
   // Otherwise create a new instance
@@ -37,5 +37,5 @@ export async function action({ request }) {
     throw new Error("Failed to create instance");
   }
   const result = await response.json();
-  return json(result);
+  return Response.json(result);
 }
