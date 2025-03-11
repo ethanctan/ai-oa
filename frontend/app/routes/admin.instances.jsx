@@ -40,7 +40,7 @@ export default function InstancesAdmin() {
               <input type="text" name="portMapping" placeholder="e.g., 8081" />
             </label>
           </div>
-          <button type="submit" style={{ marginTop: "1rem" }}>
+          <button type="submit" className="mt-2">
             Create Instance
           </button>
         </Form>
@@ -61,7 +61,9 @@ export default function InstancesAdmin() {
                   {/* Hidden field to indicate deletion */}
                   <input type="hidden" name="action" value="delete" />
                   <input type="hidden" name="instanceId" value={instance.Id} />
-                  <button type="submit" style={{ marginLeft: "1rem" }}>Delete</button>
+                  <button type="submit" className="ml-2 text-red-500">
+                    Delete
+                  </button>
                 </Form>
               </li>
             ))}
