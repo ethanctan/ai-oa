@@ -1,36 +1,75 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
+// extension.js
+
 const vscode = require('vscode');
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-
 /**
+ * Called when the extension is activated.
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
+  console.log('Dummy Sidebar extension activated');
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "extension" is now active!');
+  // Register the webview view provider for the sidebar.
+  const provider = new DummySidebarViewProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(DummySidebarViewProvider.viewType, provider)
+  );
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with  registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('extension.helloWorld', function () {
-		// The code you place here will be executed every time your command is executed
-
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from extension!');
-	});
-
-	context.subscriptions.push(disposable);
+  // Attempt to auto-show the sidebar. Note: Depending on your Code-Server or VS Code version,
+  // you might need to adjust the command id.
+  vscode.commands.executeCommand('workbench.view.extension.dummySidebar');
 }
 
-// This method is called when your extension is deactivated
-function deactivate() {}
+function deactivate() {
+  // Clean up resources if needed.
+}
+
+class DummySidebarViewProvider {
+  static viewType = 'dummySidebar.myView';
+
+  /**
+   * @param {vscode.Uri} extensionUri
+   */
+  constructor(extensionUri) {
+    this.extensionUri = extensionUri;
+  }
+
+  /**
+   * This method is called when the view is resolved.
+   * @param {vscode.WebviewView} webviewView
+   * @param {vscode.WebviewViewResolveContext} context
+   * @param {vscode.CancellationToken} token
+   */
+  resolveWebviewView(webviewView, context, token) {
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this.extensionUri]
+    };
+
+    webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+  }
+
+  /**
+   * Returns HTML content for the sidebar.
+   * @param {vscode.Webview} webview
+   */
+  getHtmlForWebview(webview) {
+    return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dummy Sidebar</title>
+  </head>
+  <body>
+    <h2>Dummy Sidebar</h2>
+    <p>This is a dummy right-hand sidebar.</p>
+  </body>
+</html>`;
+  }
+}
 
 module.exports = {
-	activate,
-	deactivate
-}
+  activate,
+  deactivate
+};

@@ -9,18 +9,35 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "*"
+  ],  
   "main": "./extension.js",
   "contributes": {
-    "commands": [{
-      "command": "extension.helloWorld",
-      "title": "Hello World"
-    }]
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "dummySidebar",
+          "title": "Dummy Sidebar",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "dummySidebar": [
+        {
+          "id": "dummySidebar.myView",
+          "name": "My Dummy Sidebar"
+        }
+      ]
+    }
   },
   "scripts": {
     "lint": "eslint .",
     "pretest": "npm run lint",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "vscode:prepublish": "npm run compile",
+    "postinstall": "node ./node_modules/vscode/bin/install"
   },
   "devDependencies": {
     "@types/vscode": "^1.98.0",
