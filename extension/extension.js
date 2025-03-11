@@ -1,72 +1,126 @@
-// extension.js
-
 const vscode = require('vscode');
 
-/**
- * Called when the extension is activated.
- * @param {vscode.ExtensionContext} context
- */
 function activate(context) {
-  console.log('Dummy Sidebar extension activated');
+  console.log('Dummy Chat Extension activated');
 
-  // Register the webview view provider for the sidebar.
-  const provider = new DummySidebarViewProvider(context.extensionUri);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(DummySidebarViewProvider.viewType, provider)
-  );
+  // Register a command that opens the chat panel
+  let disposable = vscode.commands.registerCommand('dummyChat.openChat', () => {
+    // Create and show a new webview panel
+    const panel = vscode.window.createWebviewPanel(
+      'dummyChat',               // Identifies the type of the webview.
+      'Chat Interface',          // Title of the panel.
+      vscode.ViewColumn.One,     // Initially show in editor column 1.
+      { enableScripts: true }    // Enable scripts in the webview.
+    );
 
-  // Attempt to auto-show the sidebar. Note: Depending on your Code-Server or VS Code version,
-  // you might need to adjust the command id.
-  vscode.commands.executeCommand('workbench.view.extension.dummySidebar');
+    // Set the HTML content for the panel.
+    panel.webview.html = getChatHtml();
+
+    // Move the panel to the right editor group.
+    vscode.commands.executeCommand('workbench.action.moveEditorToRightGroup');
+  });
+
+  context.subscriptions.push(disposable);
+
+  // Open the panel automatically on activation:
+  vscode.commands.executeCommand('dummyChat.openChat');
 }
 
-function deactivate() {
-  // Clean up resources if needed.
-}
+function deactivate() {}
 
-class DummySidebarViewProvider {
-  static viewType = 'dummySidebar.myView';
-
-  /**
-   * @param {vscode.Uri} extensionUri
-   */
-  constructor(extensionUri) {
-    this.extensionUri = extensionUri;
-  }
-
-  /**
-   * This method is called when the view is resolved.
-   * @param {vscode.WebviewView} webviewView
-   * @param {vscode.WebviewViewResolveContext} context
-   * @param {vscode.CancellationToken} token
-   */
-  resolveWebviewView(webviewView, context, token) {
-    webviewView.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [this.extensionUri]
-    };
-
-    webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
-  }
-
-  /**
-   * Returns HTML content for the sidebar.
-   * @param {vscode.Webview} webview
-   */
-  getHtmlForWebview(webview) {
-    return `<!DOCTYPE html>
+function getChatHtml() {
+  return `<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dummy Sidebar</title>
-  </head>
-  <body>
-    <h2>Dummy Sidebar</h2>
-    <p>This is a dummy right-hand sidebar.</p>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat Interface</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #chat-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      border-bottom: 1px solid #ccc;
+      background-color: #f9f9f9;
+    }
+    #chat-form {
+      display: flex;
+      padding: 10px;
+      background: #eee;
+    }
+    #chat-input {
+      flex: 1;
+      padding: 5px;
+      font-size: 1rem;
+    }
+    #chat-submit {
+      margin-left: 10px;
+      padding: 5px 10px;
+      font-size: 1rem;
+    }
+    .chat-message {
+      margin-bottom: 8px;
+    }
+    .user {
+      color: blue;
+    }
+    .bot {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <div id="chat-log"></div>
+  <form id="chat-form">
+    <input id="chat-input" type="text" placeholder="Type your message..." autocomplete="off" />
+    <button id="chat-submit" type="submit">Send</button>
+  </form>
+  <script>
+    (function() {
+      const chatLog = document.getElementById('chat-log');
+      const chatForm = document.getElementById('chat-form');
+      const chatInput = document.getElementById('chat-input');
+
+      function appendMessage(sender, text) {
+        const messageElem = document.createElement('div');
+        messageElem.className = 'chat-message ' + sender;
+        messageElem.textContent = sender + ': ' + text;
+        chatLog.appendChild(messageElem);
+        chatLog.scrollTop = chatLog.scrollHeight;
+      }
+
+      chatForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const message = chatInput.value.trim();
+        if (!message) return;
+        appendMessage('user', message);
+        chatInput.value = '';
+
+        // Replace with your backend endpoint for OpenAI integration.
+        try {
+          const response = await fetch('https://your-backend-api.com/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+          });
+          const data = await response.json();
+          appendMessage('bot', data.reply || 'No reply');
+        } catch (error) {
+          appendMessage('bot', 'Error: ' + error.message);
+        }
+      });
+    }());
+  </script>
+</body>
 </html>`;
-  }
 }
 
 module.exports = {
