@@ -1,13 +1,13 @@
 const vscode = require('vscode');
 
 function activate(context) {
-  console.log('Dummy Chat Extension activated');
+  console.log('Chat Extension activated');
 
   // Register a command that opens the chat panel
-  let disposable = vscode.commands.registerCommand('dummyChat.openChat', () => {
+  let openChat = vscode.commands.registerCommand('ai-oa.openChat', () => {
     // Create and show a new webview panel
     const panel = vscode.window.createWebviewPanel(
-      'dummyChat',               // Identifies the type of the webview.
+      'sidebar',               // Identifies the type of the webview.
       'Chat Interface',          // Title of the panel.
       vscode.ViewColumn.One,     // Initially show in editor column 1.
       { enableScripts: true }    // Enable scripts in the webview.
@@ -20,10 +20,10 @@ function activate(context) {
     vscode.commands.executeCommand('workbench.action.moveEditorToRightGroup');
   });
 
-  context.subscriptions.push(disposable);
+  context.subscriptions.push(openChat);
 
   // Open the panel automatically on activation:
-  vscode.commands.executeCommand('dummyChat.openChat');
+  vscode.commands.executeCommand('ai-oa.openChat');
 }
 
 function deactivate() {}

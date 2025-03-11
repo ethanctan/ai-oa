@@ -1,7 +1,7 @@
 {
-  "name": "extension",
-  "displayName": "extension",
-  "description": "extension for ai-oa",
+  "name": "ai-oa-extension",
+  "displayName": "AI Interviewer",
+  "description": "Interviewer for project-based OAs.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.98.0"
@@ -14,20 +14,26 @@
   ],
   "main": "./extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "ai-oa.openChat",
+        "title": "Open Chat"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "dummySidebar",
-          "title": "Dummy Sidebar",
+          "id": "sidebar",
+          "title": "Chat Sidebar",
           "icon": "resources/icon.svg"
         }
       ]
     },
     "views": {
-      "dummySidebar": [
+      "sidebar": [
         {
-          "id": "dummySidebar.myView",
-          "name": "My Dummy Sidebar"
+          "id": "sidebar.myView",
+          "name": "Sidebar"
         }
       ]
     }

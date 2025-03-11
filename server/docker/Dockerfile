@@ -2,10 +2,10 @@
 FROM codercom/code-server:latest
 
 # Copy chatbot extension VSIX file into the container
-COPY extension-0.0.1.vsix /tmp/extension-0.0.1.vsix
+COPY ai-oa-extension-0.0.1.vsix /tmp/ai-oa-extension-0.0.1.vsix
 
 # Install the extension and remove the VSIX file
-RUN code-server --install-extension /tmp/extension-0.0.1.vsix 
+RUN code-server --install-extension /tmp/ai-oa-extension-0.0.1.vsix 
 
 # Run code-server
 EXPOSE 8080
