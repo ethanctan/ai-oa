@@ -37,6 +37,8 @@
     "pretest": "npm run lint",
     "test": "vscode-test",
     "vscode:prepublish": "npm run compile",
+    "compile": "echo 'No compilation needed for JavaScript'",
+    "watch": "echo 'Watching not set up'",
     "postinstall": "node ./node_modules/vscode/bin/install"
   },
   "devDependencies": {
