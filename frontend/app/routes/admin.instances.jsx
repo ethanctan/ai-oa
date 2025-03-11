@@ -47,7 +47,7 @@ export default function InstancesAdmin() {
       </section>
 
       <section className="mt-4">
-        <h2>Active Instances</h2>
+      <h2>Active Instances</h2>
         {instances.length === 0 ? (
           <p>No active instances.</p>
         ) : (
@@ -56,6 +56,13 @@ export default function InstancesAdmin() {
               <li key={instance.Id}>
                 <strong>{instance.Names.join(", ")}</strong> —{" "}
                 {instance.Ports.map((p) => p.PublicPort).join(", ")}
+                {" "}
+                <Form method="post" style={{ display: "inline" }}>
+                  {/* Hidden field to indicate deletion */}
+                  <input type="hidden" name="action" value="delete" />
+                  <input type="hidden" name="instanceId" value={instance.Id} />
+                  <button type="submit" style={{ marginLeft: "1rem" }}>Delete</button>
+                </Form>
               </li>
             ))}
           </ul>
