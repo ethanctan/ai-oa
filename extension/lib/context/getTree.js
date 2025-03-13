@@ -1,6 +1,6 @@
 // NOT IN USE FOR MVP
 
-// lib/treeBuilder.js
+// lib/context/getTree.js
 
 const fs = require('fs');
 const path = require('path');

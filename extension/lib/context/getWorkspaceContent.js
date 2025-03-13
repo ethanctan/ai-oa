@@ -1,14 +1,14 @@
+// lib/context/getFiles.js
+
 const vscode = require('vscode');
 
 /**
- * Retrieves the content of all files in the workspace,
- * excluding files matching the given glob (e.g., node_modules).
+ * Retrieves the content of files in the workspace matching a glob pattern,
+ * excluding another glob pattern.
  * Returns a single concatenated string.
  */
-async function getAllWorkspaceContent() {
-  const excludePattern = '**/node_modules/**';
-  // Write as a glob pattern: https://code.visualstudio.com/api/references/vscode-api#GlobPattern
-  const files = await vscode.workspace.findFiles('**/*', excludePattern);
+async function getWorkspaceContent(includePattern = '**/*', excludePattern = '') {
+  const files = await vscode.workspace.findFiles(includePattern, excludePattern);
   let projectContent = '';
 
   for (const file of files) {
@@ -24,3 +24,5 @@ async function getAllWorkspaceContent() {
   }
   return projectContent;
 }
+
+module.exports = { getWorkspaceContent };

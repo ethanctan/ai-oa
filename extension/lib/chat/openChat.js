@@ -1,7 +1,10 @@
 // lib/chat/openChat.js
 
+//TODO: Import getFiles
+
 const vscode = require('vscode');
 const { getChatHtml } = require('./getChatHtml');
+const { getWorkspaceContent } = require('../context/getWorkspaceContent');
 
 function openChat() {
   // If the chat panel already exists, reveal it in the right group.
@@ -20,6 +23,22 @@ function openChat() {
 
   // Set the HTML content for the panel.
   global.chatPanel.webview.html = getChatHtml();
+
+  // Listen for messages from the webview.
+  global.chatPanel.webview.onDidReceiveMessage(async message => {
+    if (message.command === 'getWorkspaceContent') {
+      try {
+        const includePattern = '**/*';
+        const excludePattern = '**/node_modules/**';
+        const content = await getWorkspaceContent(includePattern, excludePattern);
+        // Post the content back to the webview
+        // TODO: Replace with posting to OpenAI
+        global.chatPanel.webview.postMessage({ command: 'workspaceContent', content });
+      } catch (error) {
+        global.chatPanel.webview.postMessage({ command: 'workspaceContent', error: error.message });
+      }
+    }
+  });
 
   // Move the panel to the right editor group.
   vscode.commands.executeCommand('workbench.action.moveEditorToRightGroup');
