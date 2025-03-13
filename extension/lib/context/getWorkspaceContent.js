@@ -7,7 +7,7 @@ const vscode = require('vscode');
  * excluding another glob pattern.
  * Returns a single concatenated string.
  */
-async function getWorkspaceContent(includePattern = '**/*', excludePattern = '') {
+async function getWorkspaceContent(includePattern = '**', excludePattern = '') {
   const files = await vscode.workspace.findFiles(includePattern, excludePattern);
   let projectContent = '';
 
