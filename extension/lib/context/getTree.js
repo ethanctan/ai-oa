@@ -1,6 +1,5 @@
-// NOT IN USE FOR MVP
-
 // lib/context/getTree.js
+// NOT IN USE FOR MVP
 
 const fs = require('fs');
 const path = require('path');

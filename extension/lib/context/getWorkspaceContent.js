@@ -1,4 +1,4 @@
-// lib/context/getFiles.js
+// lib/context/getWorkspaceContent.js
 
 const vscode = require('vscode');
 
