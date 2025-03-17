@@ -1,27 +1,26 @@
 // controllers/chatController.js
-const ModelClient = require("@azure-rest/ai-inference");
+const ModelClient = require("@azure-rest/ai-inference").default;
 const { DefaultAzureCredential } = require("@azure/identity");
 
-const endpoint = process.env.AZURE_OPENAI_ENDPOINT; 
-const deploymentId = process.env.AZURE_OPENAI_DEPLOYMENT_ID; 
+const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+const deploymentId = process.env.AZURE_OPENAI_DEPLOYMENT_ID;
 const apiVersion = process.env.AZURE_OPENAI_API_VERSION;
 
 /**
- * Calls the OpenAI API to get a chat response.
- * @param {Object} messages - Array of 'prior messages' to provide context. Expected format: 
+ * Calls the Azure OpenAI API to get a chat response.
+ * @param {Object} param0 - An object with a "messages" property. Expected format:
  *  [
- *   { role: "system", content: "<System prompt here>" },
- *   { role: "user", content: "First user message" },
- *   { role: "assistant", content: "First assistant response" },
- *   ...
+ *    { role: "system", content: "<System prompt here>" },
+ *    { role: "user", content: "First user message" },
+ *    { role: "assistant", content: "First assistant response" },
+ *    ...
  *  ]
  * @returns {Promise<string>} - The chat response.
  */
-
 async function getChatResponse({ messages }) {
   const client = new ModelClient(endpoint, new DefaultAzureCredential());
   const path = `/openai/deployments/${deploymentId}/chat/completions`;
-  
+
   const response = await client.path(path).post({
     queryParameters: { "api-version": apiVersion },
     body: {

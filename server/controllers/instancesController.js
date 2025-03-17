@@ -44,7 +44,6 @@ async function createInstance({ instanceName, projectPath, githubRepo, githubTok
       throw new Error(error.message);
     }
   }
-  console.log("instancesController.js: cloned repo successfully")
 
   // Define container configuration for Code‑Server
   const containerConfig = {
@@ -66,9 +65,6 @@ async function createInstance({ instanceName, projectPath, githubRepo, githubTok
       ]
     }
   };
-
-  console.log("instancesController.js: container config defined:")
-  console.log(containerConfig)
 
   try {
     const container = await docker.createContainer(containerConfig);
