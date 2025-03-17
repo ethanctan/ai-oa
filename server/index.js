@@ -1,6 +1,6 @@
 const express = require('express');
 const instancesRoutes = require('./routes/instances');
-const chatRoute = require('./routes/chat'); 
+const chatRoutes = require('./routes/chat'); 
 
 const app = express();
 app.use(express.json());
@@ -8,7 +8,7 @@ app.use(express.json());
 // Routes
 
 app.use('/instances', instancesRoutes);
-app.use('/chat', chatRoute);
+app.use('/chat', chatRoutes);
 
 // Start server
 

@@ -30,7 +30,7 @@
       padding: 5px;
       font-size: 1rem;
     }
-    #chat-submit, #get-content {
+    #chat-submit {
       margin-left: 10px;
       padding: 5px 10px;
       font-size: 1rem;
@@ -41,7 +41,7 @@
     .user {
       color: blue;
     }
-    .bot {
+    .interviewer {
       color: green;
     }
   </style>
@@ -51,7 +51,6 @@
   <form id="chat-form">
     <input id="chat-input" type="text" placeholder="Type your message..." autocomplete="off" />
     <button id="chat-submit" type="submit">Send</button>
-    <button id="get-content" type="button">Load Project Context</button>
   </form>
   <script>
     (function() {
@@ -59,43 +58,30 @@
       const chatLog = document.getElementById('chat-log');
       const chatForm = document.getElementById('chat-form');
       const chatInput = document.getElementById('chat-input');
-      const getContentButton = document.getElementById('get-content');
 
       // Global variables to store chat history and workspace context
       let chatHistory = [];
       let workspaceContext = '';
 
-      // Append a message to the chat log and save it in chatHistory, so we can pass the entire chat content to GPT.
+      // Appends a message to the chat log and record it in chatHistory.
       function appendMessage(sender, text) {
         const messageElem = document.createElement('div');
         messageElem.className = 'chat-message ' + sender;
         messageElem.textContent = sender + ': ' + text;
         chatLog.appendChild(messageElem);
         chatLog.scrollTop = chatLog.scrollHeight;
-        // Store in chat history
-        chatHistory.push({ role: sender === 'user' ? 'user' : 'assistant', content: text });
+        // Record message in history
+        chatHistory.push({ role: sender === 'user' ? 'user' : 'bot', content: text });
       }
 
-      // When "Load Project Context" is clicked, request workspace content.
-      // TODO: Remove this for production, this just tests that we can access the workspace content.
-      getContentButton.addEventListener('click', () => {
+      // Retrieve all files in the workspace (functionality defined in ./openChat.js).
+      function requestWorkspaceContext() {
         vscode.postMessage({ command: 'getWorkspaceContent' });
-      });
-
-      // Listen for messages from the extension.
-      window.addEventListener('message', event => {
-        const message = event.data;
-        if (message.command === 'workspaceContent') {
-          if (message.error) {
-            appendMessage('bot', 'Error retrieving project: ' + message.error);
-          } else {
-            workspaceContext = message.content; // Save the full workspace content
-            // For demonstration, display only a snippet.
-            const snippet = workspaceContext.substring(0, 500) + '...';
-            appendMessage('bot', 'Project context loaded (snippet): ' + snippet);
-          }
-        }
-      });
+      }
+      
+      // Retrieve all files immediately then every 2 seconds.
+      requestWorkspaceContext();
+      setInterval(requestWorkspaceContext, 2000);
 
       // When a new chat message is submitted.
       chatForm.addEventListener('submit', async (event) => {
@@ -105,28 +91,25 @@
         appendMessage('user', userMessage);
         chatInput.value = '';
 
-        // Construct the prompt data including previous chat history and workspace context.
-        // We'll assume the backend expects a JSON payload with:
-        // - message: the latest user message
-        // - chatHistory: an array of previous messages
-        // - workspaceContext: the full project files/content as context
+        // Construct the expected messages object (see server API documentation in controllers/chatController.js).
         const payload = {
-          message: userMessage,
-          chatHistory,
-          workspaceContext
+          messages: [
+            { role: 'system', content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation.' },
+            { role: 'system', content: 'Project workspace content:' + workspaceContext },
+            ...chatHistory
+          ],
         };
 
         try {
-          // Replace with your actual backend endpoint URL.
           const response = await fetch('https://localhost:3000/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
           const data = await response.json();
-          appendMessage('bot', data.reply || 'No reply');
+          appendMessage('interviewer', data.reply || 'No reply');
         } catch (error) {
-          appendMessage('bot', 'Error: ' + error.message);
+          appendMessage('interviewer', 'Error: ' + error.message);
         }
       });
     }());

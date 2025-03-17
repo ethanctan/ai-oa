@@ -34,7 +34,8 @@ export async function action({ request }) {
   });
   
   if (!response.ok) {
-    throw new Error("Failed to create instance");
+    console.log(response)
+    throw new Error("Failed to create instance: See console")
   }
   const result = await response.json();
   return Response.json(result);

@@ -1,22 +1,27 @@
 // controllers/chatController.js
-import ModelClient from "@azure-rest/ai-inference";
-import { DefaultAzureCredential } from "@azure/identity";
+const ModelClient = require("@azure-rest/ai-inference");
+const { DefaultAzureCredential } = require("@azure/identity");
 
-const endpoint = process.env.AZURE_OPENAI_ENDPOINT; // e.g. "https://ai-oa-chatbot.openai.azure.com"
-const deploymentId = process.env.AZURE_OPENAI_DEPLOYMENT_ID; // e.g. "gpt-4o"
-const apiVersion = process.env.AZURE_OPENAI_API_VERSION || "2023-03-15-preview";
+const endpoint = process.env.AZURE_OPENAI_ENDPOINT; 
+const deploymentId = process.env.AZURE_OPENAI_DEPLOYMENT_ID; 
+const apiVersion = process.env.AZURE_OPENAI_API_VERSION;
 
 /**
- * Calls the Azure OpenAI Chat Completions API with the provided messages.
- * @param {Array} messages - Array of message objects in the format expected by OpenAI.
- * @returns {Promise<string>} - The response message content.
+ * Calls the OpenAI API to get a chat response.
+ * @param {Object} messages - Array of 'prior messages' to provide context. Expected format: 
+ *  [
+ *   { role: "system", content: "<System prompt here>" },
+ *   { role: "user", content: "First user message" },
+ *   { role: "assistant", content: "First assistant response" },
+ *   ...
+ *  ]
+ * @returns {Promise<string>} - The chat response.
  */
-export async function getChatResponse(messages) {
-  // Create a new ModelClient instance with default credentials.
-  const client = new ModelClient(endpoint, new DefaultAzureCredential());
 
-  // Build the path with deploymentId and pass the API version as a query parameter.
+async function getChatResponse({ messages }) {
+  const client = new ModelClient(endpoint, new DefaultAzureCredential());
   const path = `/openai/deployments/${deploymentId}/chat/completions`;
+  
   const response = await client.path(path).post({
     queryParameters: { "api-version": apiVersion },
     body: {
@@ -30,8 +35,7 @@ export async function getChatResponse(messages) {
   if (response.status !== "200") {
     throw new Error(response.body.error);
   }
-  // Return the first response message from the API.
   return response.body.choices[0].message.content;
 }
 
-// TODO: Implement streaming
+module.exports = { getChatResponse };
