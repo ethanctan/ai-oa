@@ -1,10 +1,12 @@
 // lib/chat/openChat.js
 
-//TODO: Import getFiles
-
 const vscode = require('vscode');
+const fetch = require('node-fetch'); 
 const { getChatHtml } = require('./getChatHtml');
 const { getWorkspaceContent } = require('../context/getWorkspaceContent');
+
+// This might not work for Linux - instead use the host’s IP
+const SERVER_CHAT_URL = 'http://host.docker.internal:3000/chat';
 
 function openChat() {
   // If the chat panel already exists, reveal it in the right group.
@@ -25,17 +27,36 @@ function openChat() {
   global.chatPanel.webview.html = getChatHtml();
 
   // Listen for messages from the webview.
-  global.chatPanel.webview.onDidReceiveMessage(async message => {
+  global.chatPanel.webview.onDidReceiveMessage(async (message) => {
+
+    // If we want to get workspace content
     if (message.command === 'getWorkspaceContent') {
       try {
         const includePattern = '**/*';
         const excludePattern = '**/node_modules/**';
         const content = await getWorkspaceContent(includePattern, excludePattern);
-        // Post the content back to the webview
-        // TODO: Replace with posting to OpenAI
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', content });
       } catch (error) {
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', error: error.message });
+      }
+    }
+    
+    // If we want to communicate with GPT
+    if (message.command === 'chatMessage') {
+      try {
+        // message.payload is expected to contain the messages array (chat history, system prompts, etc.)
+        const response = await fetch(SERVER_CHAT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(message.payload)
+        });
+        if (!response.ok) {
+          throw new Error('HTTP error ' + response.status);
+        }
+        const data = await response.json();
+        global.chatPanel.webview.postMessage({ command: 'chatResponse', reply: data.reply });
+      } catch (error) {
+        global.chatPanel.webview.postMessage({ command: 'chatResponse', error: error.message });
       }
     }
   });

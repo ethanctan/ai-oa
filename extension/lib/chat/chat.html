@@ -92,25 +92,15 @@
         chatInput.value = '';
 
         // Construct the expected messages object (see server API documentation in controllers/chatController.js).
-        const payload = {
-          messages: [
-            { role: 'system', content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation.' },
-            { role: 'system', content: 'Project workspace content:' + workspaceContext },
-            ...chatHistory
-          ],
-        };
+        const messages = [
+          { role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation.' },
+          { role: "system", content: "Project workspace content: " + workspaceContext },
+          ...chatHistory,
+          { role: "user", content: userMessage }
+        ];
 
-        try {
-          const response = await fetch('http://localhost:3000/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          const data = await response.json();
-          appendMessage('interviewer', data.reply || 'No reply');
-        } catch (error) {
-          appendMessage('interviewer', 'Error: ' + error.message);
-        }
+        vscode.postMessage({ command: 'chatMessage', payload: { messages } });
+
       });
     }());
   </script>

@@ -1,14 +1,19 @@
 // controllers/chatController.js
 const ModelClient = require("@azure-rest/ai-inference").default;
 const { DefaultAzureCredential } = require("@azure/identity");
+require('dotenv').config();
 
 const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
 const deploymentId = process.env.AZURE_OPENAI_DEPLOYMENT_ID;
 const apiVersion = process.env.AZURE_OPENAI_API_VERSION;
 
+console.log("AZURE_OPENAI_ENDPOINT:", endpoint);
+console.log("AZURE_OPENAI_DEPLOYMENT_ID:", deploymentId);
+console.log("AZURE_OPENAI_API_VERSION:", apiVersion);
+
 /**
  * Calls the Azure OpenAI API to get a chat response.
- * @param {Object} param0 - An object with a "messages" property. Expected format:
+ * @param {Object} messages - An object with a "messages" property. Expected format:
  *  [
  *    { role: "system", content: "<System prompt here>" },
  *    { role: "user", content: "First user message" },
