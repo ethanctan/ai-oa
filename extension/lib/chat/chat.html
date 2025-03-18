@@ -83,6 +83,18 @@
       requestWorkspaceContext();
       setInterval(requestWorkspaceContext, 2000);
 
+      // Listen for messages from the extension.
+      window.addEventListener('message', event => {
+        const message = event.data;
+        if (message.command === 'chatResponse') {
+          if (message.error) {
+            appendMessage('interviewer', 'Error: ' + message.error);
+          } else {
+            appendMessage('interviewer', message.reply || 'No reply');
+          }
+        }
+      });
+
       // When a new chat message is submitted.
       chatForm.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -92,13 +104,13 @@
         chatInput.value = '';
 
         // Construct the expected messages object (see server API documentation in controllers/chatController.js).
-        const messages = [
-          { role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation.' },
-          { role: "system", content: "Project workspace content: " + workspaceContext },
-          ...chatHistory,
-          { role: "user", content: userMessage }
-        ];
-
+        const messages = { "messages": [
+                            { role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation.' },
+                            { role: "system", content: "Project workspace content: " + workspaceContext },
+                            ...chatHistory,
+                            { role: "user", content: userMessage }
+                        ]}
+        
         vscode.postMessage({ command: 'chatMessage', payload: { messages } });
 
       });

@@ -17,7 +17,7 @@
     "commands": [
       {
         "command": "ai-oa.openChat",
-        "title": "Open Chat"
+        "title": "AI OA: Open Chat"
       }
     ],
     "viewsContainers": {

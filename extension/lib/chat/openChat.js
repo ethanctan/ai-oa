@@ -1,7 +1,6 @@
 // lib/chat/openChat.js
 
 const vscode = require('vscode');
-const fetch = require('node-fetch'); 
 const { getChatHtml } = require('./getChatHtml');
 const { getWorkspaceContent } = require('../context/getWorkspaceContent');
 
@@ -27,24 +26,22 @@ function openChat() {
   global.chatPanel.webview.html = getChatHtml();
 
   // Listen for messages from the webview.
-  global.chatPanel.webview.onDidReceiveMessage(async (message) => {
-
-    // If we want to get workspace content
+  global.chatPanel.webview.onDidReceiveMessage(async message => {
     if (message.command === 'getWorkspaceContent') {
       try {
         const includePattern = '**/*';
         const excludePattern = '**/node_modules/**';
         const content = await getWorkspaceContent(includePattern, excludePattern);
+        // Post the content back to the webview
+        // TODO: Replace with posting to OpenAI
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', content });
       } catch (error) {
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', error: error.message });
       }
     }
-    
-    // If we want to communicate with GPT
+
     if (message.command === 'chatMessage') {
       try {
-        // message.payload is expected to contain the messages array (chat history, system prompts, etc.)
         const response = await fetch(SERVER_CHAT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -59,6 +56,7 @@ function openChat() {
         global.chatPanel.webview.postMessage({ command: 'chatResponse', error: error.message });
       }
     }
+
   });
 
   // Move the panel to the right editor group.
