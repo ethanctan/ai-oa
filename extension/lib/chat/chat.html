@@ -74,6 +74,15 @@
         chatHistory.push({ role: sender === 'user' ? 'user' : 'bot', content: text });
       }
 
+      // Appends a message without recording in chatHistory.
+      function appendMessageNoHistory(sender, text) {
+        const messageElem = document.createElement('div');
+        messageElem.className = 'chat-message ' + sender;
+        messageElem.textContent = sender + ': ' + text;
+        chatLog.appendChild(messageElem);
+        chatLog.scrollTop = chatLog.scrollHeight;
+      }
+
       // Retrieve all files in the workspace (functionality defined in ./openChat.js).
       function requestWorkspaceContext() {
         vscode.postMessage({ command: 'getWorkspaceContent' });
@@ -86,11 +95,20 @@
       // Listen for messages from the extension.
       window.addEventListener('message', event => {
         const message = event.data;
+        // If we get a GPT response
         if (message.command === 'chatResponse') {
           if (message.error) {
             appendMessage('interviewer', 'Error: ' + message.error);
           } else {
             appendMessage('interviewer', message.reply || 'No reply');
+          }
+
+        // If we get the contents of this workspace
+        } else if (message.command === 'workspaceContent') { 
+          if (message.error) {
+            console.error('Error retrieving workspace content:', message.error);
+          } else {
+            workspaceContext = message.content; 
           }
         }
       });
@@ -109,8 +127,10 @@
                             { role: "system", content: "Project workspace content: " + workspaceContext },
                             ...chatHistory,
                             { role: "user", content: userMessage }
-                        ]}
-        
+                        ]};
+
+        appendMessageNoHistory('interviewer', JSON.stringify(messages)); // Debugging: show the constructed messages object
+
         vscode.postMessage({ command: 'chatMessage', payload: { messages } });
 
       });

@@ -33,7 +33,6 @@ function openChat() {
         const excludePattern = '**/node_modules/**';
         const content = await getWorkspaceContent(includePattern, excludePattern);
         // Post the content back to the webview
-        // TODO: Replace with posting to OpenAI
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', content });
       } catch (error) {
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', error: error.message });
