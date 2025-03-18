@@ -1,45 +1,45 @@
 // controllers/chatController.js
-const ModelClient = require("@azure-rest/ai-inference").default;
-const { DefaultAzureCredential } = require("@azure/identity");
 require('dotenv').config();
+const { AzureOpenAI } = require("openai");
 
 const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-const deploymentId = process.env.AZURE_OPENAI_DEPLOYMENT_ID;
-const apiVersion = process.env.AZURE_OPENAI_API_VERSION;
-
-console.log("AZURE_OPENAI_ENDPOINT:", endpoint);
-console.log("AZURE_OPENAI_DEPLOYMENT_ID:", deploymentId);
-console.log("AZURE_OPENAI_API_VERSION:", apiVersion);
+const apiKey = process.env.AZURE_OPENAI_API_KEY;
+const apiVersion = process.env.OPENAI_API_VERSION;
+const deployment = process.env.AZURE_OPENAI_DEPLOYMENT_NAME; 
 
 /**
  * Calls the Azure OpenAI API to get a chat response.
- * @param {Object} messages - An object with a "messages" property. Expected format:
- *  [
- *    { role: "system", content: "<System prompt here>" },
- *    { role: "user", content: "First user message" },
- *    { role: "assistant", content: "First assistant response" },
- *    ...
- *  ]
+ * @param {Object} param0 - An object with a "messages" property.
+ *   Expected format:
+ *     [
+ *       { role: "system", content: "<System prompt here>" },
+ *       { role: "user", content: "First user message" },
+ *       { role: "assistant", content: "First assistant response" },
+ *       ...
+ *     ]
  * @returns {Promise<string>} - The chat response.
  */
 async function getChatResponse({ messages }) {
-  const client = new ModelClient(endpoint, new DefaultAzureCredential());
-  const path = `/openai/deployments/${deploymentId}/chat/completions`;
+  try {
+    // Create an AzureOpenAI client with the given configuration.
+    const client = new AzureOpenAI({ endpoint, apiKey, apiVersion, deployment });
 
-  const response = await client.path(path).post({
-    queryParameters: { "api-version": apiVersion },
-    body: {
+    // Call the chat completions API with the provided messages.
+    const result = await client.chat.completions.create({
       messages,
-      temperature: 1.0,
-      top_p: 1.0,
-      max_tokens: 1000
-    }
-  });
+      // Pass additional parameters such as temperature, top_p, max_tokens if needed
+    });
 
-  if (response.status !== "200") {
-    throw new Error(response.body.error);
+    // Check if the result contains choices and return the first reply.
+    if (result.choices && result.choices.length > 0) {
+      return result.choices[0].message.content;
+    } else {
+      throw new Error("No choices returned from Azure OpenAI");
+    }
+  } catch (error) {
+    throw new Error("Error calling Azure OpenAI: " + error.message);
   }
-  return response.body.choices[0].message.content;
 }
 
 module.exports = { getChatResponse };
+
