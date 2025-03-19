@@ -68,3 +68,19 @@ function openChat() {
 }
 
 module.exports = { openChat };
+
+
+// {"messages":
+  
+//   [{"role":"system","content":"You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation."},
+    
+//     {"role":"system","content":"Project workspace content: \n\n=== /home/coder/project/README.md ===\n\n# ai-oa-test-repo\nTest project repo for ethanctan/ai-oa\n\nIf you cloned this repo correctly, this text should show up.\n\n\n=== /home/coder/project/test.py ===\n\nprint(\"Hello, world!\")\n"},
+    
+//     {"role":"user","content":"Hello"},
+    
+//     {"role":"bot","content":"Hi there! Let's discuss the coding project. Could you walk me through your design decisions and implementation for the provided code in `test.py`? Specifically, why did you choose this approach?"},
+    
+//     {"role":"user","content":"Hello"},
+    
+//     {"role":"user","content":"Hello"}
+//   ]}

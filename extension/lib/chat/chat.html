@@ -71,10 +71,10 @@
         chatLog.appendChild(messageElem);
         chatLog.scrollTop = chatLog.scrollHeight;
         // Record message in history
-        chatHistory.push({ role: sender === 'user' ? 'user' : 'bot', content: text });
+        chatHistory.push({ role: sender === 'user' ? 'user' : 'assistant', content: text });
       }
 
-      // Appends a message without recording in chatHistory.
+      // Appends a message without recording in chatHistory. For debugging.
       function appendMessageNoHistory(sender, text) {
         const messageElem = document.createElement('div');
         messageElem.className = 'chat-message ' + sender;
@@ -125,11 +125,8 @@
         const messages = { "messages": [
                             { role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation.' },
                             { role: "system", content: "Project workspace content: " + workspaceContext },
-                            ...chatHistory,
-                            { role: "user", content: userMessage }
+                            ...chatHistory
                         ]};
-
-        appendMessageNoHistory('interviewer', JSON.stringify(messages)); // Debugging: show the constructed messages object
 
         vscode.postMessage({ command: 'chatMessage', payload: { messages } });
 
