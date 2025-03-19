@@ -29,7 +29,7 @@ function openChat() {
   global.chatPanel.webview.onDidReceiveMessage(async message => {
     if (message.command === 'getWorkspaceContent') {
       try {
-        const includePattern = '**/*';
+        const includePattern = '*';
         const excludePattern = '**/node_modules/**';
         const content = await getWorkspaceContent(includePattern, excludePattern);
         // Post the content back to the webview
