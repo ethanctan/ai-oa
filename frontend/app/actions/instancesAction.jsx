@@ -24,6 +24,9 @@ export async function action({ request }) {
   const githubRepo = formData.get("githubRepo");
   const githubToken = formData.get("githubToken");
   const portMapping = formData.get("portMapping");
+  const initialPrompt = formData.get("initialPrompt");
+  const finalPrompt = formData.get("finalPrompt");
+  const assessmentPrompt = formData.get("assessmentPrompt");
   
   const payload = { instanceName, githubRepo, githubToken, portMapping };
   
@@ -34,8 +37,8 @@ export async function action({ request }) {
   });
   
   if (!response.ok) {
-    console.log(response)
-    throw new Error("Failed to create instance: See console")
+    const errorMessage = await response.text(); // or use response.json() if the server returns a JSON error message
+    throw new Error(`Failed to create instance: ${errorMessage}`);
   }
   const result = await response.json();
   return Response.json(result);
