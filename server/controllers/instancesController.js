@@ -31,7 +31,7 @@ if (!fs.existsSync(BASE_PROJECTS_DIR)) {
  * @param {string} [data.portMapping] - Host port mapping for container.
  * @returns {Promise<Object>} - Object containing instance details.
  */
-async function createInstance({ instanceName, projectPath, githubRepo, githubToken, portMapping }) {
+async function createInstance({ instanceName, projectPath, githubRepo, githubToken, portMapping, initialPrompt, finalPrompt, assessmentPrompt}) {
   let finalProjectPath = projectPath; // Default to provided projectPath
 
   // If a GitHub repo is provided, clone it and use that as the workspace.
@@ -41,7 +41,7 @@ async function createInstance({ instanceName, projectPath, githubRepo, githubTok
       await cloneRepo(githubRepo, targetFolder, githubToken, execPromise);
       finalProjectPath = targetFolder;
     } catch (error) {
-      throw new Error(error.message);
+      throw new Error(`Error cloning repo: ${error.message}`);
     }
   }
 
@@ -51,6 +51,11 @@ async function createInstance({ instanceName, projectPath, githubRepo, githubTok
     name: instanceName,
     Env: [
       `DOCKER_USER=${process.env.USER || 'coder'}`
+    ],
+    Cmd: [
+    "/bin/sh",
+    "-c",
+    `echo '${initialPrompt}' > .initialPrompt.txt && echo '${finalPrompt}' > .finalPrompt.txt && echo '${assessmentPrompt}' > .assessmentPrompt.txt`
     ],
     ExposedPorts: { '8080/tcp': {} },
     HostConfig: {

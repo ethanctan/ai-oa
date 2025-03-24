@@ -40,6 +40,43 @@ export default function InstancesAdmin() {
               <input type="text" name="portMapping" placeholder="e.g., 8081" />
             </label>
           </div>
+          <h2>Define Assistant Prompts</h2>
+					<div>
+						<label htmlFor="initialPrompt">Initial Questions:</label>
+						<textarea
+							id="initialPrompt"
+							name="initialPrompt"
+							rows="10"
+							cols="50"
+							defaultValue="You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation."
+						/>
+					</div>
+					<div>
+						<label htmlFor="finalPrompt">Initial Questions:</label>
+						<textarea
+							id="finalPrompt"
+							name="finalPrompt"
+							rows="10"
+							cols="50"
+							defaultValue="You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation."
+						/>
+					</div>
+					<div>
+						<label htmlFor="assessmentPrompt">Assessment Criteria:</label>
+						<textarea
+							id="assessmentPrompt"
+							name="assessmentPrompt"
+							rows="10"
+							cols="50"
+							defaultValue="Please review the following code. Consider:
+1. Code quality and adherence to best practices
+2. Potential bugs or edge cases
+3. Performance optimizations
+4. Readability and maintainability
+5. Any security concerns
+Suggest improvements and explain your reasoning for each suggestion."
+						/>
+					</div>
           <button type="submit" className="mt-2">
             Create Instance
           </button>

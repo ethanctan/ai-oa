@@ -28,7 +28,7 @@ export async function action({ request }) {
   const finalPrompt = formData.get("finalPrompt");
   const assessmentPrompt = formData.get("assessmentPrompt");
   
-  const payload = { instanceName, githubRepo, githubToken, portMapping };
+  const payload = { instanceName, githubRepo, githubToken, portMapping, initialPrompt, finalPrompt, assessmentPrompt };
   
   const response = await fetch("http://localhost:3000/instances", {
     method: "POST",
