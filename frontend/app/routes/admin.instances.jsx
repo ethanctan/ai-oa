@@ -52,7 +52,7 @@ export default function InstancesAdmin() {
 						/>
 					</div>
 					<div>
-						<label htmlFor="finalPrompt">Initial Questions:</label>
+						<label htmlFor="finalPrompt">Final Questions:</label>
 						<textarea
 							id="finalPrompt"
 							name="finalPrompt"
