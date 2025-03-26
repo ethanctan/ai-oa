@@ -29,7 +29,17 @@ async function cloneRepo(repoUrl, targetDir, token, execPromise) {
       throw new Error(`Error cloning repository: ${error.message}`);
     }
   }
-  
-  module.exports = {
-    cloneRepo,
-  };
+
+/**
+ * Sanitizes a name for use as the target directory for a 'git clone' command.
+ * @param {string} name - The name to sanitize.
+ * @returns {string} Sanitized name.
+ */
+function sanitizeName(name) {
+  return name.replace(/[^a-z0-9]/gi, '_');
+}
+
+module.exports = {
+  cloneRepo,
+  sanitizeName
+};

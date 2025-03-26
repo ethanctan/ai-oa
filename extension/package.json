@@ -1,8 +1,8 @@
 {
   "name": "ai-oa-extension",
-  "displayName": "AI Interviewer",
-  "description": "Interviewer for project-based OAs.",
-  "version": "0.0.1",
+  "displayName": "AI Technical Interviewer",
+  "description": "An AI-powered interviewer for coding assessments that guides candidates through pre-interview, coding tasks, and post-interview review.",
+  "version": "0.1.0",
   "engines": {
     "vscode": "^1.98.0"
   },
@@ -17,14 +17,14 @@
     "commands": [
       {
         "command": "ai-oa.openChat",
-        "title": "AI OA: Open Chat"
+        "title": "AI OA: Open Interviewer"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
           "id": "sidebar",
-          "title": "Chat Sidebar",
+          "title": "AI Interviewer",
           "icon": "resources/icon.svg"
         }
       ]
@@ -33,7 +33,7 @@
       "sidebar": [
         {
           "id": "sidebar.myView",
-          "name": "Sidebar"
+          "name": "Interviewer"
         }
       ]
     }

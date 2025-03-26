@@ -4,8 +4,41 @@ const vscode = require('vscode');
 const { getChatHtml } = require('./getChatHtml');
 const { getWorkspaceContent } = require('../context/getWorkspaceContent');
 
-// This might not work for Linux - instead use the host’s IP
 const SERVER_CHAT_URL = 'http://host.docker.internal:3000/chat';
+
+// Function to get environment variables 
+async function getEnvironmentVariables() {
+  try {
+    // Execute a command to read environment variables
+    const result = await new Promise((resolve, reject) => {
+      const { exec } = require('child_process');
+      exec('env | grep -E "INITIAL_PROMPT|FINAL_PROMPT|ASSESSMENT_PROMPT"', (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error getting env variables: ${error.message}`);
+          // Don't reject - just return empty if there's an issue
+          resolve({});
+          return;
+        }
+        
+        // Parse the output to get the environment variables
+        const env = {};
+        stdout.split('\n').forEach(line => {
+          const [key, ...valueParts] = line.split('=');
+          if (key) {
+            env[key] = valueParts.join('=');
+          }
+        });
+        
+        resolve(env);
+      });
+    });
+    
+    return result;
+  } catch (error) {
+    console.error('Error getting environment variables:', error);
+    return {};
+  }
+}
 
 function openChat() {
   // If the chat panel already exists, reveal it in the right group.
@@ -17,9 +50,12 @@ function openChat() {
   // Create the webview panel (initially in the first editor group)
   global.chatPanel = vscode.window.createWebviewPanel(
     'sidebar',               // Identifier for the webview type.
-    'Chat Interface',        // Title for the panel.
+    'AI Interviewer',        // Title for the panel.
     vscode.ViewColumn.One,   // Initially show in editor group 1.
-    { enableScripts: true }  // Enable scripts in the webview.
+    { 
+      enableScripts: true,
+      retainContextWhenHidden: true  // Keep the webview state when hidden
+    }
   );
 
   // Set the HTML content for the panel.
@@ -36,6 +72,25 @@ function openChat() {
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', content });
       } catch (error) {
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', error: error.message });
+      }
+    }
+
+    if (message.command === 'getEnvironmentPrompts') {
+      try {
+        const envVars = await getEnvironmentVariables();
+        global.chatPanel.webview.postMessage({ 
+          command: 'environmentPrompts', 
+          initialPrompt: envVars.INITIAL_PROMPT || 'Default initial prompt: Please describe your approach to the project.',
+          finalPrompt: envVars.FINAL_PROMPT || 'Default final prompt: Now that you have completed the project, explain your implementation decisions.',
+          assessmentPrompt: envVars.ASSESSMENT_PROMPT || ''
+        });
+      } catch (error) {
+        global.chatPanel.webview.postMessage({ 
+          command: 'environmentPrompts', 
+          error: error.message,
+          initialPrompt: 'Default initial prompt: Please describe your approach to the project.',
+          finalPrompt: 'Default final prompt: Now that you have completed the project, explain your implementation decisions.'
+        });
       }
     }
 
