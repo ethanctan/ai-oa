@@ -34,6 +34,34 @@ router.post('/', async (req, res) => {
   }
 });
 
+// POST /instances/:id/report - Submit a report for an instance
+router.post('/:id/report', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const text = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Report content is required' });
+    }
+
+    const result = await instancesController.saveReport(id, text);
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /instances/:id/report - Get the last report for an instance
+router.get('/:id/report', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await instancesController.getLastReport(id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // DELETE /instances/:id - Delete an instance
 router.delete('/:id', async (req, res) => {
   try {

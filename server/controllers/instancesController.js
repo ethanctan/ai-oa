@@ -280,4 +280,94 @@ async function deleteInstance(instanceId) {
   }
 }
 
-exports.deleteInstance = deleteInstance; 
+exports.deleteInstance = deleteInstance;
+
+/**
+ * Saves a report for a test instance.
+ * @param {string} instanceId - ID of the instance to save report for.
+ * @param {string} text - The report content.
+ * @returns {Promise<Object>} - Object containing report details.
+ */
+async function saveReport(instanceId, text) {
+  const trx = await db.transaction();
+  
+  try {
+    // Verify the instance exists
+    const instance = await trx('test_instances')
+      .where('id', instanceId)
+      .orWhere('docker_instance_id', instanceId)
+      .first();
+    
+    if (!instance) {
+      await trx.rollback();
+      throw new Error(`Instance ${instanceId} not found`);
+    }
+
+    // Save the report
+    const [reportId] = await trx('reports').insert({
+      instance_id: instance.id,
+      content: text
+    });
+
+    await trx.commit();
+    
+    return {
+      id: reportId,
+      instanceId: instance.id,
+      message: 'Report saved successfully'
+    };
+  } catch (error) {
+    await trx.rollback();
+    throw error;
+  }
+}
+
+exports.saveReport = saveReport;
+
+/**
+ * Gets the last saved report for a test instance.
+ * @param {string} instanceId - ID of the instance to get report for.
+ * @returns {Promise<Object>} - Object containing the last report details.
+ */
+async function getLastReport(instanceId) {
+  const trx = await db.transaction();
+  
+  try {
+    // Verify the instance exists
+    const instance = await trx('test_instances')
+      .where('id', instanceId)
+      .orWhere('docker_instance_id', instanceId)
+      .first();
+    
+    if (!instance) {
+      await trx.rollback();
+      throw new Error(`Instance ${instanceId} not found`);
+    }
+
+    // Get the last report for this instance
+    const report = await trx('reports')
+      .where('instance_id', instance.id)
+      .orderBy('created_at', 'desc')
+      .first();
+
+    await trx.commit();
+    
+    if (!report) {
+      return {
+        message: 'No report found for this instance'
+      };
+    }
+
+    return {
+      id: report.id,
+      instanceId: instance.id,
+      content: report.content,
+      createdAt: report.created_at
+    };
+  } catch (error) {
+    await trx.rollback();
+    throw error;
+  }
+}
+
+exports.getLastReport = getLastReport; 
