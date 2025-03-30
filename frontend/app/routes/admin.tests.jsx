@@ -12,6 +12,8 @@ export default function TestsAdmin() {
   const [showNewTestForm, setShowNewTestForm] = useState(false);
   const [showManageCandidatesModal, setShowManageCandidatesModal] = useState(false);
   const [currentTestId, setCurrentTestId] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [currentReport, setCurrentReport] = useState(null);
   
   // Separate state for candidates in different contexts
   const [newTestSelectedCandidates, setNewTestSelectedCandidates] = useState([]);
@@ -157,6 +159,29 @@ export default function TestsAdmin() {
         ? prev.filter(id => id !== candidateId)
         : [...prev, candidateId]
     );
+  };
+
+  // Handle View Report button click
+  const handleViewReport = async (instanceId) => {
+    try {
+      const response = await fetch(`http://localhost:3000/instances/${instanceId}/report`);
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentReport(data);
+        setShowReportModal(true);
+      } else {
+        const error = await response.text();
+        alert(`Failed to fetch report: ${error}`);
+      }
+    } catch (error) {
+      alert(`Error fetching report: ${error.message}`);
+    }
+  };
+
+  // Close the report modal
+  const handleCloseReport = () => {
+    setShowReportModal(false);
+    setCurrentReport(null);
   };
 
   return (
@@ -576,6 +601,12 @@ Suggest improvements and explain your reasoning for each suggestion."
                       >
                         Open
                       </button>
+                      <button 
+                        className="text-purple-600 hover:text-purple-800 mr-3"
+                        onClick={() => handleViewReport(instance.Id)}
+                      >
+                        View Report
+                      </button>
                       <Form method="post" style={{ display: "inline" }}>
                         <input type="hidden" name="action" value="delete" />
                         <input type="hidden" name="instanceId" value={instance.Id} />
@@ -591,6 +622,40 @@ Suggest improvements and explain your reasoning for each suggestion."
           </div>
         )}
       </div>
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-4xl w-full max-h-screen overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-semibold">Test Report</h3>
+              <button 
+                onClick={handleCloseReport}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                &times;
+              </button>
+            </div>
+            
+            {currentReport.message ? (
+              <p className="text-gray-500">{currentReport.message}</p>
+            ) : (
+              <div>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-500">
+                    Created at: {new Date(currentReport.createdAt).toLocaleString()}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <pre className="whitespace-pre-wrap font-sans">
+                    {currentReport.content}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
