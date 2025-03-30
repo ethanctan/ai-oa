@@ -74,7 +74,9 @@ export default function TestsAdmin() {
         const data = await response.json();
         // Open the instance in a new tab
         if (data.accessUrl) {
-          window.open(data.accessUrl, '_blank');
+          setTimeout(() => {
+            window.open(data.accessUrl, '_blank');
+          }, 1000);
         } else {
           alert(`Instance created but no URL was returned. Port: ${data.instance?.port}`);
         }
