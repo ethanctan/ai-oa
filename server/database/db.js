@@ -95,6 +95,19 @@ async function initDatabase() {
     
     console.log('Created test_candidates junction table');
   }
+
+  // Check if reports table exists
+  const hasReportsTable = await db.schema.hasTable('reports');
+  if (!hasReportsTable) {
+    await db.schema.createTable('reports', (table) => {
+      table.increments('id').primary();
+      table.integer('instance_id').unsigned().references('id').inTable('test_instances');
+      table.text('content').notNullable();
+      table.timestamps(true, true);
+    });
+    
+    console.log('Created reports table');
+  }
 }
 
 module.exports = {
