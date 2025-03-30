@@ -3,6 +3,7 @@ const chatRoutes = require('./routes/chat');
 const candidatesRoutes = require('./routes/candidates');
 const testsRoutes = require('./routes/tests');
 const instancesRoutes = require('./routes/instances');
+const timerRoutes = require('./routes/timer');
 const { initDatabase } = require('./database/db');
 const cors = require('cors');
 
@@ -28,6 +29,7 @@ app.use('/chat', chatRoutes);
 app.use('/candidates', candidatesRoutes);
 app.use('/tests', testsRoutes);
 app.use('/instances', instancesRoutes);
+app.use('/timer', timerRoutes);
 
 // Start server
 const port = process.env.PORT || 3000;

@@ -29,6 +29,14 @@ export default function TestsAdmin() {
       console.log("Navigation state changed, checking if we should close modals");
       setShowNewTestForm(false);
       setNewTestSelectedCandidates([]);
+      
+      // Show success message if a new test was created (could check for specific action if needed)
+      if (navigation.formAction === "/admin/tests") {
+        // Display a success message
+        setTimeout(() => {
+          alert("Test created successfully! Use 'Try Test' to test it or 'Manage Candidates' to send it to candidates.");
+        }, 500);
+      }
     }
   }, [navigation.state, navigation.formMethod]);
   
@@ -224,7 +232,14 @@ export default function TestsAdmin() {
                     >
                       Try Test
                     </button>
-                    <Form method="post" style={{ display: "inline" }}>
+                    <Form method="post" style={{ display: "inline" }}
+                      onSubmit={(event) => {
+                        // Prevent accidental deletions with a confirmation
+                        if (!confirm(`Are you sure you want to delete the test: ${test.name}? This will also delete all associated instances.`)) {
+                          event.preventDefault();
+                        }
+                      }}
+                    >
                       <input type="hidden" name="action" value="delete" />
                       <input type="hidden" name="testId" value={test.id} />
                       <button type="submit" className="text-red-500 hover:text-red-700">
@@ -319,7 +334,7 @@ export default function TestsAdmin() {
                     name="initialPrompt"
                     rows="5"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    defaultValue="You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation."
+                    defaultValue="You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have not started yet. Instructions for the project have been provided in the README.md file. Interview the candidate about how they'll go about the project's design, implementation, and testing, in that order. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused."
                   />
                 </div>
 
@@ -332,7 +347,7 @@ export default function TestsAdmin() {
                     name="finalPrompt"
                     rows="5"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    defaultValue="You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation."
+                    defaultValue="You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have completed. Interview them about their design decisions, implementation, and testing, in that order. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused."
                   />
                 </div>
 
@@ -345,7 +360,7 @@ export default function TestsAdmin() {
                     name="assessmentPrompt"
                     rows="5"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    defaultValue="Please review the following code. Consider:
+                    defaultValue="Please review the following code and interview content. Consider:
 1. Code quality and adherence to best practices
 2. Potential bugs or edge cases
 3. Performance optimizations
@@ -574,7 +589,14 @@ Suggest improvements and explain your reasoning for each suggestion."
                       >
                         Open
                       </button>
-                      <Form method="post" style={{ display: "inline" }}>
+                      <Form method="post" style={{ display: "inline" }}
+                        onSubmit={(event) => {
+                          // Prevent accidental deletions with a confirmation
+                          if (!confirm(`Are you sure you want to delete this instance: ${instance.Names.join(", ")}?`)) {
+                            event.preventDefault();
+                          }
+                        }}
+                      >
                         <input type="hidden" name="action" value="delete" />
                         <input type="hidden" name="instanceId" value={instance.Id} />
                         <button type="submit" className="text-red-500 hover:text-red-700">

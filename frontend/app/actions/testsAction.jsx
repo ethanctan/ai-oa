@@ -7,35 +7,40 @@ export async function action({ request }) {
 
   // If deletion is requested
   if (actionType === "delete") {
-    const instanceId = formData.get("instanceId");
-    
     try {
-      // First try to delete using the new tests endpoint if we have a test ID
+      // Check whether we're deleting a test or an instance
       const testId = formData.get("testId");
+      const instanceId = formData.get("instanceId");
+      
+      let response;
+      
+      // Delete a test if testId is provided
       if (testId) {
-        const response = await fetch(`http://localhost:3000/tests/${testId}`, {
+        console.log(`Deleting test with ID: ${testId}`);
+        response = await fetch(`http://localhost:3000/tests/${testId}`, {
           method: "DELETE"
         });
-        
-        if (response.ok) {
-          const result = await response.json();
-          return Response.json(result);
-        }
+      } 
+      // Delete an instance if instanceId is provided
+      else if (instanceId) {
+        console.log(`Deleting instance with ID: ${instanceId}`);
+        response = await fetch(`http://localhost:3000/instances/${instanceId}`, {
+          method: "DELETE"
+        });
+      } else {
+        throw new Error("No test ID or instance ID provided for deletion");
       }
       
-      // Fall back to the old instances endpoint for backward compatibility
-      const response = await fetch(`http://localhost:3000/instances/${instanceId}`, {
-        method: "DELETE"
-      });
-      
       if (!response.ok) {
-        throw new Error("Failed to delete test");
+        const errorText = await response.text();
+        console.error("Server error response:", errorText);
+        throw new Error(`Failed to delete: ${errorText}`);
       }
       
       const result = await response.json();
       return Response.json(result);
     } catch (error) {
-      console.error("Error deleting test:", error);
+      console.error("Error in delete action:", error);
       return Response.json({ error: error.message }, { status: 500 });
     }
   }

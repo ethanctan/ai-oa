@@ -110,7 +110,7 @@ exports.createTest = async (req, res) => {
         candidates_completed: 0
       });
     
-    // Handle GitHub repository if provided
+    // Clone repository if provided (for future use)
     let finalProjectPath = null;
     if (githubRepo) {
       const targetFolder = path.join(BASE_PROJECTS_DIR, `${sanitizeName(instanceName)}-${Date.now()}`);
@@ -132,48 +132,6 @@ exports.createTest = async (req, res) => {
       }
     }
     
-    // Define container configuration for Code‑Server
-    const containerConfig = {
-      Image: 'my-code-server-with-extension',
-      name: sanitizeName(instanceName),
-      Env: [
-        `DOCKER_USER=${process.env.USER || 'coder'}`,
-        `GITHUB_REPO=${githubRepo || ''}`,
-        `INITIAL_PROMPT=${initialPrompt || ''}`,
-        `FINAL_PROMPT=${finalPrompt || ''}`,
-        `ASSESSMENT_PROMPT=${assessmentPrompt || ''}`,
-      ],
-      Cmd: [
-        "/bin/sh",
-        "-c",
-        // `echo '${initialPrompt}' > .initialPrompt.txt && echo '${finalPrompt}' > .finalPrompt.txt && echo '${assessmentPrompt}' > .assessmentPrompt.txt`
-      ],
-      ExposedPorts: { '8080/tcp': {} },
-      HostConfig: {
-        PublishAllPorts: true,  // Add this line to allow Docker to assign a random port
-        Binds: finalProjectPath ? [
-          // Mount the project directory into the container at /home/coder/project
-          `${finalProjectPath}:/home/coder/project`
-        ] : []
-      }
-    };
-    
-    // Create and start the Docker container
-    const container = await docker.createContainer(containerConfig);
-    await container.start();
-    
-    // Get container info to retrieve the assigned port
-    const containerInfo = await container.inspect();
-    const dockerId = containerInfo.Id;
-    const port = containerInfo.NetworkSettings.Ports['8080/tcp'][0].HostPort;
-    
-    // Save instance info
-    await trx('test_instances').insert({
-      test_id: testId,
-      docker_instance_id: dockerId,
-      port: port
-    });
-    
     // Assign candidates to the test if provided
     if (candidateIds.length > 0) {
       const candidateAssignments = candidateIds.map(candidateId => ({
@@ -190,8 +148,8 @@ exports.createTest = async (req, res) => {
     res.status(201).json({
       id: testId,
       name: instanceName,
-      dockerId,
-      port
+      github_repo: githubRepo,
+      message: "Test created successfully. No instance was created automatically."
     });
   } catch (error) {
     await trx.rollback();

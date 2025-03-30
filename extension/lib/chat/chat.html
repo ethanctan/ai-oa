@@ -56,14 +56,15 @@
       word-wrap: break-word;
     }
     .user {
-      background-color: var(--vscode-editor-inactiveSelectionBackground);
+      background-color: var(--vscode-input-background, rgba(255,255,255,0.1));
       align-self: flex-end;
       margin-left: auto;
     }
     .interviewer {
-      background-color: var(--vscode-activityBar-inactiveForeground, rgba(255,255,255,0.1));
+      background-color: var(--vscode-editor-inactiveSelectionBackground, rgba(255,255,255,0.05));
       align-self: flex-start;
       margin-right: auto;
+      color: var(--vscode-editor-foreground, #e7e7e7);
     }
     .chat-header {
       font-weight: bold;
@@ -101,24 +102,156 @@
       display: flex;
       flex-direction: column;
     }
+    #timer-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 10px 0;
+    }
+    #timer {
+      font-size: 16px;
+      font-weight: bold;
+      padding: 5px 10px;
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+    .action-button {
+      padding: 8px 12px;
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .action-button:hover {
+      background-color: var(--vscode-button-hoverBackground);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 10px;
+      background-color: var(--vscode-editor-background);
+      border-bottom: 1px solid var(--vscode-panel-border);
+    }
+    .title {
+      font-weight: bold;
+      font-size: 14px;
+    }
+    /* Add a style for expired timer */
+    #timer.expired {
+      background-color: var(--vscode-errorForeground, red);
+      color: white;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .message {
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      border-radius: 5px;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+    .user-message {
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      margin-left: auto;
+    }
+    .ai-message {
+      background-color: var(--vscode-editor-inactiveSelectionBackground);
+      color: var(--vscode-editor-foreground);
+    }
+    .system-message {
+      background-color: transparent;
+      color: var(--vscode-descriptionForeground);
+      font-style: italic;
+      text-align: center;
+      max-width: 100%;
+      border-top: 1px solid var(--vscode-panel-border);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      margin: 10px 0;
+      padding: 5px 0;
+    }
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #chat-form {
+      display: flex;
+      padding: 10px;
+      border-top: 1px solid var(--vscode-panel-border);
+    }
+    #chat-input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 4px;
+      background-color: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      resize: none;
+    }
+    #chat-submit {
+      margin-left: 10px;
+      padding: 8px 16px;
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #chat-submit:hover {
+      background-color: var(--vscode-button-hoverBackground);
+    }
+    /* Additional styles for the timer info */
+    .timer-info {
+      padding: 8px 12px;
+      background-color: var(--vscode-editorInfo-background, rgba(0,127,255,0.1));
+      color: var(--vscode-editorInfo-foreground, #2040a0);
+      text-align: center;
+      font-size: 12px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+    }
   </style>
 </head>
 <body>
-  <div id="interview-controls">
-    <button id="start-final-interview" style="display: none;">Start Final Interview</button>
+  <div class="chat-container">
+    <div class="header">
+      <div class="title">AI Assessment</div>
+      <div class="timer-container">
+        <div id="timer">10:00</div>
+        <button id="start-interview" class="action-button">Start Interview</button>
+      </div>
+    </div>
+    
+    <div class="timer-info">
+      The timer starts automatically. You can start the interview at any time, or it will start automatically when the timer reaches zero.
+    </div>
+    
+    <div class="messages" id="messages"></div>
+    
+    <form id="chat-form">
+      <textarea id="chat-input" placeholder="Type your message..." rows="3"></textarea>
+      <button id="chat-submit" type="submit">Send</button>
+    </form>
   </div>
-  <div id="chat-log"></div>
-  <form id="chat-form">
-    <input id="chat-input" type="text" placeholder="Type your message..." autocomplete="off" />
-    <button id="chat-submit" type="submit">Send</button>
-  </form>
+  
   <script>
     (function() {
       const vscode = acquireVsCodeApi(); // VS Code API for message passing
-      const chatLog = document.getElementById('chat-log');
+      const messagesContainer = document.getElementById('messages');
       const chatForm = document.getElementById('chat-form');
       const chatInput = document.getElementById('chat-input');
-      const startFinalInterviewBtn = document.getElementById('start-final-interview');
+      const startInterviewBtn = document.getElementById('start-interview');
+      const timerElement = document.getElementById('timer');
 
       // Global variables to store chat history, workspace context, and prompts
       let chatHistory = [];
@@ -128,38 +261,42 @@
       let assessmentPrompt = '';
       let initialInterviewStarted = false;
       let finalInterviewStarted = false;
+      let timerStarted = false;
+      let timerEndTime = null;
+      let timerInterval = null;
+      let instanceId = null;
 
       // Immediately request environment prompts
       vscode.postMessage({ command: 'getEnvironmentPrompts' });
 
       // Appends a message to the chat log and record it in chatHistory.
       function appendMessage(role, text, isSystemMessage = false) {
+        // Ensure we have a valid container to append to
+        if (!messagesContainer) {
+          console.error('Error: Message container not found');
+          return;
+        }
+        
         const messageElem = document.createElement('div');
         
         if (isSystemMessage) {
           messageElem.className = 'system-message';
           messageElem.textContent = text;
         } else {
-          const sender = role === 'user' ? 'user' : 'interviewer';
-          messageElem.className = 'chat-message ' + sender;
-          
-          const headerElem = document.createElement('div');
-          headerElem.className = 'chat-header';
-          headerElem.textContent = role === 'user' ? 'You' : 'AI Interviewer';
+          messageElem.className = `message ${role === 'user' ? 'user-message' : 'ai-message'}`;
           
           const contentElem = document.createElement('div');
-          contentElem.className = 'chat-content';
+          contentElem.className = 'message-content';
           contentElem.textContent = text;
           
-          messageElem.appendChild(headerElem);
           messageElem.appendChild(contentElem);
           
           // Record message in history
           chatHistory.push({ role: role === 'user' ? 'user' : 'assistant', content: text });
         }
         
-        chatLog.appendChild(messageElem);
-        chatLog.scrollTop = chatLog.scrollHeight;
+        messagesContainer.appendChild(messageElem);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
 
       // Send a chat message to the server and handle the response
@@ -172,7 +309,7 @@
           systemMessages.push({ role: "system", content: systemPrompt });
         } else {
           // Default system message
-          systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation.' });
+          systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.' });
         }
         
         // Always include workspace content
@@ -182,7 +319,6 @@
           ...systemMessages,
           ...chatHistory
         ]};
-
         vscode.postMessage({ command: 'chatMessage', payload: { messages } });
       }
 
@@ -194,28 +330,22 @@
         // Show a system message indicating the start of the initial interview
         appendMessage('system', '--- Initial Interview Started ---', true);
         
-        // Send an empty message to trigger the initial interview
-        sendChatMessage('', initialPrompt);
+        // Hide the timer and timer info when interview starts
+        document.querySelector('.timer-container').style.display = 'none';
+        document.querySelector('.timer-info').style.display = 'none';
         
-        // Show the final interview button after a delay
-        setTimeout(() => {
-          startFinalInterviewBtn.style.display = 'block';
-        }, 5000);
-      }
-
-      // Start the final interview
-      function startFinalInterview() {
-        if (finalInterviewStarted) return;
-        finalInterviewStarted = true;
+        // Notify the server that the interview has started
+        vscode.postMessage({
+          command: 'startInterview',
+          instanceId
+        });
         
-        // Show a system message indicating the start of the final interview
-        appendMessage('system', '--- Final Interview Started ---', true);
-        
-        // Send an empty message to trigger the final interview
-        sendChatMessage('', finalPrompt);
-        
-        // Hide the button
-        startFinalInterviewBtn.style.display = 'none';
+        // Send an initial message to trigger the interview
+        vscode.postMessage({
+          command: 'sendChatMessage',
+          text: 'Hello, I would like to discuss the project requirements.',
+          instanceId
+        });
       }
 
       // Retrieve all files in the workspace
@@ -227,34 +357,115 @@
       requestWorkspaceContext();
       setInterval(requestWorkspaceContext, 30000);
 
-      // Listen for messages from the extension.
+      // Function to check if timer already exists and get status upon initial load
+      function checkExistingTimer() {
+        if (!instanceId) {
+          console.log('Cannot check timer: No instance ID available');
+          return;
+        }
+        
+        console.log(`Checking if timer exists for instance ${instanceId}`);
+        vscode.postMessage({ command: 'getTimerStatus', instanceId });
+      }
+
+      // Function to start or continue timer
+      function handleTimerStatus(data) {
+        console.log('Received timer status:', data);
+        
+        if (data.error) {
+          console.error('Timer error:', data.error);
+          document.getElementById('timer').textContent = 'Timer error';
+          // If there's an error, try to start a new timer automatically
+          autoStartTimer();
+          return;
+        }
+        
+        // Check if interview is already marked as started
+        if (data.interviewStarted) {
+          console.log('Interview already started, hiding timer');
+          initialInterviewStarted = true;
+          document.querySelector('.timer-container').style.display = 'none';
+          document.querySelector('.timer-info').style.display = 'none';
+        }
+        
+        // If timer exists, use its end time
+        if (data.endTime) {
+          timerEndTime = parseInt(data.endTime);
+          timerStarted = true;
+          console.log(`Timer exists with end time: ${new Date(timerEndTime).toISOString()}`);
+          
+          // Clear any existing interval to prevent duplicates
+          if (timerInterval) {
+            clearInterval(timerInterval);
+          }
+          
+          // Start the timer display updates
+          updateTimerDisplay();
+          timerInterval = setInterval(updateTimerDisplay, 1000);
+        } else {
+          // No active timer found, so start one automatically
+          console.log('No active timer found, starting one automatically');
+          autoStartTimer();
+        }
+      }
+
+      // Update timer display
+      function updateTimerDisplay() {
+        if (!timerEndTime) {
+          console.log('No timer end time available');
+          document.getElementById('timer').textContent = '10:00';
+          return;
+        }
+        
+        const now = Date.now();
+        const timeLeft = Math.max(0, timerEndTime - now);
+        
+        console.log(`Timer update - Now: ${now}, End: ${timerEndTime}, Left: ${timeLeft}ms`);
+        
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          document.getElementById('timer').textContent = '0:00';
+          document.getElementById('timer').classList.add('expired');
+          console.log('Timer expired');
+          
+          // Auto-start interview if timer expires
+          if (!initialInterviewStarted) {
+            startInitialInterview();
+          }
+          return;
+        }
+        
+        const minutes = Math.floor(timeLeft / 60000);
+        const seconds = Math.floor((timeLeft % 60000) / 1000);
+        const display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        document.getElementById('timer').textContent = display;
+        
+        // Mark timer as started once we've updated the display
+        timerStarted = true;
+      }
+
+      // Handle messages from the extension
       window.addEventListener('message', event => {
         const message = event.data;
         
         // If we get a GPT response
         if (message.command === 'chatResponse') {
           if (message.error) {
-            appendMessage('system', 'Error: ' + message.error, true);
+            appendMessage('system', `Error: ${message.error}`, true);
           } else {
             appendMessage('assistant', message.reply || 'No reply');
           }
-
+        } 
         // If we get the contents of this workspace
-        } else if (message.command === 'workspaceContent') { 
+        else if (message.command === 'workspaceContent') { 
           if (message.error) {
             console.error('Error retrieving workspace content:', message.error);
           } else {
             workspaceContext = message.content;
-            
-            // Start the initial interview when we first get workspace content
-            // and if we have the initial prompt
-            if (!initialInterviewStarted && initialPrompt) {
-              startInitialInterview();
-            }
           }
-        
+        }
         // If we get the environment prompts
-        } else if (message.command === 'environmentPrompts') {
+        else if (message.command === 'environmentPrompts') {
           if (message.error) {
             console.error('Error retrieving environment prompts:', message.error);
           }
@@ -263,30 +474,192 @@
           finalPrompt = message.finalPrompt;
           assessmentPrompt = message.assessmentPrompt;
           
-          // Start the initial interview if we already have workspace content
-          if (!initialInterviewStarted && workspaceContext) {
+          // Store the instance ID if provided
+          if (message.instanceId) {
+            handleInstanceId(message.instanceId);
+          }
+        }
+        // If we get timer status from server
+        else if (message.command === 'timerStatus') {
+          handleTimerStatus(message.data);
+        }
+        // Handle chat message received
+        else if (message.command === 'chatMessage') {
+          appendMessage('assistant', message.text);
+        }
+        // Handle chat history received
+        else if (message.command === 'chatHistory') {
+          if (message.error) {
+            console.error('Error retrieving chat history:', message.error);
+          } else if (message.history) {
+            handleChatHistory(message.history);
+          }
+        }
+        // Handle interview started confirmation
+        else if (message.command === 'interviewStarted') {
+          console.log('Interview started status confirmed by server');
+        }
+        // Handle timer expiry
+        else if (message.command === 'timerExpired') {
+          appendMessage('system', 'Time limit reached!', true);
+          
+          // Auto-start interview when time expires
+          if (!initialInterviewStarted) {
             startInitialInterview();
           }
         }
+        // Handle instance ID being set separately
+        if (message.instanceId && !instanceId) {
+          handleInstanceId(message.instanceId);
+        }
       });
 
-      // When a new chat message is submitted.
-      chatForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const userMessage = chatInput.value.trim();
-        if (!userMessage) return;
+      // Set up form submission
+      const form = document.getElementById('chat-form');
+      const input = document.getElementById('chat-input');
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
         
-        appendMessage('user', userMessage);
-        chatInput.value = '';
+        const messageText = input.value.trim();
+        if (!messageText) return;
         
-        // Send the message without a specific system prompt
-        sendChatMessage(userMessage);
+        // Add user message to chat
+        appendMessage('user', messageText);
+        
+        // Build complete messages array including system prompts and chat history
+        const systemMessages = [];
+        
+        // Add the specific interview prompt if provided
+        if (initialInterviewStarted && finalInterviewStarted) {
+          // Final interview mode
+          systemMessages.push({ role: "system", content: finalPrompt });
+        } else if (initialInterviewStarted) {
+          // Initial interview mode
+          systemMessages.push({ role: "system", content: initialPrompt });
+        } else {
+          // Default system message
+          systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.' });
+        }
+        
+        // Always include workspace content if available
+        if (workspaceContext) {
+          systemMessages.push({ role: "system", content: "Project workspace content: " + workspaceContext });
+        }
+        
+        // Construct the payload with all messages
+        const payload = {
+          messages: [
+            ...systemMessages,
+            ...chatHistory
+          ]
+        };
+        
+        // Send message to extension
+        vscode.postMessage({
+          command: 'chatMessage',
+          payload: payload,
+          instanceId
+        });
+        
+        // Clear input
+        input.value = '';
       });
       
-      // Start final interview button handler
-      startFinalInterviewBtn.addEventListener('click', () => {
-        startFinalInterview();
+      // Start interview button handler
+      startInterviewBtn.addEventListener('click', () => {
+        console.log('Start interview button clicked');
+        startInitialInterview();
       });
+
+      // Function to automatically start the timer
+      function autoStartTimer() {
+        if (!instanceId || timerStarted) {
+          console.log('Cannot auto-start timer: No instance ID or timer already started');
+          return;
+        }
+        
+        console.log('Auto-starting timer for instance ID:', instanceId);
+        startTimer();
+      }
+
+      // Function to start the timer
+      function startTimer() {
+        if (!instanceId) {
+          console.log('Cannot start timer: No instance ID available');
+          return;
+        }
+        
+        console.log(`Requesting to start timer for instance ${instanceId}`);
+        vscode.postMessage({ command: 'startTimer', instanceId });
+        
+        // Display default time until server responds
+        document.getElementById('timer').textContent = '10:00';
+        
+        // Mark timer as started
+        timerStarted = true;
+      }
+
+      // When the document is loaded and we have an instance ID, start the timer
+      document.addEventListener('DOMContentLoaded', () => {
+        if (instanceId) {
+          autoStartTimer();
+        }
+      });
+
+      // When we get the instance ID, automatically start the timer
+      function handleInstanceId(id) {
+        if (!id) return;
+        
+        const oldId = instanceId;
+        instanceId = id;
+        console.log(`Using instance ID: ${instanceId}`);
+        
+        // If this is a new ID or the first time we're getting the ID
+        if (!oldId || oldId !== instanceId) {
+          // First check if a timer already exists
+          console.log(`Got instance ID: ${instanceId}, checking timer status`);
+          checkExistingTimer();
+          
+          // Also load chat history for this instance
+          console.log(`Loading chat history for instance ${instanceId}`);
+          loadChatHistory();
+        }
+      }
+
+      // Load chat history from the server
+      function loadChatHistory() {
+        if (!instanceId) {
+          console.log('Cannot load chat history: No instance ID available');
+          return;
+        }
+        
+        console.log(`Requesting chat history for instance ${instanceId}`);
+        vscode.postMessage({ 
+          command: 'getChatHistory', 
+          instanceId 
+        });
+      }
+
+      // Handle received chat history
+      function handleChatHistory(history) {
+        console.log(`Received chat history with ${history.length} messages`);
+        
+        // Clear any existing messages first
+        messagesContainer.innerHTML = '';
+        chatHistory = [];
+        
+        // Add each message to the UI
+        history.forEach(message => {
+          appendMessage(
+            message.role === 'user' ? 'user' : 'assistant',
+            message.content
+          );
+        });
+        
+        // Scroll to the bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
     }());
   </script>
 </body>

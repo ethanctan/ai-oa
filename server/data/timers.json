@@ -1,0 +1,19 @@
+{
+  "14": {
+    "startedAt": 1743374339108,
+    "endTime": 1743374939108,
+    "instanceId": "14"
+  },
+  "15": {
+    "startedAt": 1743374913114,
+    "endTime": 1743375513114,
+    "instanceId": "15",
+    "interviewStarted": true
+  },
+  "16": {
+    "startedAt": 1743374981935,
+    "endTime": 1743375581935,
+    "instanceId": "16",
+    "interviewStarted": false
+  }
+}

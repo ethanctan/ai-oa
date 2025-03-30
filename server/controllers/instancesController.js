@@ -5,6 +5,8 @@ const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
 const { db } = require('../database/db');
+const fetch = require('node-fetch'); // We'll use this to communicate with the timer API
+const timerController = require('./timerController');
 
 // Import helper functions
 let sanitizeName;
@@ -25,6 +27,29 @@ const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 const BASE_PROJECTS_DIR = '/tmp/code-server-projects';
 if (!fs.existsSync(BASE_PROJECTS_DIR)) {
   fs.mkdirSync(BASE_PROJECTS_DIR, { recursive: true });
+}
+
+// Timer API endpoints
+const TIMER_START_URL = 'http://localhost:3000/timer/start';
+
+/**
+ * Starts a timer for a specific instance
+ * @param {string} instanceId - The ID of the instance to start a timer for
+ * @returns {Promise<Object>} The response from the timer API
+ */
+async function startInstanceTimer(instanceId) {
+  try {
+    console.log(`Starting timer for instance ${instanceId}`);
+    
+    // Call the timer controller directly instead of using fetch
+    const timerData = timerController.startTimer(instanceId);
+    
+    console.log(`Timer started for instance ${instanceId}: ${JSON.stringify(timerData)}`);
+    return timerData;
+  } catch (error) {
+    console.error(`Error starting timer for instance ${instanceId}: ${error.message}`);
+    return { error: error.message };
+  }
 }
 
 /**
@@ -82,6 +107,16 @@ async function createInstance({ testId, candidateId, githubUrl, githubToken, adm
       }
     }
 
+    // First create the instance record to get an ID
+    const [instanceId] = await trx('test_instances').insert({
+      test_id: testId,
+      candidate_id: candidateId || null,
+      docker_instance_id: 'pending', // We'll update this after creating the container
+      port: 0 // We'll update this after starting the container
+    });
+    
+    console.log(`Created instance record with ID: ${instanceId}`);
+
     // Define container configuration for Code‑Server
     const containerConfig = {
       Image: 'my-code-server-with-extension',
@@ -92,6 +127,7 @@ async function createInstance({ testId, candidateId, githubUrl, githubToken, adm
         `INITIAL_PROMPT=${test.initial_prompt || ''}`,
         `FINAL_PROMPT=${test.final_prompt || ''}`,
         `ASSESSMENT_PROMPT=${test.assessment_prompt || ''}`,
+        `INSTANCE_ID=${instanceId}` // Add the instance ID directly to the container environment
       ],
       ExposedPorts: { '8080/tcp': {} },
       HostConfig: {
@@ -128,13 +164,13 @@ async function createInstance({ testId, candidateId, githubUrl, githubToken, adm
       throw new Error('Failed to retrieve assigned port for the container');
     }
     
-    // Record the instance in the database
-    const [instanceId] = await trx('test_instances').insert({
-      test_id: testId,
-      candidate_id: candidateId || null,
-      docker_instance_id: dockerId,
-      port: port
-    });
+    // Update the instance record with the docker ID and port
+    await trx('test_instances')
+      .where('id', instanceId)
+      .update({
+        docker_instance_id: dockerId,
+        port: port
+      });
     
     // If this is for a candidate, make sure the test_candidates relationship exists
     if (candidateId) {
@@ -160,6 +196,11 @@ async function createInstance({ testId, candidateId, githubUrl, githubToken, adm
     
     // Only commit if we created the transaction
     if (shouldCommit) await trx.commit();
+    
+    // Start a timer for this instance
+    startInstanceTimer(instanceId).catch(err => {
+      console.error(`Error starting timer for new instance ${instanceId}: ${err.message}`);
+    });
     
     return {
       id: instanceId,
@@ -236,46 +277,62 @@ exports.listInstancesWithDetails = listInstancesWithDetails;
  * @returns {Promise<Object>} - Confirmation message with instance ID.
  */
 async function deleteInstance(instanceId) {
+  console.log(`Attempting to delete instance with ID: ${instanceId}`);
   const trx = await db.transaction();
   
   try {
     // Get the instance from the database first
     const instance = await trx('test_instances')
       .where('id', instanceId)
-      .or('docker_instance_id', instanceId)
+      .orWhere('docker_instance_id', instanceId)
       .first();
     
     if (!instance) {
+      console.log(`No instance found with ID: ${instanceId}`);
       await trx.rollback();
       throw new Error(`Instance ${instanceId} not found`);
     }
     
+    console.log(`Found instance: ${JSON.stringify(instance)}`);
+    
     // Try to stop and remove the Docker container
     try {
       const container = docker.getContainer(instance.docker_instance_id);
-      await container.stop();
-      await container.remove();
+      console.log(`Attempting to stop container: ${instance.docker_instance_id}`);
+      await container.stop().catch(err => {
+        // If container is already stopped, that's fine
+        console.log(`Container may already be stopped: ${err.message}`);
+      });
+      
+      console.log(`Attempting to remove container: ${instance.docker_instance_id}`);
+      await container.remove().catch(err => {
+        console.log(`Error removing container, will continue anyway: ${err.message}`);
+      });
     } catch (dockerError) {
-      console.error(`Error with Docker container: ${dockerError.message}`);
+      console.error(`Error with Docker container ${instance.docker_instance_id}: ${dockerError.message}`);
       // Continue with database cleanup even if Docker operations fail
     }
     
-    // No need to update test_candidates since we're not tracking instance_id there
-    
     // Remove the instance from the database
-    await trx('test_instances')
+    console.log(`Deleting instance ${instance.id} from database`);
+    const deleted = await trx('test_instances')
       .where('id', instance.id)
       .delete();
     
+    console.log(`Deleted ${deleted} records from test_instances`);
+    
     await trx.commit();
+    console.log(`Transaction committed successfully`);
     
     return { 
+      success: true,
       message: 'Instance terminated', 
       instanceId: instance.id,
       dockerId: instance.docker_instance_id 
     };
   } catch (error) {
     await trx.rollback();
+    console.error(`Error in deleteInstance: ${error.message}`);
     throw error;
   }
 }
