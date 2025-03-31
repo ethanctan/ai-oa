@@ -7,7 +7,13 @@ const { getWorkspaceContent } = require('../context/getWorkspaceContent');
 const SERVER_URL = 'http://host.docker.internal:3000';
 const SERVER_TIMER_START_URL = `${SERVER_URL}/timer/start`;
 const SERVER_TIMER_STATUS_URL = `${SERVER_URL}/timer/status`;
+const SERVER_TIMER_INTERVIEW_STARTED_URL = `${SERVER_URL}/timer/interview-started`;
 const SERVER_CHAT_URL = `${SERVER_URL}/chat`;
+
+// Global variables to store environment prompts - accessed throughout the module
+let globalInitialPrompt = '';
+let globalFinalPrompt = '';
+let globalAssessmentPrompt = '';
 
 // Function to get environment variables 
 async function getEnvironmentVariables() {
@@ -95,15 +101,23 @@ function openChat() {
           instanceId = envVars.INSTANCE_ID;
           console.log(`Found instance ID in environment: ${instanceId}`);
           
-          // Load chat history for this instance ID
-          getChatHistory(instanceId);
+          // First fetch chat history separately
+          await getChatHistory(instanceId);
+          
+          // Then check timer status
+          await checkTimerAndInterviewStatus(instanceId);
         }
+        
+        // Store the prompts in global variables for use elsewhere
+        globalInitialPrompt = envVars.INITIAL_PROMPT || 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have not started yet. Instructions for the project have been provided in the README.md file. IMPORTANT: Ask only ONE question at a time about their approach to the project, and wait for their response before asking another question. Start by asking about their initial thoughts on the project requirements.';
+        globalFinalPrompt = envVars.FINAL_PROMPT || 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have now completed. IMPORTANT: Ask only ONE question at a time about their implementation, and wait for their response before asking another question. Start by asking them to explain their overall approach.';
+        globalAssessmentPrompt = envVars.ASSESSMENT_PROMPT || '';
         
         global.chatPanel.webview.postMessage({ 
           command: 'environmentPrompts', 
-          initialPrompt: envVars.INITIAL_PROMPT || 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have not started yet. Instructions for the project have been provided in the README.md file. IMPORTANT: Ask only ONE question at a time about their approach to the project, and wait for their response before asking another question. Start by asking about their initial thoughts on the project requirements.',
-          finalPrompt: envVars.FINAL_PROMPT || 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have now completed. IMPORTANT: Ask only ONE question at a time about their implementation, and wait for their response before asking another question. Start by asking them to explain their overall approach.',
-          assessmentPrompt: envVars.ASSESSMENT_PROMPT || '',
+          initialPrompt: globalInitialPrompt,
+          finalPrompt: globalFinalPrompt,
+          assessmentPrompt: globalAssessmentPrompt,
           instanceId: instanceId
         });
       } catch (error) {
@@ -119,15 +133,89 @@ function openChat() {
 
     if (message.command === 'chatMessage') {
       try {
+        // Extract instance id
+        const chatInstanceId = message.instanceId || instanceId;
+        if (!chatInstanceId) {
+          throw new Error('No instance ID provided for chat message');
+        }
+        
+        // Extract user message
+        let userMessage = null;
+        if (message.payload && message.payload.payload && message.payload.payload.messages) {
+          const messages = message.payload.payload.messages;
+          // Get the last user message
+          const userMessages = messages.filter(m => m.role === 'user');
+          if (userMessages.length > 0) {
+            userMessage = userMessages[userMessages.length - 1];
+            console.log(`User message from payload: ${userMessage.content.substring(0, 30)}...`);
+          }
+        }
+        
+        if (!userMessage || !userMessage.content) {
+          throw new Error('Could not find user message in payload');
+        }
+        
+        // Save the user message to history explicitly
+        try {
+          console.log('Saving user message to history from chatMessage');
+          await fetch(`${SERVER_CHAT_URL}/message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              instanceId: chatInstanceId,
+              message: { role: 'user', content: userMessage.content }
+            })
+          });
+          console.log('Successfully saved user message to history');
+        } catch (historyError) {
+          console.error(`Error saving user message to history: ${historyError.message}`);
+        }
+        
+        // Create a new payload using the global system prompts
+        const newPayload = {
+          instanceId: chatInstanceId,
+          skipHistorySave: true,
+          payload: {
+            messages: [
+              // Use the global initial prompt as system message
+              { role: "system", content: globalInitialPrompt },
+              // Include the user message
+              { role: "user", content: userMessage.content }
+            ]
+          }
+        };
+        
+        // Log which prompt we're using
+        console.log(`Using system prompt: ${globalInitialPrompt.substring(0, 50)}...`);
+        
         const response = await fetch(SERVER_CHAT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(message.payload)
+          body: JSON.stringify(newPayload)
         });
+        
         if (!response.ok) {
           throw new Error('HTTP error ' + response.status);
         }
+        
         const data = await response.json();
+        
+        // Save AI response to history explicitly
+        try {
+          console.log('Saving AI response to history from chatMessage');
+          await fetch(`${SERVER_CHAT_URL}/message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              instanceId: chatInstanceId,
+              message: { role: 'assistant', content: data.reply }
+            })
+          });
+          console.log('Successfully saved AI response to history');
+        } catch (historyError) {
+          console.error(`Error saving AI response to history: ${historyError.message}`);
+        }
+        
         global.chatPanel.webview.postMessage({ command: 'chatResponse', reply: data.reply });
       } catch (error) {
         global.chatPanel.webview.postMessage({ command: 'chatResponse', error: error.message });
@@ -146,6 +234,9 @@ function openChat() {
         command: 'interviewStarted',
         success: true
       });
+      
+      // Send an initial message to get the first question from the AI
+      await sendInitialMessage(message.instanceId);
     }
 
     // Handle timer start command
@@ -182,6 +273,16 @@ function openChat() {
   });
 }
 
+// Send initial message to trigger AI first question
+async function sendInitialMessage(instanceId) {
+  console.log(`Initial message will be sent directly from chat.html using chatMessage command`);
+  
+  // This function is now just a placeholder as the chat.html handles sending the initial message
+  // using the standard chatMessage framework with all the required system prompts
+  
+  return { success: true, message: 'Initial message handled by chat.html' };
+}
+
 // Handle starting the timer
 async function startTimer(instanceId) {
   console.log(`Starting timer for instance: ${instanceId}`);
@@ -207,7 +308,7 @@ async function startTimer(instanceId) {
     if (global.chatPanel) {
       global.chatPanel.webview.postMessage({
         command: 'timerStatus',
-        data: data
+        data: data.timer
       });
     }
     
@@ -250,7 +351,7 @@ async function getTimerStatus(instanceId) {
     if (global.chatPanel) {
       global.chatPanel.webview.postMessage({
         command: 'timerStatus',
-        data: data
+        data: data.timer
       });
     }
     
@@ -270,27 +371,107 @@ async function getTimerStatus(instanceId) {
   }
 }
 
+// Check timer and interview status on page load
+async function checkTimerAndInterviewStatus(instanceId) {
+  if (!instanceId) {
+    console.error('Cannot check timer: No instance ID available');
+    return;
+  }
+  
+  try {
+    console.log(`Checking timer and interview status for instance ${instanceId}`);
+    
+    const response = await fetch(
+      `${SERVER_TIMER_STATUS_URL}?instanceId=${instanceId}`,
+      {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      }    
+    );
+    
+    if (!response.ok) {
+      if (response.status === 404) {
+        // No timer exists yet, start one
+        console.log('No timer found, starting a new one');
+        startTimer(instanceId);
+        return;
+      }
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.success && data.timer) {
+      console.log(`Timer status: ${JSON.stringify(data.timer)}`);
+      
+      // Check if the interview is already started
+      if (data.timer.interviewStarted) {
+        console.log('Interview is already marked as started');
+      }
+      
+      // Send the timer status to the webview for UI updates
+      if (global.chatPanel) {
+        global.chatPanel.webview.postMessage({
+          command: 'timerStatus',
+          data: data.timer
+        });
+      }
+    } else {
+      // Start a new timer if none exists
+      console.log('No valid timer found, starting a new one');
+      startTimer(instanceId);
+    }
+  } catch (error) {
+    console.error(`Error checking timer status: ${error.message}`);
+    // Try to start a new timer as fallback
+    startTimer(instanceId);
+  }
+}
+
 // Handle sending a chat message
 async function sendChatMessage(message, instanceId) {
   console.log(`Sending chat message for instance: ${instanceId}`);
   
   try {
-    // Here you would call your AI service/API with the message
+    // First save the user message to history explicitly
+    try {
+      console.log('Explicitly saving user message to history before sending to API');
+      await fetch(`${SERVER_CHAT_URL}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instanceId,
+          message: { role: 'user', content: message }
+        })
+      });
+      console.log('User message saved successfully');
+    } catch (historyError) {
+      console.error(`Warning: Could not save user message to history: ${historyError.message}`);
+    }
+    
+    // Create a payload using the globally stored environment prompts
+    const payload = {
+      instanceId,
+      skipHistorySave: true, // Signal to server not to save to history
+      payload: {
+        messages: [
+          // Only include system prompt if we have one
+          ...(globalInitialPrompt ? [{ role: "system", content: globalInitialPrompt }] : []),
+          { role: "user", content: message }
+        ]
+      }
+    };
+    
+    // Log which prompt we're using
+    console.log(`Using prompt: ${globalInitialPrompt.substring(0, 50)}...`);
+    
+    // Then call the API with the skip flag to avoid duplication
     const aiResponse = await fetch(
       SERVER_CHAT_URL,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instanceId,
-          text: message,
-          payload: {
-            messages: [
-              { role: "system", content: "You are a technical interviewer assessing a software engineering candidate." },
-              { role: "user", content: message }
-            ]
-          }
-        })
+        body: JSON.stringify(payload)
       }
     );
     
@@ -300,6 +481,22 @@ async function sendChatMessage(message, instanceId) {
     
     const data = await aiResponse.json();
     console.log('AI response:', data);
+    
+    // Save the AI response to history
+    try {
+      console.log('Explicitly saving AI response to history after receiving');
+      await fetch(`${SERVER_CHAT_URL}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instanceId,
+          message: { role: 'assistant', content: data.reply }
+        })
+      });
+      console.log('Successfully saved AI response to history');
+    } catch (historyError) {
+      console.error(`Error saving AI response to history: ${historyError.message}`);
+    }
     
     // Send the AI response back to the webview
     if (global.chatPanel) {
@@ -324,18 +521,6 @@ async function sendChatMessage(message, instanceId) {
   }
 }
 
-// Fallback function to try alternative server URL if first attempt fails
-async function fetchWithFallback(url, options, fallbackUrl) {
-  try {
-    return await fetch(url, options);
-  } catch (error) {
-    console.log(`Fetch failed with ${url}, trying fallback URL ${fallbackUrl}`);
-    // Replace localhost with host.docker.internal
-    const altUrl = url.replace('localhost', 'host.docker.internal');
-    return await fetch(altUrl, options);
-  }
-}
-
 // Function to get chat history for an instance
 async function getChatHistory(instanceId) {
   if (!instanceId) {
@@ -346,7 +531,11 @@ async function getChatHistory(instanceId) {
   console.log(`Getting chat history for instance: ${instanceId}`);
   
   try {
-    const response = await fetch(`${SERVER_CHAT_URL}/history?instanceId=${instanceId}`);
+    // Ensure we're using the correct URL
+    const url = `${SERVER_CHAT_URL}/history?instanceId=${instanceId}`;
+    console.log(`Fetching chat history from: ${url}`);
+    
+    const response = await fetch(url);
     
     if (!response.ok) {
       throw new Error(`HTTP error: ${response.status}`);
@@ -355,14 +544,34 @@ async function getChatHistory(instanceId) {
     const data = await response.json();
     console.log(`Retrieved chat history with ${data.history?.length || 0} messages`);
     
-    if (global.chatPanel) {
-      global.chatPanel.webview.postMessage({
-        command: 'chatHistory',
-        history: data.history || []
-      });
-    }
+    // Very detailed logging to help diagnose issues
+    console.log('Chat history data:', JSON.stringify(data));
     
-    return data.history || [];
+    if (data.history && data.history.length > 0) {
+      // If we have chat history, the interview must have started
+      const interviewStarted = true;
+      
+      // Send history to the webview explicitly with detailed log
+      console.log(`Sending ${data.history.length} chat history messages to webview`);
+      
+      if (global.chatPanel) {
+        global.chatPanel.webview.postMessage({
+          command: 'chatHistory',
+          history: data.history,
+          interviewStarted
+        });
+        
+        // If there is chat history, ensure interview is marked as started
+        if (interviewStarted) {
+          await setInterviewStarted(instanceId);
+        }
+      }
+      
+      return data.history;
+    } else {
+      console.log('No chat history found');
+      return [];
+    }
   } catch (error) {
     console.error(`Error getting chat history: ${error.message}`);
     
@@ -388,7 +597,7 @@ async function setInterviewStarted(instanceId) {
   console.log(`Setting interview started for instance: ${instanceId}`);
   
   try {
-    const response = await fetch(`${SERVER_URL}/timer/interview-started`, {
+    const response = await fetch(SERVER_TIMER_INTERVIEW_STARTED_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ instanceId })
@@ -401,6 +610,15 @@ async function setInterviewStarted(instanceId) {
     const data = await response.json();
     console.log(`Interview started status set for instance ${instanceId}: ${JSON.stringify(data)}`);
     
+    // Notify UI that interview has started
+    if (global.chatPanel) {
+      global.chatPanel.webview.postMessage({
+        command: 'interviewStarted',
+        success: true,
+        timer: data.timer
+      });
+    }
+    
     return true;
   } catch (error) {
     console.error(`Error setting interview started: ${error.message}`);
@@ -409,19 +627,3 @@ async function setInterviewStarted(instanceId) {
 }
 
 module.exports = { openChat };
-
-
-// {"messages":
-  
-//   [{"role":"system","content":"You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation."},
-    
-//     {"role":"system","content":"Project workspace content: \n\n=== /home/coder/project/README.md ===\n\n# ai-oa-test-repo\nTest project repo for ethanctan/ai-oa\n\nIf you cloned this repo correctly, this text should show up.\n\n\n=== /home/coder/project/test.py ===\n\nprint(\"Hello, world!\")\n"},
-    
-//     {"role":"user","content":"Hello"},
-    
-//     {"role":"bot","content":"Hi there! Let's discuss the coding project. Could you walk me through your design decisions and implementation for the provided code in `test.py`? Specifically, why did you choose this approach?"},
-    
-//     {"role":"user","content":"Hello"},
-    
-//     {"role":"user","content":"Hello"}
-//   ]}

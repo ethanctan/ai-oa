@@ -45,7 +45,7 @@ export default function TestsAdmin() {
   // Fetch candidates when opening the new test form
   const handleCreateTestClick = async () => {
     try {
-      const response = await fetch('http://localhost:3000/candidates');
+      const response = await fetch('http://127.0.0.1:3000/candidates/');
       if (response.ok) {
         const candidateData = await response.json();
         setCandidates(candidateData);
@@ -62,7 +62,7 @@ export default function TestsAdmin() {
   // Handle Try Test button click
   const handleTryTest = async (testId, testName) => {
     try {
-      const response = await fetch(`http://localhost:3000/tests/${testId}/try`, {
+      const response = await fetch(`http://127.0.0.1:3000/tests/${testId}/try/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -98,7 +98,7 @@ export default function TestsAdmin() {
     setManageCandidatesSelection([]);
     
     try {
-      const response = await fetch(`http://localhost:3000/tests/${testId}/candidates`);
+      const response = await fetch(`http://127.0.0.1:3000/tests/${testId}/candidates/`);
       if (response.ok) {
         const data = await response.json();
         setTestCandidates(data);
@@ -126,7 +126,7 @@ export default function TestsAdmin() {
     }
     
     try {
-      const response = await fetch(`http://localhost:3000/tests/${currentTestId}/send`, {
+      const response = await fetch(`http://127.0.0.1:3000/tests/${currentTestId}/send/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -172,7 +172,7 @@ export default function TestsAdmin() {
   // Handle View Report button click
   const handleViewReport = async (instanceId) => {
     try {
-      const response = await fetch(`http://localhost:3000/instances/${instanceId}/report`);
+      const response = await fetch(`http://127.0.0.1:3000/instances/${instanceId}/report/`);
       if (response.ok) {
         const data = await response.json();
         setCurrentReport(data);

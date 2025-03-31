@@ -1,0 +1,74 @@
+{
+  "14": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin!\n\nTo start, could you briefly introduce yourself and tell me a bit about your technical background, relevant experience, and the kinds of software engineering projects you've worked on?"
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin!\n\nTo start, could you briefly introduce yourself and tell me a bit about your technical background, relevant experience, and the kinds of software engineering projects you've worked on?"
+    }
+  ],
+  "15": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s get started with the initial interview. I\u2019ll be assessing your technical knowledge, problem-solving skills, and communication ability. Let\u2019s start with a few general questions, and then we\u2019ll move on to some technical questions.\n\n---\n\n### General Questions:\n1. Could you briefly introduce yourself and walk me through your technical background, highlighting any recent projects or accomplishments you\u2019re particularly proud of?\n2. What programming languages are you most comfortable with, and why do you prefer them?\n3. How do you approach solving a complex technical problem? Can you provide a specific example of a challenging problem you\u2019ve solved?\n\nLet me know when you\u2019re ready to move on to technical questions!"
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s get started with the initial interview. I\u2019ll be assessing your technical knowledge, problem-solving skills, and communication ability. Let\u2019s start with a few general questions, and then we\u2019ll move on to some technical questions.\n\n---\n\n### General Questions:\n1. Could you briefly introduce yourself and walk me through your technical background, highlighting any recent projects or accomplishments you\u2019re particularly proud of?\n2. What programming languages are you most comfortable with, and why do you prefer them?\n3. How do you approach solving a complex technical problem? Can you provide a specific example of a challenging problem you\u2019ve solved?\n\nLet me know when you\u2019re ready to move on to technical questions!"
+    }
+  ],
+  "16": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Before we dive in, let me outline how this initial interview will work: \n\nWe'll begin with a few background and behavioral questions to get a sense of your experience and approach to problem-solving. Afterward, we'll transition into some technical questions, which might involve algorithms, data structures, system design, or coding challenges, depending on the role you're applying for. \n\nFeel free to explain your thought process out loud as you go\u2014that's an important factor we focus on during the interview. And if you need clarification or have any questions along the way, don't hesitate to ask. \n\nShall we start with a quick round of background questions?"
+    }
+  ],
+  "17": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start with the project's **design** phase.  \n\nWhat is your approach to understanding the requirements and planning out the architecture for this project before writing any code?"
+    },
+    {
+      "role": "user",
+      "content": "I don't know... help"
+    },
+    {
+      "role": "assistant",
+      "content": "Of course! Let\u2019s start at the beginning. For this project, how would you approach designing the solution before writing any code?"
+    },
+    {
+      "role": "user",
+      "content": "I quit"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm sorry to hear that. If there's anything you'd like to discuss or if you're reconsidering, let me know\u2014I'm here to help."
+    }
+  ]
+}

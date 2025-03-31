@@ -1,6 +1,7 @@
 export async function loader() {
   try {
-    const res = await fetch("http://localhost:3000/candidates");
+    console.log("Loading candidates...");
+    const res = await fetch("http://127.0.0.1:3000/candidates/");
     if (!res.ok) {
       throw new Error("Failed to fetch candidates");
     }
