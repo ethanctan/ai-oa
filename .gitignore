@@ -1,6 +1,8 @@
 test.txt
-**/.venv
+**/.venv/
 .venv
+/server/projects/**/
+
 # Logs
 logs
 *.log

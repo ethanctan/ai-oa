@@ -12,49 +12,17 @@ def chat():
         data = request.json
         print(f'Received chat request: {data}')
         
-        # Handle different payload formats:
-        # 1. { payload: { messages: [...] } } - from extension
-        # 2. { payload: { payload: { messages: [...] } } } - double wrapped
-        # 3. { messages: [...] } - direct format
-        messages = None
+        # Only accept the standardized format: { payload: { messages: [...] } }
+        if not data.get('payload') or not isinstance(data.get('payload'), dict) or not data.get('payload').get('messages'):
+            raise ValueError('Invalid payload format. Expected: { payload: { messages: [...] } }')
+        
+        messages = data.get('payload').get('messages')
         instance_id = data.get('instanceId') or request.args.get('instanceId')
         
         # Check if we should skip history save
         skip_history_save = data.get('skipHistorySave', False)
         if skip_history_save:
             print(f'Skipping history save for this request as requested')
-        
-        # Try all possible payload formats
-        if data.get('payload') and isinstance(data.get('payload'), dict):
-            # Format 1: { payload: { messages: [...] } }
-            if data.get('payload').get('messages'):
-                messages = data.get('payload').get('messages')
-                print("Found messages in payload.messages")
-            # Format 2: { payload: { payload: { messages: [...] } } }
-            elif data.get('payload').get('payload') and isinstance(data.get('payload').get('payload'), dict):
-                if data.get('payload').get('payload').get('messages'):
-                    messages = data.get('payload').get('payload').get('messages')
-                    print("Found messages in payload.payload.messages")
-        # Format 3: { messages: [...] }
-        elif data.get('messages'):
-            messages = data.get('messages')
-            print("Found messages directly in root object")
-        
-        # Handle text and instance_id in the payload as well
-        if data.get('text') and not instance_id:
-            instance_id = data.get('instanceId')
-            
-        if not messages:
-            # One more attempt - check if we have a valid message in a different format
-            if data.get('text') and instance_id:
-                # Create a simple message array with just this message
-                messages = [
-                    {"role": "system", "content": "You are a technical interviewer assessing a software engineering candidate."},
-                    {"role": "user", "content": data.get('text')}
-                ]
-                print(f"Created messages from text: {data.get('text')}")
-            else:
-                raise ValueError('No messages array found in request payload. Please check payload format.')
         
         print(f'Processing chat with {len(messages)} messages for instance {instance_id or "unknown"}')
         

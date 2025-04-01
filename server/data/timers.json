@@ -146,5 +146,29 @@
     "endTimeMs": 1743390053000,
     "timeRemaining": 600,
     "timeRemainingMs": 600000
+  },
+  "18": {
+    "instanceId": "18",
+    "startTime": 1743535749,
+    "endTime": 1743536349,
+    "duration": 600,
+    "active": true,
+    "interviewStarted": true,
+    "currentTimeMs": 1743535749000,
+    "endTimeMs": 1743536349000,
+    "timeRemaining": 600,
+    "timeRemainingMs": 600000
+  },
+  "19": {
+    "instanceId": "19",
+    "startTime": 1743535900,
+    "endTime": 1743536500,
+    "duration": 600,
+    "active": true,
+    "interviewStarted": true,
+    "currentTimeMs": 1743535900000,
+    "endTimeMs": 1743536500000,
+    "timeRemaining": 600,
+    "timeRemainingMs": 600000
   }
 }

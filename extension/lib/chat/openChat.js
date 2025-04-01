@@ -139,10 +139,10 @@ function openChat() {
           throw new Error('No instance ID provided for chat message');
         }
         
-        // Extract user message
+        // Extract user message from the standardized payload format
         let userMessage = null;
-        if (message.payload && message.payload.payload && message.payload.payload.messages) {
-          const messages = message.payload.payload.messages;
+        if (message.payload && message.payload.messages) {
+          const messages = message.payload.messages;
           // Get the last user message
           const userMessages = messages.filter(m => m.role === 'user');
           if (userMessages.length > 0) {
@@ -171,7 +171,7 @@ function openChat() {
           console.error(`Error saving user message to history: ${historyError.message}`);
         }
         
-        // Create a new payload using the global system prompts
+        // Create a new payload using the standardized format
         const newPayload = {
           instanceId: chatInstanceId,
           skipHistorySave: true,
@@ -449,7 +449,7 @@ async function sendChatMessage(message, instanceId) {
       console.error(`Warning: Could not save user message to history: ${historyError.message}`);
     }
     
-    // Create a payload using the globally stored environment prompts
+    // Create a payload using the standardized format
     const payload = {
       instanceId,
       skipHistorySave: true, // Signal to server not to save to history

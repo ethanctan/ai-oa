@@ -320,7 +320,7 @@
         initialInterviewStarted = true;
         
         // Show a system message indicating the start of the initial interview
-        appendMessage('system', '--- Initial Interview Started ---', true);
+        appendMessage('system', 'Initial Interview Started', true);
         
         // Add a loading message while we wait for the AI's first question
         const loadingMessageId = 'loading-message';
@@ -369,14 +369,12 @@
             systemMessages.push({ role: "system", content: "Project workspace content: " + workspaceContext });
           }
           
-          // Construct the payload with all messages
-          const messages = { "messages": [
-            ...systemMessages,
-            { role: "user", content: initialUserMessage }
-          ]};
-          
+          // Construct the payload with all messages using the standardized format
           const payload = {
-            "payload": messages
+              "messages": [
+                ...systemMessages,
+                { role: "user", content: initialUserMessage }
+              ]
           };
           
           // Send message to extension using the standard message sending channel
@@ -699,14 +697,15 @@
           systemMessages.push({ role: "system", content: "Project workspace content: " + workspaceContext });
         }
         
-        // Construct the payload with all messages
-        const messages = { "messages": [
-          ...systemMessages,
-          ...chatHistory
-        ]};
+        // Construct the payload with all messages using the standardized format
         const payload = {
-          "payload": messages
-        }
+          "payload": {
+            "messages": [
+              ...systemMessages,
+              ...chatHistory
+            ]
+          }
+        };
         
         // Send message to extension
         vscode.postMessage({
