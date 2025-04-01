@@ -7,6 +7,7 @@ from routes.candidates import candidates_bp
 from routes.tests import tests_bp
 from routes.instances import instances_bp
 from routes.timer import timer_bp
+from routes.reports import reports_bp
 from database.db import init_database
 
 # Load environment variables
@@ -24,6 +25,7 @@ app.register_blueprint(candidates_bp, url_prefix='/candidates')
 app.register_blueprint(tests_bp, url_prefix='/tests')
 app.register_blueprint(instances_bp, url_prefix='/instances')
 app.register_blueprint(timer_bp, url_prefix='/timer')
+app.register_blueprint(reports_bp, url_prefix='/reports')
 
 # Initialize database
 try:

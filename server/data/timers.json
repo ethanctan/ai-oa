@@ -170,5 +170,41 @@
     "endTimeMs": 1743536500000,
     "timeRemaining": 600,
     "timeRemainingMs": 600000
+  },
+  "20": {
+    "instanceId": "20",
+    "startTime": 1743543263,
+    "endTime": 1743543863,
+    "duration": 600,
+    "active": true,
+    "interviewStarted": false,
+    "currentTimeMs": 1743543263000,
+    "endTimeMs": 1743543863000,
+    "timeRemaining": 600,
+    "timeRemainingMs": 600000
+  },
+  "21": {
+    "instanceId": "21",
+    "startTime": 1743543443,
+    "endTime": 1743544043,
+    "duration": 600,
+    "active": true,
+    "interviewStarted": false,
+    "currentTimeMs": 1743543443000,
+    "endTimeMs": 1743544043000,
+    "timeRemaining": 600,
+    "timeRemainingMs": 600000
+  },
+  "22": {
+    "instanceId": "22",
+    "startTime": 1743543529,
+    "endTime": 1743544129,
+    "duration": 600,
+    "active": true,
+    "interviewStarted": false,
+    "currentTimeMs": 1743543529000,
+    "endTimeMs": 1743544129000,
+    "timeRemaining": 600,
+    "timeRemainingMs": 600000
   }
 }

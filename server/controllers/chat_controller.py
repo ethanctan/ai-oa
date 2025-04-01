@@ -123,6 +123,9 @@ def add_chat_message(instance_id, message):
     
     return history
 
+async def get_chat_response_guidance(messages):
+    pass
+
 async def get_chat_response(messages):
     """
     Calls the Azure OpenAI API to get a chat response.

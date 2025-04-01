@@ -8,7 +8,9 @@ import { action } from "../actions/testsAction.jsx";
 export { loader, action };
 
 export default function TestsAdmin() {
-  const { tests, instances } = useLoaderData();
+  const initialData = useLoaderData();
+  const [tests, setTests] = useState(initialData.tests || []);
+  const [instances, setInstances] = useState(initialData.instances || []);
   const [showNewTestForm, setShowNewTestForm] = useState(false);
   const [showManageCandidatesModal, setShowManageCandidatesModal] = useState(false);
   const [currentTestId, setCurrentTestId] = useState(null);
@@ -24,6 +26,22 @@ export default function TestsAdmin() {
   const submit = useSubmit();
   const navigation = useNavigation();
   
+  // Function to fetch instances
+  const fetchInstances = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:3000/instances/');
+      if (response.ok) {
+        const instanceData = await response.json();
+        console.log('Fetched instances:', instanceData);
+        setInstances(instanceData);
+      } else {
+        console.error('Failed to fetch instances');
+      }
+    } catch (error) {
+      console.error('Error fetching instances:', error);
+    }
+  };
+  
   // Close modals when navigation state changes
   useEffect(() => {
     // Only check for idle state and POST method
@@ -37,6 +55,9 @@ export default function TestsAdmin() {
         // Display a success message
         setTimeout(() => {
           alert("Test created successfully! Use 'Try Test' to test it or 'Manage Candidates' to send it to candidates.");
+          
+          // Refresh the tests list
+          fetchTests();
         }, 500);
       }
     }
@@ -79,6 +100,12 @@ export default function TestsAdmin() {
           setTimeout(() => {
             window.open(data.accessUrl, '_blank');
           }, 1000);
+          
+          // Refresh both tests and instances list after a short delay
+          setTimeout(() => {
+            fetchTests();
+            fetchInstances();
+          }, 2000);
         } else {
           alert(`Instance created but no URL was returned. Port: ${data.instance?.port}`);
         }
@@ -88,6 +115,39 @@ export default function TestsAdmin() {
       }
     } catch (error) {
       alert(`Error creating test instance: ${error.message}`);
+    }
+  };
+
+  // Handle deleting an instance
+  const handleDeleteInstance = async (instanceId) => {
+    if (!confirm("Are you sure you want to delete this instance?")) {
+      return;
+    }
+    
+    try {
+      console.log(`Deleting instance with ID: ${instanceId}`);
+      const response = await fetch(`http://127.0.0.1:3000/instances/${instanceId}/stop`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        console.log('Instance deleted successfully, updating UI');
+        // Remove the instance from the UI immediately - check for both 'id' and 'Id' fields
+        setInstances(prevInstances => 
+          prevInstances.filter(instance => 
+            (instance.id !== instanceId) && (instance.Id !== instanceId)
+          )
+        );
+        alert('Instance deleted successfully');
+      } else {
+        const error = await response.text();
+        alert(`Failed to delete instance: ${error}`);
+      }
+    } catch (error) {
+      alert(`Error deleting instance: ${error.message}`);
     }
   };
 
@@ -140,8 +200,10 @@ export default function TestsAdmin() {
         const result = await response.json();
         alert(`Test sent to ${result.candidates.length} candidates`);
         handleCloseManageCandidates();
-        // Reload the page to show updated data
-        window.location.reload();
+        
+        // Refresh the lists
+        fetchTests();
+        fetchInstances();
       } else {
         const error = await response.text();
         alert(`Failed to send test: ${error}`);
@@ -172,7 +234,8 @@ export default function TestsAdmin() {
   // Handle View Report button click
   const handleViewReport = async (instanceId) => {
     try {
-      const response = await fetch(`http://127.0.0.1:3000/instances/${instanceId}/report/`);
+      console.log(`Fetching report for instance ID: ${instanceId}`);
+      const response = await fetch(`http://127.0.0.1:3000/reports/${instanceId}`);
       if (response.ok) {
         const data = await response.json();
         setCurrentReport(data);
@@ -190,6 +253,70 @@ export default function TestsAdmin() {
   const handleCloseReport = () => {
     setShowReportModal(false);
     setCurrentReport(null);
+  };
+
+  // Function to fetch tests
+  const fetchTests = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:3000/tests/');
+      if (response.ok) {
+        const testsData = await response.json();
+        console.log('Fetched tests:', testsData);
+        setTests(testsData);
+      } else {
+        console.error('Failed to fetch tests');
+      }
+    } catch (error) {
+      console.error('Error fetching tests:', error);
+    }
+  };
+  
+  // Add polling for tests and instances
+  useEffect(() => {
+    // Initial fetch
+    fetchTests();
+    fetchInstances();
+    
+    // Set up polling (every 10 seconds to reduce server load)
+    const testsInterval = setInterval(fetchTests, 10000);
+    const instancesInterval = setInterval(fetchInstances, 10000);
+    
+    // Clean up intervals when component unmounts
+    return () => {
+      clearInterval(testsInterval);
+      clearInterval(instancesInterval);
+    };
+  }, []);
+
+  // Handle test deletion
+  const handleDeleteTest = async (testId, testName) => {
+    if (!confirm(`Are you sure you want to delete the test: ${testName}? This will also delete all associated instances.`)) {
+      return;
+    }
+    
+    try {
+      console.log(`Deleting test with ID: ${testId}`);
+      const response = await fetch(`http://127.0.0.1:3000/tests/${testId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        console.log('Test deleted successfully, updating UI');
+        // Remove the test from the UI immediately
+        setTests(prevTests => prevTests.filter(test => test.id !== testId));
+        // Also fetch instances again as the test deletion might have deleted some instances
+        setTimeout(fetchInstances, 500);
+        alert('Test deleted successfully');
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to delete test: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      alert(`Error deleting test: ${error.message}`);
+    }
   };
 
   return (
@@ -259,20 +386,12 @@ export default function TestsAdmin() {
                     >
                       Try Test
                     </button>
-                    <Form method="post" style={{ display: "inline" }}
-                      onSubmit={(event) => {
-                        // Prevent accidental deletions with a confirmation
-                        if (!confirm(`Are you sure you want to delete the test: ${test.name}? This will also delete all associated instances.`)) {
-                          event.preventDefault();
-                        }
-                      }}
+                    <button 
+                      className="text-red-500 hover:text-red-700"
+                      onClick={() => handleDeleteTest(test.id, test.name)}
                     >
-                      <input type="hidden" name="action" value="delete" />
-                      <input type="hidden" name="testId" value={test.id} />
-                      <button type="submit" className="text-red-500 hover:text-red-700">
-                        Delete
-                      </button>
-                    </Form>
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))
@@ -310,6 +429,9 @@ export default function TestsAdmin() {
                 setTimeout(() => {
                   setShowNewTestForm(false);
                   setNewTestSelectedCandidates([]);
+                  
+                  // Refresh the tests list after submission
+                  setTimeout(fetchTests, 1000);
                 }, 300);
               }}
             >
@@ -605,40 +727,37 @@ Suggest improvements and explain your reasoning for each suggestion."
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {instances.map((instance) => (
-                  <tr key={instance.Id}>
-                    <td className="py-3 px-4 font-medium">{instance.Names.join(", ")}</td>
-                    <td className="py-3 px-4">{instance.Ports.map((p) => p.PublicPort).join(", ")}</td>
-                    <td className="py-3 px-4">
-                      <button 
-                        className="text-blue-600 hover:text-blue-800 mr-3"
-                        onClick={() => window.open(`http://localhost:${instance.Ports[0]?.PublicPort}`, '_blank')}
-                      >
-                        Open
-                      </button>
-                      <button 
-                        className="text-purple-600 hover:text-purple-800 mr-3"
-                        onClick={() => handleViewReport(instance.Id)}
-                      >
-                        View Report
-                      </button>
-                      <Form method="post" style={{ display: "inline" }}
-                        onSubmit={(event) => {
-                          // Prevent accidental deletions with a confirmation
-                          if (!confirm(`Are you sure you want to delete this instance: ${instance.Names.join(", ")}?`)) {
-                            event.preventDefault();
-                          }
-                        }}
-                      >
-                        <input type="hidden" name="action" value="delete" />
-                        <input type="hidden" name="instanceId" value={instance.Id} />
-                        <button type="submit" className="text-red-500 hover:text-red-700">
+                {instances.map((instance) => {
+                  // Get the instance ID consistently (handle both lowercase and uppercase)
+                  const instanceId = instance.id || instance.Id;
+                  
+                  return (
+                    <tr key={instanceId}>
+                      <td className="py-3 px-4 font-medium">{instance.Names.join(", ")}</td>
+                      <td className="py-3 px-4">{instance.Ports.map((p) => p.PublicPort).join(", ")}</td>
+                      <td className="py-3 px-4">
+                        <button 
+                          className="text-blue-600 hover:text-blue-800 mr-3"
+                          onClick={() => window.open(`http://localhost:${instance.Ports[0]?.PublicPort}`, '_blank')}
+                        >
+                          Open
+                        </button>
+                        <button 
+                          className="text-purple-600 hover:text-purple-800 mr-3"
+                          onClick={() => handleViewReport(instanceId)}
+                        >
+                          View Report
+                        </button>
+                        <button 
+                          className="text-red-500 hover:text-red-700"
+                          onClick={() => handleDeleteInstance(instanceId)}
+                        >
                           Delete
                         </button>
-                      </Form>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -659,18 +778,18 @@ Suggest improvements and explain your reasoning for each suggestion."
               </button>
             </div>
             
-            {currentReport.message ? (
+            {currentReport && currentReport.message ? (
               <p className="text-gray-500">{currentReport.message}</p>
             ) : (
               <div>
                 <div className="mb-4">
                   <p className="text-sm text-gray-500">
-                    Created at: {new Date(currentReport.createdAt).toLocaleString()}
+                    Created at: {currentReport && new Date(currentReport.created_at).toLocaleString()}
                   </p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <pre className="whitespace-pre-wrap font-sans">
-                    {currentReport.content}
+                    {currentReport && currentReport.content}
                   </pre>
                 </div>
               </div>

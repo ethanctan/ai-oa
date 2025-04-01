@@ -393,14 +393,15 @@ def stop_instance(instance_id):
     cursor = conn.cursor()
     
     try:
-        # Get the Docker instance ID
-        cursor.execute('SELECT docker_instance_id FROM test_instances WHERE id = ?', (instance_id,))
-        result = cursor.fetchone()
+        # Get the instance details
+        cursor.execute('SELECT * FROM test_instances WHERE id = ?', (instance_id,))
+        instance = cursor.fetchone()
         
-        if not result:
+        if not instance:
             raise ValueError(f"Instance with ID {instance_id} not found")
         
-        docker_id = result['docker_instance_id']
+        instance = dict(instance)
+        docker_id = instance['docker_instance_id']
         
         if docker_id and docker_id != 'pending':
             # Connect to Docker
@@ -419,6 +420,7 @@ def stop_instance(instance_id):
                 )
                 conn.commit()
                 
+                print(f"Instance {instance_id} (Docker ID: {docker_id}) stopped and removed successfully")
                 return {"success": True, "message": f"Instance {instance_id} stopped successfully"}
             
             except docker.errors.NotFound:
@@ -429,12 +431,19 @@ def stop_instance(instance_id):
                 )
                 conn.commit()
                 
-                return {"success": False, "message": f"Container for instance {instance_id} not found"}
+                print(f"Container for instance {instance_id} not found in Docker, marked as not_found")
+                return {"success": True, "message": f"Container for instance {instance_id} not found in Docker but marked as removed"}
             
             except Exception as e:
+                print(f"Error stopping instance {instance_id}: {str(e)}")
                 return {"success": False, "message": f"Error stopping instance: {str(e)}"}
-        
-        return {"success": False, "message": "No valid Docker instance ID found"}
+        else:
+            print(f"No valid Docker instance ID found for instance {instance_id}")
+            return {"success": False, "message": "No valid Docker instance ID found"}
+    
+    except Exception as e:
+        print(f"Error in stop_instance: {str(e)}")
+        return {"success": False, "message": f"Error: {str(e)}"}
     
     finally:
         conn.close() 
