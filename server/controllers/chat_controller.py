@@ -123,7 +123,21 @@ def add_chat_message(instance_id, message):
     
     return history
 
-async def get_chat_response_guidance(messages):
+async def get_chat_response_lmql(messages):
+    """
+    Uses lmql (https://lmql.ai/) along with the Azure OpenAI API to get a chat response.
+    Args:
+        messages (list): List of message dictionaries.
+          Expected format:
+            [
+              { "role": "system", "content": "<System prompt here>" },
+              { "role": "user", "content": "First user message" },
+              { "role": "assistant", "content": "First assistant response" },
+              ...
+            ]
+    Returns:
+        str: The chat response.
+    """
     pass
 
 async def get_chat_response(messages):
