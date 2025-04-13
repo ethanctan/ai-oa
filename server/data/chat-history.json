@@ -382,5 +382,100 @@
         "phase": "final"
       }
     }
+  ],
+  "32": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start by discussing the design phase of the project.  \n\n**Question:**  \nHow would you approach designing the architecture or structure of the project? Specifically, what are the first steps you'd take to ensure the design is scalable and maintainable?"
+    },
+    {
+      "role": "user",
+      "content": "Please end the interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: initial",
+      "metadata": {
+        "phase": "initial"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "user",
+      "content": "Please end the interview"
+    },
+    {
+      "role": "assistant",
+      "content": "It seems there might be a misunderstanding. The scenario here assumes you have not started the coding project yet. Let\u2019s proceed based on this assumption.  \n\nFirst question: How would you approach designing the system or solution outlined in the README.md? Please provide an overview of your design process."
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final",
+      "metadata": {
+        "phase": "final"
+      }
+    }
+  ],
+  "33": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin. For the first phase, design: \n\nHow would you approach reading the project requirements from the README.md file to create a high-level design?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: initial",
+      "metadata": {
+        "phase": "initial"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "This interview is focused on discussing how you'd approach the project's design, implementation, and testing before starting any work. Let's begin with design.\n\nHow would you go about designing the architecture for the project?"
+    }
   ]
 }

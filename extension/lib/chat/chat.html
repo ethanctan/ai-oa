@@ -355,8 +355,9 @@
         } else {
           messageElem.className = `message ${role === 'user' ? 'user-message' : 'ai-message'}`;
           
-          // Add phase label for non-system messages if in final interview
-          if (finalInterviewStarted && !document.querySelector('.phase-label.final')) {
+          // Add phase label for non-system messages
+          // Only add labels at the beginning of an interview phase
+          if (finalInterviewStarted && !initialInterviewEnded && !document.querySelector('.phase-label.final')) {
             const phaseLabel = document.createElement('div');
             phaseLabel.className = 'phase-label final';
             phaseLabel.textContent = 'Final Interview';
@@ -375,14 +376,17 @@
           
           messageElem.appendChild(contentElem);
           
+          // Determine current phase for the message
+          const currentPhase = finalInterviewStarted ? 'final' : 'initial';
+          
           // Record message in history
           const messageObj = { 
             role: role === 'user' ? 'user' : 'assistant', 
             content: text,
-            phase: finalInterviewStarted ? 'final' : 'initial'
+            phase: currentPhase
           };
           chatHistory.push(messageObj);
-          console.log(`Added ${role} message to chatHistory. Length now: ${chatHistory.length}`);
+          console.log(`Added ${role} message to chatHistory. Length now: ${chatHistory.length}, phase: ${currentPhase}`);
         }
         
         messagesContainer.appendChild(messageElem);
@@ -575,8 +579,69 @@
         messagesContainer.innerHTML = '';
         chatHistory = [];
         
-        // Add each message to the UI and to chat history
+        // Detect interview phases from history
+        let foundInitialEnd = false;
+        let foundFinalStart = false;
+        let detectedPhase = 'initial';
+        
+        // First pass - check for phase markers and END messages
+        for (let i = 0; i < history.length; i++) {
+          const message = history[i];
+          
+          // Skip invalid messages
+          if (!message.role || !message.content) continue;
+          
+          // Check for END messages
+          if (message.role === 'assistant' && message.content.trim() === 'END') {
+            if (detectedPhase === 'initial') {
+              foundInitialEnd = true;
+              detectedPhase = 'between'; // Between initial and final
+              console.log('Detected end of initial interview in history');
+            } else if (detectedPhase === 'final') {
+              console.log('Detected end of final interview in history');
+            }
+          }
+          
+          // Check for phase markers
+          if (message.role === 'system' && message.content.startsWith('PHASE_MARKER:')) {
+            const phase = message.content.replace('PHASE_MARKER:', '').trim();
+            console.log(`Found phase marker: ${phase}`);
+            
+            if (phase === 'initial') {
+              detectedPhase = 'initial';
+            } else if (phase === 'final' || phase === 'final_started') {
+              detectedPhase = 'final';
+              foundFinalStart = true;
+            }
+          }
+          
+          // Also check for metadata
+          if (message.metadata && message.metadata.phase) {
+            console.log(`Found message with phase metadata: ${message.metadata.phase}`);
+            if (message.metadata.phase === 'final') {
+              detectedPhase = 'final';
+              foundFinalStart = true;
+            }
+          }
+        }
+        
+        // Set global state based on detected phases
+        initialInterviewStarted = true; // If we have chat history, initial must have started
+        
+        if (foundInitialEnd) {
+          initialInterviewEnded = true;
+        }
+        
+        if (foundFinalStart) {
+          finalInterviewStarted = true;
+        }
+        
+        // Second pass - add messages to UI
+        let addedInitialPhaseLabel = false;
+        let addedFinalPhaseLabel = false;
+        let currentPhase = 'initial';
         let messagesAdded = 0;
+        
         history.forEach((message, index) => {
           try {
             // Check for required fields
@@ -585,20 +650,72 @@
               return;
             }
             
-            // Add to UI
-            const role = message.role;
-            const content = message.content;
+            // Skip system phase marker messages
+            if (message.role === 'system' && message.content.startsWith('PHASE_MARKER:')) {
+              console.log(`Skipping phase marker message: ${message.content}`);
+              
+              // Update current phase for next messages
+              const phase = message.content.replace('PHASE_MARKER:', '').trim();
+              if (phase === 'final' || phase === 'final_started') {
+                currentPhase = 'final';
+              }
+              
+              return;
+            }
             
-            console.log(`Adding message ${index + 1}/${history.length} from history: role=${role}, content=${content.substring(0, 30)}...`);
+            // Handle END messages specially
+            if (message.role === 'assistant' && message.content.trim() === 'END') {
+              if (currentPhase === 'initial') {
+                // Add system message instead of showing "END"
+                const systemElem = document.createElement('div');
+                systemElem.className = 'system-message';
+                systemElem.textContent = 'The interviewer has concluded the initial interview. Thank you for your responses!';
+                messagesContainer.appendChild(systemElem);
+                
+                // This marks the transition to final phase
+                currentPhase = 'between';
+              } else if (currentPhase === 'final') {
+                // Add system message for final END
+                const systemElem = document.createElement('div');
+                systemElem.className = 'system-message';
+                systemElem.textContent = 'The final interview has concluded. Thank you for your participation!';
+                messagesContainer.appendChild(systemElem);
+              }
+              
+              // Still add to history for context but as a system message
+              chatHistory.push({
+                role: 'system',
+                content: message.content,
+                phase: currentPhase
+              });
+              
+              messagesAdded++;
+              return;
+            }
             
-            // Create message element
+            // Add phase labels at appropriate points
+            if (currentPhase === 'initial' && !addedInitialPhaseLabel) {
+              const phaseLabel = document.createElement('div');
+              phaseLabel.className = 'phase-label initial';
+              phaseLabel.textContent = 'Initial Interview';
+              messagesContainer.appendChild(phaseLabel);
+              addedInitialPhaseLabel = true;
+            } else if (currentPhase === 'final' && !addedFinalPhaseLabel) {
+              const phaseLabel = document.createElement('div');
+              phaseLabel.className = 'phase-label final';
+              phaseLabel.textContent = 'Final Interview';
+              messagesContainer.appendChild(phaseLabel);
+              addedFinalPhaseLabel = true;
+            }
+            
+            // Create normal message element
             const messageElem = document.createElement('div');
-            messageElem.className = `message ${role === 'user' ? 'user-message' : 'ai-message'}`;
+            messageElem.className = `message ${message.role === 'user' ? 'user-message' : 'ai-message'}`;
             
             // Create content element
             const contentElem = document.createElement('div');
             contentElem.className = 'message-content';
-            contentElem.textContent = content;
+            contentElem.textContent = message.content;
             
             // Add content to message
             messageElem.appendChild(contentElem);
@@ -606,10 +723,14 @@
             // Add to UI
             messagesContainer.appendChild(messageElem);
             
+            // Update message phase based on our current detected phase
+            let messagePhase = message.metadata?.phase || currentPhase;
+            
             // Add to chat history array
             chatHistory.push({
-              role: role,
-              content: content
+              role: message.role,
+              content: message.content,
+              phase: messagePhase
             });
             
             messagesAdded++;
@@ -619,21 +740,27 @@
         });
         
         console.log(`Successfully restored ${messagesAdded} messages from history`);
+        console.log(`Interview phases - Initial: ${initialInterviewStarted}, Initial ended: ${initialInterviewEnded}, Final: ${finalInterviewStarted}`);
         
-        // Scroll to the bottom
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        
-        // If we have chat history, the interview has started
-        if (chatHistory.length > 0) {
-          console.log('Chat history found - marking interview as started');
-          initialInterviewStarted = true;
-          
-          // Hide timer UI and enable chat
-          timerSection.classList.add('hidden');
-          timerInfo.classList.add('hidden');
+        // Update UI based on detected state
+        if (initialInterviewEnded && !finalInterviewStarted) {
+          // Show the final interview button
+          finalInterviewContainer.classList.add('visible');
+          // Disable chat
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+        } else if (finalInterviewStarted) {
+          // Final interview is ongoing
+          chatInput.disabled = false;
+          chatSubmit.disabled = false;
+        } else if (initialInterviewStarted) {
+          // Initial interview is ongoing
           chatInput.disabled = false;
           chatSubmit.disabled = false;
         }
+        
+        // Scroll to the bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
 
       // Handle messages from the extension
@@ -652,36 +779,42 @@
             // Check if the reply is "END" to handle interview ending
             if (reply.trim() === 'END') {
               // Display a system message instead of the "END" message
-              appendMessage('system', 'The interviewer has concluded the interview. Thank you for your responses!', true);
-              console.log('Interview ended by AI with END message');
-              
-              // Mark the appropriate interview phase as ended
               if (!finalInterviewStarted) {
-                initialInterviewEnded = true;
-                
-                // Show the final interview button and disable chat input
-                finalInterviewContainer.classList.add('visible');
-                chatInput.disabled = true;
-                chatSubmit.disabled = true;
-                
-                // Save initial interview flag to backend
-                vscode.postMessage({
-                  command: 'saveInterviewPhase',
-                  phase: 'initial',
-                  instanceId
-                });
+                // This is the end of the initial interview
+                if (!initialInterviewEnded) {
+                  appendMessage('system', 'The interviewer has concluded the initial interview. Thank you for your responses!', true);
+                  console.log('Initial interview ended by AI with END message');
+                  
+                  initialInterviewEnded = true;
+                  
+                  // Show the final interview button and disable chat input
+                  finalInterviewContainer.classList.add('visible');
+                  chatInput.disabled = true;
+                  chatSubmit.disabled = true;
+                  
+                  // Save initial interview flag to backend
+                  vscode.postMessage({
+                    command: 'saveInterviewPhase',
+                    phase: 'initial',
+                    instanceId
+                  });
+                }
               } else {
                 // This is the end of the final interview
-                appendMessage('system', 'The final interview has concluded. Thank you for your participation!', true);
-                chatInput.disabled = true;
-                chatSubmit.disabled = true;
-                
-                // Save final interview flag to backend
-                vscode.postMessage({
-                  command: 'saveInterviewPhase',
-                  phase: 'final',
-                  instanceId
-                });
+                if (!document.querySelector('.system-message:last-child')) {
+                  appendMessage('system', 'The final interview has concluded. Thank you for your participation!', true);
+                  console.log('Final interview ended by AI with END message');
+                  
+                  chatInput.disabled = true;
+                  chatSubmit.disabled = true;
+                  
+                  // Save final interview flag to backend
+                  vscode.postMessage({
+                    command: 'saveInterviewPhase',
+                    phase: 'final',
+                    instanceId
+                  });
+                }
               }
             } else {
               // Normal reply
@@ -879,7 +1012,10 @@
 
       // Start the final interview
       function startFinalInterview() {
-        if (finalInterviewStarted) return;
+        if (finalInterviewStarted) {
+          console.log('Final interview already started');
+          return;
+        }
         
         // First, gather the updated workspace content and submit it to the backend
         console.log('Gathering workspace content for submission...');
