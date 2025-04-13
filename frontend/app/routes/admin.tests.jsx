@@ -348,7 +348,7 @@ export default function TestsAdmin() {
               tests.map((test) => (
                 <tr key={test.id}>
                   <td className="py-3 px-4 font-medium">{test.name}</td>
-                  <td className="py-3 px-4">{new Date(test.created_at).toLocaleDateString()}</td>
+                  <td className="py-3 px-4">{new Date(test.created_at).toLocaleString()}</td>
                   <td className="py-3 px-4">{test.candidates_assigned}</td>
                   <td className="py-3 px-4">
                     <div className="flex items-center">
