@@ -289,7 +289,7 @@
         // Ensure we have a valid container to append to
         if (!messagesContainer) {
           console.error('Error: Message container not found');
-          return;
+          return chatHistory;
         }
         
         const messageElem = document.createElement('div');
@@ -308,10 +308,13 @@
           
           // Record message in history
           chatHistory.push({ role: role === 'user' ? 'user' : 'assistant', content: text });
+          console.log(`Added ${role} message to chatHistory. Length now: ${chatHistory.length}`);
         }
         
         messagesContainer.appendChild(messageElem);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        return chatHistory;
       }
 
       // Start the initial interview
@@ -670,12 +673,20 @@
         const messageText = chatInput.value.trim();
         if (!messageText) return;
         
+        console.log(`User submitting message: "${messageText}"`);
+        
         // Disable input while waiting for response
         chatInput.disabled = true;
         chatSubmit.disabled = true;
         
-        // Add user message to chat
+        // Add user message to chat UI and history
         appendMessage('user', messageText);
+        
+        // Log the state of chatHistory
+        console.log(`Chat history after adding message. Length: ${chatHistory.length}`);
+        if (chatHistory.length > 0) {
+          console.log(`Last message in history: role=${chatHistory[chatHistory.length-1].role}, content=${chatHistory[chatHistory.length-1].content.substring(0, 30)}...`);
+        }
         
         // Build complete messages array including system prompts and chat history
         const systemMessages = [];
@@ -706,6 +717,16 @@
             ]
           }
         };
+        
+        // Check if user message is in payload
+        const userMessages = payload.payload.messages.filter(m => m.role === 'user');
+        console.log(`User messages in payload: ${userMessages.length}`);
+        if (userMessages.length > 0) {
+          const lastUserMsg = userMessages[userMessages.length - 1];
+          console.log(`Last user message in payload: ${lastUserMsg.content.substring(0, 30)}...`);
+        } else {
+          console.warn('No user messages found in payload!');
+        }
         
         // Send message to extension
         vscode.postMessage({

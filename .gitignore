@@ -2,7 +2,7 @@ test.txt
 **/.venv/
 .venv
 /server/projects/**/
-
+/lmql-testing/
 # Logs
 logs
 *.log

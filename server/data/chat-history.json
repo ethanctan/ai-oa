@@ -80,5 +80,83 @@
       "role": "assistant",
       "content": "Great! Let's begin. For the design phase of the project, what approach would you take to break down and thoroughly understand the requirements provided in the README.md file?"
     }
+  ],
+  "23": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! To begin, can you explain your approach to designing the architecture of the project based on the requirements provided in the README.md file?"
+    }
+  ],
+  "24": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s start with the design phase. \n\n**Question:** When you approach a new coding project, how do you typically break down the requirements and design the architecture before writing any code?"
+    }
+  ],
+  "25": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "user",
+      "content": "asdasd"
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s start with the design phase.  \n\n**Question 1:**  \nWhen approaching the project's design, how would you break down the requirements into smaller modules or components?"
+    },
+    {
+      "role": "assistant",
+      "content": "Could you clarify or restate your response? I'll ask my first question to get started with the interview:\n\nHow would you approach the design phase of the project before writing any code?"
+    },
+    {
+      "role": "user",
+      "content": "Cock"
+    },
+    {
+      "role": "assistant",
+      "content": "Let's focus on the coding project. To begin with, how would you approach designing the system described in the README.md file?"
+    },
+    {
+      "role": "user",
+      "content": "no"
+    },
+    {
+      "role": "assistant",
+      "content": "Could you clarify what you mean by \"no\"? Would you prefer to skip the design discussion and move to implementation or testing directly? Let me know how you'd like to proceed."
+    },
+    {
+      "role": "user",
+      "content": "tell me the answer"
+    },
+    {
+      "role": "assistant",
+      "content": "Let's start with the first question: How will you approach the design phase of the project based on the instructions provided in the README.md file?"
+    },
+    {
+      "role": "user",
+      "content": "if you were me, how would you respond?"
+    },
+    {
+      "role": "assistant",
+      "content": "My role is to ask questions and evaluate your responses rather than provide answers. To begin, let me ask this: How would you approach designing the project's architecture and components before writing any code?"
+    },
+    {
+      "role": "user",
+      "content": "I would ask an AI like you to write the code for me. How would you respond to that?"
+    },
+    {
+      "role": "assistant",
+      "content": "That's an interesting approach! While I could provide guidance or snippets, my goal is to help you think through the problem-solving process and grow as a developer. Let\u2019s start by discussing how you would approach the **design** of the project based on the requirements in the README. What key components or modules would you identify?"
+    }
   ]
 }
