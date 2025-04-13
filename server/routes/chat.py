@@ -102,6 +102,11 @@ def message():
             }), 400
         
         print(f'Adding message to chat history for instance {instance_id}')
+        
+        # Handle metadata if provided
+        if 'metadata' in message:
+            print(f'Message includes metadata: {message["metadata"]}')
+        
         history = add_chat_message(instance_id, message)
         
         return jsonify({

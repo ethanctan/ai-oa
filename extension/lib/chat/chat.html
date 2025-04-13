@@ -120,8 +120,8 @@
       font-size: 16px;
       font-weight: bold;
       padding: 5px 10px;
-      background-color: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
+      background-color: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
       border-radius: 4px;
       margin-right: 10px;
     }
@@ -232,6 +232,52 @@
     .hidden {
       display: none !important;
     }
+    /* Final interview button container */
+    #final-interview-container {
+      display: none;
+      padding: 12px;
+      text-align: center;
+      border-top: 1px solid var(--vscode-panel-border);
+    }
+    
+    #final-interview-container.visible {
+      display: block;
+    }
+
+    #start-final-interview {
+      padding: 10px 16px;
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    #start-final-interview:hover {
+      background-color: var(--vscode-button-hoverBackground);
+    }
+    
+    /* Interview phase label */
+    .phase-label {
+      font-size: 12px;
+      font-weight: bold;
+      padding: 4px 8px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+    
+    .phase-label.initial {
+      background-color: var(--vscode-editorInfo-background, rgba(0,127,255,0.1));
+      color: var(--vscode-editorInfo-foreground, #2040a0);
+    }
+    
+    .phase-label.final {
+      background-color: var(--vscode-editorWarning-background, rgba(255,127,0,0.1));
+      color: var(--vscode-editorWarning-foreground, #a05000);
+    }
   </style>
 </head>
 <body>
@@ -250,6 +296,11 @@
     
     <div class="messages" id="messages"></div>
     
+    <div id="final-interview-container">
+      <p>The initial interview is complete. When you are ready, submit your work and begin the final interview.</p>
+      <button id="start-final-interview">Submit and Start Final Interview</button>
+    </div>
+    
     <form id="chat-form">
       <textarea id="chat-input" placeholder="Type your message..." rows="3" disabled></textarea>
       <button id="chat-submit" type="submit" disabled>Send</button>
@@ -267,6 +318,8 @@
       const timerElement = document.getElementById('timer');
       const timerSection = document.getElementById('timer-section');
       const timerInfo = document.getElementById('timer-info');
+      const finalInterviewContainer = document.getElementById('final-interview-container');
+      const startFinalInterviewBtn = document.getElementById('start-final-interview');
 
       // Global variables to store chat history, workspace context, and prompts
       let chatHistory = [];
@@ -276,10 +329,12 @@
       let assessmentPrompt = '';
       let initialInterviewStarted = false;
       let finalInterviewStarted = false;
+      let initialInterviewEnded = false;
       let timerStarted = false;
       let timerEndTime = null;
       let timerInterval = null;
       let instanceId = null;
+      let currentInterviewPhase = 'initial'; // 'initial' or 'final'
 
       // Immediately request environment prompts
       vscode.postMessage({ command: 'getEnvironmentPrompts' });
@@ -300,6 +355,20 @@
         } else {
           messageElem.className = `message ${role === 'user' ? 'user-message' : 'ai-message'}`;
           
+          // Add phase label for non-system messages if in final interview
+          if (finalInterviewStarted && !document.querySelector('.phase-label.final')) {
+            const phaseLabel = document.createElement('div');
+            phaseLabel.className = 'phase-label final';
+            phaseLabel.textContent = 'Final Interview';
+            messagesContainer.appendChild(phaseLabel);
+          } else if (!finalInterviewStarted && !initialInterviewEnded && !document.querySelector('.phase-label.initial') && chatHistory.length === 0) {
+            // Add initial phase label for the first message
+            const phaseLabel = document.createElement('div');
+            phaseLabel.className = 'phase-label initial';
+            phaseLabel.textContent = 'Initial Interview';
+            messagesContainer.appendChild(phaseLabel);
+          }
+          
           const contentElem = document.createElement('div');
           contentElem.className = 'message-content';
           contentElem.textContent = text;
@@ -307,7 +376,12 @@
           messageElem.appendChild(contentElem);
           
           // Record message in history
-          chatHistory.push({ role: role === 'user' ? 'user' : 'assistant', content: text });
+          const messageObj = { 
+            role: role === 'user' ? 'user' : 'assistant', 
+            content: text,
+            phase: finalInterviewStarted ? 'final' : 'initial'
+          };
+          chatHistory.push(messageObj);
           console.log(`Added ${role} message to chatHistory. Length now: ${chatHistory.length}`);
         }
         
@@ -361,10 +435,10 @@
           
           // Add the specific interview prompt if provided
           if (initialPrompt) {
-            systemMessages.push({ role: "system", content: initialPrompt });
+            systemMessages.push({ role: "system", content: initialPrompt + " Based on the candidate's responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with 'END' as your complete message. Otherwise, ask your next question." });
           } else {
             // Default system message
-            systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.' });
+            systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused. Based on the candidate\'s responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with \'END\' as your complete message. Otherwise, ask your next question.' });
           }
           
           // Always include workspace content if available
@@ -573,12 +647,53 @@
           if (message.error) {
             appendMessage('system', `Error: ${message.error}`, true);
           } else {
-            appendMessage('assistant', message.reply || 'No reply');
+            const reply = message.reply || 'No reply';
+            
+            // Check if the reply is "END" to handle interview ending
+            if (reply.trim() === 'END') {
+              // Display a system message instead of the "END" message
+              appendMessage('system', 'The interviewer has concluded the interview. Thank you for your responses!', true);
+              console.log('Interview ended by AI with END message');
+              
+              // Mark the appropriate interview phase as ended
+              if (!finalInterviewStarted) {
+                initialInterviewEnded = true;
+                
+                // Show the final interview button and disable chat input
+                finalInterviewContainer.classList.add('visible');
+                chatInput.disabled = true;
+                chatSubmit.disabled = true;
+                
+                // Save initial interview flag to backend
+                vscode.postMessage({
+                  command: 'saveInterviewPhase',
+                  phase: 'initial',
+                  instanceId
+                });
+              } else {
+                // This is the end of the final interview
+                appendMessage('system', 'The final interview has concluded. Thank you for your participation!', true);
+                chatInput.disabled = true;
+                chatSubmit.disabled = true;
+                
+                // Save final interview flag to backend
+                vscode.postMessage({
+                  command: 'saveInterviewPhase',
+                  phase: 'final',
+                  instanceId
+                });
+              }
+            } else {
+              // Normal reply
+              appendMessage('assistant', reply);
+            }
           }
           
-          // Enable input after response
-          chatInput.disabled = false;
-          chatSubmit.disabled = false;
+          // Enable input after response unless initial interview has ended and final not started
+          if (!initialInterviewEnded || finalInterviewStarted) {
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+          }
         } 
         // If we get the contents of this workspace
         else if (message.command === 'workspaceContent') { 
@@ -664,6 +779,16 @@
             handleTimerStatus(message.timer);
           }
         }
+        // Handle final interview started confirmation
+        else if (message.command === 'finalInterviewStarted') {
+          console.log('Final interview started status confirmed by server');
+          finalInterviewStarted = true;
+          initialInterviewEnded = true;
+          
+          // Enable chat input for final interview
+          chatInput.disabled = false;
+          chatSubmit.disabled = false;
+        }
       });
 
       // Set up form submission
@@ -691,17 +816,24 @@
         // Build complete messages array including system prompts and chat history
         const systemMessages = [];
         
-        // Add the specific interview prompt if provided
+        // Base prompt depending on interview stage
+        let basePrompt = '';
         if (initialInterviewStarted && finalInterviewStarted) {
           // Final interview mode
-          systemMessages.push({ role: "system", content: finalPrompt });
+          basePrompt = finalPrompt;
         } else if (initialInterviewStarted) {
           // Initial interview mode
-          systemMessages.push({ role: "system", content: initialPrompt });
+          basePrompt = initialPrompt;
         } else {
           // Default system message
-          systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.' });
+          basePrompt = 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.';
         }
+        
+        // Add instruction to end interview when appropriate
+        const endingInstructions = " Based on the candidate's responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with 'END' as your complete message. Otherwise, ask your next question.";
+        
+        // Add the combined prompt
+        systemMessages.push({ role: "system", content: basePrompt + endingInstructions });
         
         // Always include workspace content if available
         if (workspaceContext) {
@@ -743,6 +875,122 @@
       startInterviewBtn.addEventListener('click', () => {
         console.log('Start interview button clicked');
         startInitialInterview();
+      });
+
+      // Start the final interview
+      function startFinalInterview() {
+        if (finalInterviewStarted) return;
+        
+        // First, gather the updated workspace content and submit it to the backend
+        console.log('Gathering workspace content for submission...');
+        
+        // Request fresh workspace content - but don't wait for the response
+        vscode.postMessage({ command: 'getWorkspaceContent' });
+        
+        // Set up a one-time listener for the response with workspace content
+        window.addEventListener('message', function workspaceContentListener(event) {
+          if (event.data.command === 'workspaceContent') {
+            // Remove this one-time listener
+            window.removeEventListener('message', workspaceContentListener);
+            
+            const content = event.data.content;
+            if (event.data.error) {
+              console.error('Error getting workspace content:', event.data.error);
+              return;
+            }
+            
+            console.log(`Got workspace content, size: ${content.length} chars`);
+            
+            // Submit the workspace content to the backend, but don't wait
+            vscode.postMessage({
+              command: 'submitWorkspaceContent',
+              instanceId,
+              content
+            });
+          }
+        });
+        
+        // Proceed with starting the final interview immediately
+        // Clear existing chat history for display purposes
+        messagesContainer.innerHTML = '';
+        chatHistory = [];
+        
+        // Mark final interview as started
+        finalInterviewStarted = true;
+        
+        // Hide the final interview button container
+        finalInterviewContainer.classList.remove('visible');
+        
+        // Show a system message indicating the start of the final interview
+        appendMessage('system', 'Final Interview Started', true);
+        
+        // Add a loading message while we wait for the AI's first question
+        const loadingMessageId = 'loading-message';
+        const loadingMessage = document.createElement('div');
+        loadingMessage.id = loadingMessageId;
+        loadingMessage.className = 'system-message';
+        loadingMessage.textContent = 'Waiting for interviewer to ask the first question...';
+        messagesContainer.appendChild(loadingMessage);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Disable the input while waiting for first question
+        chatInput.disabled = true;
+        chatSubmit.disabled = true;
+        
+        // Notify the server that the final interview has started
+        vscode.postMessage({
+          command: 'startFinalInterview',
+          instanceId
+        });
+        
+        // Send an automatic first message
+        setTimeout(() => {
+          // Automatically send the first message from the user
+          const initialUserMessage = "I am ready to start the final interview. I have completed the coding project.";
+          
+          // Add user message to the UI
+          appendMessage('user', initialUserMessage);
+          
+          // Build complete messages array including system prompts and chat history
+          const systemMessages = [];
+          
+          // Add the specific interview prompt if provided
+          if (finalPrompt) {
+            systemMessages.push({ role: "system", content: finalPrompt + " Based on the candidate's responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with 'END' as your complete message. Otherwise, ask your next question." });
+          } else {
+            // Default system message
+            systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have now completed. IMPORTANT: Ask only ONE question at a time about their implementation, and wait for their response before asking another question. Start by asking them to explain their overall approach. Based on the candidate\'s responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with \'END\' as your complete message. Otherwise, ask your next question.' });
+          }
+          
+          // Always include workspace content if available
+          if (workspaceContext) {
+            systemMessages.push({ role: "system", content: "Project workspace content: " + workspaceContext });
+          }
+          
+          // Construct the payload with all messages using the standardized format
+          const payload = {
+              "payload": {
+                "messages": [
+                  ...systemMessages,
+                  { role: "user", content: initialUserMessage, phase: "final" }
+                ]
+              }
+          };
+          
+          // Send message to extension
+          vscode.postMessage({
+            command: 'chatMessage',
+            payload: payload,
+            instanceId,
+            phase: 'final'
+          });
+        }, 500); // Short delay to ensure everything is processed first
+      }
+      
+      // Start final interview button handler
+      startFinalInterviewBtn.addEventListener('click', () => {
+        console.log('Start final interview button clicked');
+        startFinalInterview();
       });
     }());
   </script>

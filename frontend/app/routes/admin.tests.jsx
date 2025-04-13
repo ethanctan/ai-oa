@@ -345,7 +345,7 @@ export default function TestsAdmin() {
           </thead>
           <tbody className="divide-y divide-gray-200">
             {tests && tests.length > 0 ? (
-              tests.map((test) => (
+              tests.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map((test) => (
                 <tr key={test.id}>
                   <td className="py-3 px-4 font-medium">{test.name}</td>
                   <td className="py-3 px-4">{new Date(test.created_at).toLocaleString()}</td>

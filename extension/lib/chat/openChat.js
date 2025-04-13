@@ -207,8 +207,8 @@ function openChat() {
           skipHistorySave: true,
           payload: {
             messages: [
-              // Use the global initial prompt as system message
-              { role: "system", content: globalInitialPrompt },
+              // Use the global initial prompt as system message with ending instructions
+              { role: "system", content: globalInitialPrompt + " Based on the candidate's responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with 'END' as your complete message. Otherwise, ask your next question." },
               // Include the user message
               { role: "user", content: userMessage.content }
             ]
@@ -229,6 +229,11 @@ function openChat() {
         }
         
         const data = await response.json();
+        
+        // Check if the AI is ending the interview
+        if (data.reply.trim() === 'END') {
+          console.log('AI has decided to end the interview with "END" message');
+        }
         
         // Save AI response to history explicitly
         try {
@@ -291,6 +296,41 @@ function openChat() {
     if (message.command === 'sendChatMessage') {
       console.log(`Sending chat message for instance: ${message.instanceId}`);
       sendChatMessage(message.text, message.instanceId);
+    }
+    
+    // Handle saving interview phase
+    if (message.command === 'saveInterviewPhase') {
+      console.log(`Saving interview phase ${message.phase} for instance: ${message.instanceId}`);
+      saveInterviewPhase(message.instanceId, message.phase);
+    }
+    
+    // Handle submitting workspace content for report generation
+    if (message.command === 'submitWorkspaceContent') {
+      console.log(`Submitting workspace content for instance: ${message.instanceId}`);
+      
+      // Submit but don't wait for response to continue with the interview
+      submitWorkspaceContent(message.instanceId, message.content)
+        .then(() => {
+          console.log('Workspace content submitted successfully');
+        })
+        .catch(error => {
+          console.error(`Error submitting workspace content: ${error.message}`);
+          // Just log to console, don't send error back to webview
+        });
+    }
+    
+    // Handle starting the final interview
+    if (message.command === 'startFinalInterview') {
+      console.log(`Starting final interview for instance: ${message.instanceId}`);
+      
+      // Mark the final interview as started in the server
+      await setFinalInterviewStarted(message.instanceId);
+      
+      // Send a confirmation back to the webview
+      global.chatPanel.webview.postMessage({
+        command: 'finalInterviewStarted',
+        success: true
+      });
     }
   });
 
@@ -512,6 +552,11 @@ async function sendChatMessage(message, instanceId) {
     const data = await aiResponse.json();
     console.log('AI response:', data);
     
+    // Check if the AI is ending the interview
+    if (data.reply.trim() === 'END') {
+      console.log('AI has decided to end the interview with "END" message');
+    }
+    
     // Save the AI response to history
     try {
       console.log('Explicitly saving AI response to history after receiving');
@@ -653,6 +698,103 @@ async function setInterviewStarted(instanceId) {
   } catch (error) {
     console.error(`Error setting interview started: ${error.message}`);
     return false;
+  }
+}
+
+// Function to mark the final interview as started
+async function setFinalInterviewStarted(instanceId) {
+  if (!instanceId) {
+    console.error('Cannot set final interview started: No instance ID provided');
+    return false;
+  }
+  
+  console.log(`Setting final interview started for instance: ${instanceId}`);
+  
+  try {
+    // Save the phase indicator to the server
+    await saveInterviewPhase(instanceId, 'final_started');
+    
+    // Notify UI that final interview has started
+    if (global.chatPanel) {
+      global.chatPanel.webview.postMessage({
+        command: 'finalInterviewStarted',
+        success: true
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`Error setting final interview started: ${error.message}`);
+    return false;
+  }
+}
+
+// Function to save the interview phase to the server
+async function saveInterviewPhase(instanceId, phase) {
+  if (!instanceId) {
+    console.error('Cannot save interview phase: No instance ID provided');
+    return false;
+  }
+  
+  console.log(`Saving interview phase ${phase} for instance: ${instanceId}`);
+  
+  try {
+    // Add metadata to last message to indicate phase change
+    await fetch(`${SERVER_CHAT_URL}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        instanceId,
+        message: { 
+          role: 'system', 
+          content: `PHASE_MARKER: ${phase}`,
+          metadata: { phase }
+        }
+      })
+    });
+    
+    console.log(`Successfully saved phase marker for ${phase}`);
+    return true;
+  } catch (error) {
+    console.error(`Error saving interview phase: ${error.message}`);
+    return false;
+  }
+}
+
+// Function to submit workspace content to the backend for report generation
+async function submitWorkspaceContent(instanceId, content) {
+  if (!instanceId) {
+    throw new Error('No instance ID provided for workspace submission');
+  }
+  
+  if (!content) {
+    throw new Error('No workspace content provided for submission');
+  }
+  
+  console.log(`Submitting workspace content for instance ${instanceId}, size: ${content.length} chars`);
+  
+  try {
+    // POST the workspace content to the report endpoint
+    const response = await fetch(`${SERVER_URL}/instances/${instanceId}/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        instanceId,
+        workspaceContent: content,
+        timestamp: new Date().toISOString()
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(`Workspace content submitted successfully: ${JSON.stringify(data)}`);
+    return data;
+  } catch (error) {
+    console.error(`Error submitting workspace content: ${error.message}`);
+    throw error;
   }
 }
 
