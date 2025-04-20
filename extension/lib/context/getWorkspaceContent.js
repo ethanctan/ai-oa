@@ -2,6 +2,7 @@
 
 const vscode = require('vscode');
 
+// DEPRECATED: Implementing code2prompt instead. Do not delete the below function in case we need to revert.
 /**
  * Retrieves the content of files in the workspace matching a glob pattern,
  * excluding another glob pattern.
