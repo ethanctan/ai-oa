@@ -235,7 +235,7 @@ export default function TestsAdmin() {
   const handleViewReport = async (instanceId) => {
     try {
       console.log(`Fetching report for instance ID: ${instanceId}`);
-      const response = await fetch(`http://127.0.0.1:3000/reports/${instanceId}`);
+      const response = await fetch(`http://127.0.0.1:3000/instances/${instanceId}/report`);
       if (response.ok) {
         const data = await response.json();
         setCurrentReport(data);
