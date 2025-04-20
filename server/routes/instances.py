@@ -1,6 +1,5 @@
 from flask import Blueprint, request, jsonify
-from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance
-from controllers.reports_controller import get_report
+from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, get_report, create_report
 
 # Create a Blueprint for instances routes
 instances_bp = Blueprint('instances', __name__)
@@ -48,12 +47,19 @@ def stop_instance_route(instance_id):
         print(f'Error stopping instance: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
-# GET /instances/:id/report - Get a report for an instance
-@instances_bp.route('/<int:instance_id>/report', methods=['GET'])
-def get_instance_report(instance_id):
+# GET/POST /instances/:id/report - Get or create a report for an instance
+@instances_bp.route('/<int:instance_id>/report', methods=['GET', 'POST'])
+def instance_report(instance_id):
     try:
-        report = get_report(instance_id)
-        return jsonify(report)
+        if request.method == 'GET':
+            report = get_report(instance_id)
+            return jsonify(report)
+        else:  # POST
+            data = request.json
+            if not data:
+                return jsonify({'error': 'Instance content is required to generate a report'}), 400
+            report = create_report(instance_id, data)
+            return jsonify(report)
     except Exception as e:
-        print(f'Error getting report: {str(e)}')
+        print(f'Error handling report: {str(e)}')
         return jsonify({'error': str(e)}), 500 

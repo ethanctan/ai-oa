@@ -3,6 +3,7 @@ import time
 import docker
 import subprocess
 import shutil
+import json
 from pathlib import Path
 from database.db import get_connection
 from controllers.timer_controller import start_instance_timer
@@ -444,6 +445,113 @@ def stop_instance(instance_id):
     except Exception as e:
         print(f"Error in stop_instance: {str(e)}")
         return {"success": False, "message": f"Error: {str(e)}"}
+    
+    finally:
+        conn.close()
+
+def get_report(instance_id):
+    """
+    Get a report for a test instance
+    
+    Args:
+        instance_id (int): The instance ID
+    
+    Returns:
+        dict: The report data or a message if no report exists
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if instance exists
+        cursor.execute(
+            '''
+            SELECT ti.*, t.name as test_name, t.assessment_prompt
+            FROM test_instances ti
+            LEFT JOIN tests t ON ti.test_id = t.id
+            WHERE ti.id = ?
+            ''',
+            (instance_id,)
+        )
+        
+        instance = cursor.fetchone()
+        
+        if not instance:
+            return {"message": f"Instance with ID {instance_id} not found"}
+        
+        # Check if a report already exists
+        cursor.execute(
+            'SELECT * FROM reports WHERE instance_id = ?',
+            (instance_id,)
+        )
+        
+        report = cursor.fetchone()
+        
+        if report:
+            return dict(report)
+        
+        return {"message": f"No report exists for instance {instance_id}"}
+    
+    except Exception as e:
+        conn.rollback()
+        raise e
+    
+    finally:
+        conn.close()
+
+def create_report(instance_id, data):
+    """
+    Create a new report for a test instance
+    
+    Args:
+        instance_id (int): The instance ID
+        data (dict): The instance workspace content as JSON
+    
+    Returns:
+        dict: The created report data
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if instance exists
+        cursor.execute('SELECT id FROM test_instances WHERE id = ?', (instance_id,))
+        if not cursor.fetchone():
+            return {"message": f"Instance with ID {instance_id} not found"}
+        
+        # Convert data to JSON string
+        content = json.dumps(data)
+        
+        # Check if a report already exists
+        cursor.execute('SELECT * FROM reports WHERE instance_id = ?', (instance_id,))
+        existing_report = cursor.fetchone()
+        
+        if existing_report:
+            # Update existing report
+            cursor.execute(
+                'UPDATE reports SET content = ? WHERE instance_id = ?',
+                (content, instance_id)
+            )
+        else:
+            # Create new report
+            cursor.execute(
+                'INSERT INTO reports (instance_id, content) VALUES (?, ?)',
+                (instance_id, content)
+            )
+        
+        conn.commit()
+        
+        # Get the report
+        cursor.execute('SELECT * FROM reports WHERE instance_id = ?', (instance_id,))
+        report = dict(cursor.fetchone())
+        
+        # Convert content back to JSON for the response
+        report['content'] = json.loads(report['content'])
+        return report
+    
+    except Exception as e:
+        conn.rollback()
+        raise e
     
     finally:
         conn.close() 
