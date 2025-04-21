@@ -58,7 +58,8 @@ def start_instance_timer(instance_id, duration=600):
     
     Args:
         instance_id (int): The instance ID
-        duration (int, optional): Duration in seconds. Defaults to 1 hour.
+        duration (int, optional): Duration in seconds. Defaults to 600 (10 minutes).
+                                 If set to 0, timer will be created but marked as inactive.
     
     Returns:
         dict: Timer information
@@ -68,14 +69,17 @@ def start_instance_timer(instance_id, duration=600):
     
     # Set the timer
     current_time = int(time.time())
-    end_time = current_time + duration
+    end_time = current_time + (duration if duration > 0 else 0)
+    
+    # Check if timer should be active (duration of 0 means timer is disabled)
+    is_active = duration > 0
     
     timer_info = {
         'instanceId': instance_id,
         'startTime': current_time,
         'endTime': end_time,
         'duration': duration,
-        'active': True,
+        'active': is_active,
         'interviewStarted': False,  # Default to not started
         'currentTimeMs': current_time * 1000,  # For frontend
         'endTimeMs': end_time * 1000,  # For frontend

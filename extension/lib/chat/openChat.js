@@ -92,6 +92,17 @@ function openChat() {
       }
     }
 
+    // Handle timer configuration
+    if (message.command === 'setTimerConfig') {
+      console.log(`Setting timer configuration: ${JSON.stringify(message.config)}`);
+      // Store timer configuration in global variable for use in startTimer
+      global.timerConfig = message.config;
+      global.chatPanel.webview.postMessage({ 
+        command: 'timerConfigSet', 
+        success: true 
+      });
+    }
+
     if (message.command === 'getEnvironmentPrompts') {
       try {
         const envVars = await getEnvironmentVariables();
@@ -358,12 +369,19 @@ async function startTimer(instanceId) {
   console.log(`Starting timer for instance: ${instanceId}`);
   
   try {
+    // Check if there are any timer configuration parameters
+    const timerConfig = global.timerConfig || {};
+    
     const response = await fetch(
       SERVER_TIMER_START_URL,
       {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ instanceId })
+        body: JSON.stringify({ 
+          instanceId,
+          enableTimer: timerConfig.enableTimer !== false, // Default to true if not specified
+          duration: timerConfig.duration ? timerConfig.duration * 60 : undefined // Convert minutes to seconds
+        })
       }
     );
     

@@ -155,6 +155,12 @@
       background-color: var(--vscode-errorForeground, red);
       color: white;
     }
+    /* Add style for disabled timer */
+    #timer.disabled {
+      background-color: var(--vscode-disabledForeground, gray);
+      color: white;
+      font-style: italic;
+    }
     .messages {
       flex: 1;
       overflow-y: auto;
@@ -277,6 +283,19 @@
     .phase-label.final {
       background-color: var(--vscode-editorWarning-background, rgba(255,127,0,0.1));
       color: var(--vscode-editorWarning-foreground, #a05000);
+    }
+
+    #timer.disabled + .action-button {
+      background-color: var(--vscode-button-prominentBackground, #0e70c0);
+      color: var(--vscode-button-prominentForeground, white);
+      font-weight: bold;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(14, 112, 192, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(14, 112, 192, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(14, 112, 192, 0); }
     }
   </style>
 </head>
@@ -477,7 +496,7 @@
       setInterval(requestWorkspaceContext, 30000);
 
       // Function to check if timer already exists and get status upon initial load
-      function checkExistingTimer() {
+      function checkTimerStatus() {
         if (!instanceId) {
           console.log('Cannot check timer: No instance ID available');
           return;
@@ -485,6 +504,37 @@
         
         console.log(`Checking if timer exists for instance ${instanceId}`);
         vscode.postMessage({ command: 'getTimerStatus', instanceId });
+      }
+      
+      // Function to get timer status as a promise
+      function getTimerStatus() {
+        return new Promise((resolve, reject) => {
+          if (!instanceId) {
+            reject(new Error('No instance ID available'));
+            return;
+          }
+          
+          // Create a one-time event listener for the timer status response
+          const listener = (event) => {
+            if (event.data.command === 'timerStatus') {
+              // Remove the event listener
+              window.removeEventListener('message', listener);
+              resolve(event.data.data);
+            }
+          };
+          
+          // Add the event listener
+          window.addEventListener('message', listener);
+          
+          // Request the timer status
+          vscode.postMessage({ command: 'getTimerStatus', instanceId });
+          
+          // Set a timeout to reject the promise if no response is received
+          setTimeout(() => {
+            window.removeEventListener('message', listener);
+            reject(new Error('Timer status request timed out'));
+          }, 5000);
+        });
       }
 
       // Function to handle timer status updates from the server
@@ -515,6 +565,24 @@
           // Enable chat input
           chatInput.disabled = false;
           chatSubmit.disabled = false;
+          return; // Exit early if interview already started
+        }
+        
+        // Check if timer is active or disabled
+        if (data.hasOwnProperty('active') && !data.active) {
+          console.log('Timer is disabled - waiting for user to start interview manually');
+          timerElement.textContent = 'Disabled';
+          timerElement.classList.add('disabled');
+          
+          // Update timer info message
+          timerInfo.textContent = 'Timer is disabled. Click "Start Interview" to begin when you are ready.';
+          
+          // Make sure start interview button is visible
+          startInterviewBtn.classList.remove('hidden');
+          
+          // Mark timer as started but not running
+          timerStarted = true;
+          return; // Exit early since no timer is running
         }
         
         // Set up timer display updates
@@ -555,10 +623,15 @@
           timerElement.classList.add('expired');
           console.log('Timer expired');
           
-          // Auto-start interview if timer expires and interview not started
-          if (!initialInterviewStarted) {
-            startInitialInterview();
-          }
+          // Get the latest timer status to check if timer is active before auto-starting
+          getTimerStatus().then(timerData => {
+            if (timerData && timerData.active && !initialInterviewStarted) {
+              // Auto-start interview if timer expires, is active, and interview not started
+              startInitialInterview();
+            }
+          }).catch(err => {
+            console.error('Error checking timer status before auto-starting interview:', err);
+          });
         }
       }
 
@@ -850,6 +923,12 @@
           if (message.instanceId) {
             instanceId = message.instanceId;
             console.log(`Instance ID set: ${instanceId}`);
+            
+            // Now that we have the instance ID, check the timer status
+            checkTimerStatus();
+            
+            // Also fetch chat history if available
+            vscode.postMessage({ command: 'getChatHistory', instanceId });
           }
         }
         // If we get timer status from server

@@ -16,6 +16,30 @@ export default function TestsAdmin() {
   const [currentTestId, setCurrentTestId] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [currentReport, setCurrentReport] = useState(null);
+  const [timerEnabled, setTimerEnabled] = useState(true);
+  
+  // Add CSS for toggle switch
+  useEffect(() => {
+    // Add CSS for toggle switch
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .toggle-checkbox:checked {
+        right: 0;
+        border-color: #3B82F6;
+      }
+      .toggle-checkbox:checked + .toggle-label {
+        background-color: #3B82F6;
+      }
+      .toggle-label {
+        transition: background-color 0.2s ease;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
   
   // Separate state for candidates in different contexts
   const [newTestSelectedCandidates, setNewTestSelectedCandidates] = useState([]);
@@ -319,6 +343,11 @@ export default function TestsAdmin() {
     }
   };
 
+  // Handle timer toggle change
+  const handleTimerToggleChange = (e) => {
+    setTimerEnabled(e.target.checked);
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -424,6 +453,23 @@ export default function TestsAdmin() {
               method="post" 
               className="space-y-6"
               onSubmit={(event) => {
+                // Get the form data to extract timer configuration
+                const formData = new FormData(event.target);
+                const enableTimer = formData.get('enableTimer') === 'on';
+                const timerDuration = parseInt(formData.get('timerDuration'), 10) || 10;
+                
+                // Create the timer configuration JSON
+                const timerConfig = {
+                  enableTimer: enableTimer,
+                  duration: timerDuration
+                };
+                
+                // Set the value of the hidden field
+                const timerConfigJsonField = event.target.querySelector('#timerConfigJson');
+                if (timerConfigJsonField) {
+                  timerConfigJsonField.value = JSON.stringify(timerConfig);
+                }
+                
                 // Form will be submitted normally via Remix
                 // Add a slight delay before closing the modal to ensure the form is submitted
                 setTimeout(() => {
@@ -445,6 +491,46 @@ export default function TestsAdmin() {
                   required 
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-medium text-lg">Initial Timer Configuration</h4>
+                <div className="flex items-center">
+                  <div className="relative inline-block w-10 mr-2 align-middle select-none">
+                    <input 
+                      type="checkbox" 
+                      name="enableTimer" 
+                      id="enableTimer" 
+                      checked={timerEnabled}
+                      onChange={handleTimerToggleChange}
+                      className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                    />
+                    <label 
+                      htmlFor="enableTimer" 
+                      className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                    ></label>
+                  </div>
+                  <label htmlFor="enableTimer" className="text-sm font-medium text-gray-700">
+                    Enable initial waiting timer
+                  </label>
+                </div>
+                <div>
+                  <label htmlFor="timerDuration" className="block text-sm font-medium text-gray-700 mb-1">
+                    Timer Duration (minutes)
+                  </label>
+                  <input 
+                    type="number" 
+                    id="timerDuration" 
+                    name="timerDuration" 
+                    min="1"
+                    max="120"
+                    defaultValue="10"
+                    disabled={!timerEnabled}
+                    className={`w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!timerEnabled ? 'bg-gray-100 text-gray-500' : ''}`}
+                  />
+                </div>
+                {/* Hidden field for timer configuration */}
+                <input type="hidden" name="timerConfigJson" id="timerConfigJson" />
               </div>
 
               <div>
@@ -472,7 +558,7 @@ export default function TestsAdmin() {
               </div>
 
               <div className="space-y-4">
-                <h4 className="font-medium text-lg">Interviewer Prompts</h4>
+                <h4 className="font-medium text-lg mb-2">Interviewer Prompts</h4>
                 
                 <div>
                   <label htmlFor="initialPrompt" className="block text-sm font-medium text-gray-700 mb-1">

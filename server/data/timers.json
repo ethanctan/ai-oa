@@ -398,5 +398,65 @@
     "endTimeMs": 1745203845000,
     "timeRemaining": 600,
     "timeRemainingMs": 600000
+  },
+  "39": {
+    "instanceId": "39",
+    "startTime": 1745205869,
+    "endTime": 1745205929,
+    "duration": 60,
+    "active": true,
+    "interviewStarted": true,
+    "currentTimeMs": 1745205869000,
+    "endTimeMs": 1745205929000,
+    "timeRemaining": 60,
+    "timeRemainingMs": 60000
+  },
+  "40": {
+    "instanceId": "40",
+    "startTime": 1745206120,
+    "endTime": 1745206180,
+    "duration": 60,
+    "active": true,
+    "interviewStarted": false,
+    "currentTimeMs": 1745206120000,
+    "endTimeMs": 1745206180000,
+    "timeRemaining": 60,
+    "timeRemainingMs": 60000
+  },
+  "41": {
+    "instanceId": "41",
+    "startTime": 1745206122,
+    "endTime": 1745206122,
+    "duration": 0,
+    "active": false,
+    "interviewStarted": false,
+    "currentTimeMs": 1745206122000,
+    "endTimeMs": 1745206122000,
+    "timeRemaining": 0,
+    "timeRemainingMs": 0
+  },
+  "42": {
+    "instanceId": "42",
+    "startTime": 1745206128,
+    "endTime": 1745206128,
+    "duration": 0,
+    "active": false,
+    "interviewStarted": false,
+    "currentTimeMs": 1745206128000,
+    "endTimeMs": 1745206128000,
+    "timeRemaining": 0,
+    "timeRemainingMs": 0
+  },
+  "43": {
+    "instanceId": "43",
+    "startTime": 1745207338,
+    "endTime": 1745207338,
+    "duration": 0,
+    "active": false,
+    "interviewStarted": true,
+    "currentTimeMs": 1745207338000,
+    "endTimeMs": 1745207338000,
+    "timeRemaining": 0,
+    "timeRemainingMs": 0
   }
 }

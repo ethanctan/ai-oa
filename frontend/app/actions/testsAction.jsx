@@ -56,6 +56,19 @@ export async function action({ request }) {
             }
           }
         });
+
+        // Handle timer configuration JSON if present
+        if (payload.timerConfigJson) {
+          try {
+            const timerConfig = JSON.parse(payload.timerConfigJson);
+            payload.enableTimer = timerConfig.enableTimer;
+            payload.timerDuration = timerConfig.duration;
+            // Remove the raw JSON from the payload
+            delete payload.timerConfigJson;
+          } catch (e) {
+            console.error('Failed to parse timer configuration:', e);
+          }
+        }
         
         // Create the test
         const response = await fetch("http://127.0.0.1:3000/tests", {

@@ -6,8 +6,26 @@ def get_all_tests():
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT * FROM tests')
-        tests = [dict(row) for row in cursor.fetchall()]
+        cursor.execute(
+            '''
+            SELECT 
+                t.id, t.name, t.github_repo, 
+                t.candidates_assigned, t.candidates_completed,
+                t.enable_timer, t.timer_duration,
+                t.created_at, t.updated_at,
+                COUNT(DISTINCT tc.candidate_id) as total_candidates
+            FROM tests t
+            LEFT JOIN test_candidates tc ON t.id = tc.test_id
+            GROUP BY t.id
+            ORDER BY t.created_at DESC
+            '''
+        )
+        
+        tests = []
+        for row in cursor.fetchall():
+            test_dict = dict(row)
+            tests.append(test_dict)
+        
         return tests
     finally:
         conn.close()
@@ -18,13 +36,50 @@ def get_test(test_id):
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT * FROM tests WHERE id = ?', (test_id,))
+        cursor.execute(
+            '''
+            SELECT 
+                t.id, t.name, t.github_repo, t.github_token, 
+                t.initial_prompt, t.final_prompt, t.assessment_prompt,
+                t.candidates_assigned, t.candidates_completed, 
+                t.enable_timer, t.timer_duration,
+                t.created_at, t.updated_at,
+                COUNT(DISTINCT tc.candidate_id) as total_candidates
+            FROM tests t
+            LEFT JOIN test_candidates tc ON t.id = tc.test_id
+            WHERE t.id = ?
+            GROUP BY t.id
+            ''',
+            (test_id,)
+        )
+        
         test = cursor.fetchone()
         
         if not test:
             return None
         
-        return dict(test)
+        # Convert to dictionary for easier manipulation
+        test_dict = dict(test)
+        
+        # Get candidates assigned to this test
+        cursor.execute(
+            '''
+            SELECT c.id, c.name, c.email, tc.completed
+            FROM candidates c
+            JOIN test_candidates tc ON c.id = tc.candidate_id
+            WHERE tc.test_id = ?
+            ''',
+            (test_id,)
+        )
+        
+        candidates = []
+        for row in cursor.fetchall():
+            candidates.append(dict(row))
+        
+        test_dict['candidates'] = candidates
+        
+        return test_dict
+    
     finally:
         conn.close()
 
@@ -33,6 +88,10 @@ def create_test(data):
     # Check for both 'name' and 'instanceName' to handle frontend form field naming
     name = data.get('name') or data.get('instanceName')
     candidate_ids = data.get('candidateIds', [])
+    
+    # Extract timer configuration
+    enable_timer = data.get('enableTimer', True)
+    timer_duration = data.get('timerDuration', 10)  # Default: 10 minutes
     
     if not name:
         raise ValueError('Test name is required')
@@ -47,8 +106,9 @@ def create_test(data):
             INSERT INTO tests (
                 name, github_repo, github_token, 
                 initial_prompt, final_prompt, assessment_prompt,
-                candidates_assigned, candidates_completed
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                candidates_assigned, candidates_completed,
+                enable_timer, timer_duration
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 name,
@@ -58,7 +118,9 @@ def create_test(data):
                 data.get('finalPrompt'),
                 data.get('assessmentPrompt'),
                 0,  # candidates_assigned (will be updated if candidates are assigned)
-                0   # candidates_completed
+                0,  # candidates_completed
+                1 if enable_timer else 0,  # Store as integer for SQLite compatibility
+                timer_duration
             )
         )
         conn.commit()

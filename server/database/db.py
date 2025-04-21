@@ -60,6 +60,8 @@ def init_database():
         assessment_prompt TEXT,
         candidates_assigned INTEGER DEFAULT 0,
         candidates_completed INTEGER DEFAULT 0,
+        enable_timer INTEGER DEFAULT 1,
+        timer_duration INTEGER DEFAULT 10,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )

@@ -10,7 +10,13 @@ def start_timer():
     try:
         data = request.json
         instance_id = data.get('instanceId')
-        duration = data.get('duration', 60 * 60)  # Default: 1 hour in seconds
+        enable_timer = data.get('enableTimer', True)  # Default to enabled if not specified
+        
+        # If timer is disabled, set duration to 0
+        if enable_timer:
+            duration = data.get('duration', 60 * 10)  # Default: 10 minutes in seconds
+        else:
+            duration = 0  # A duration of 0 will be treated as disabled in the controller
         
         if not instance_id:
             return jsonify({
@@ -68,7 +74,13 @@ def reset_instance_timer():
     try:
         data = request.json
         instance_id = data.get('instanceId')
-        duration = data.get('duration', 60 * 60)  # Default: 1 hour in seconds
+        enable_timer = data.get('enableTimer', True)  # Default to enabled if not specified
+        
+        # If timer is disabled, set duration to 0
+        if enable_timer:
+            duration = data.get('duration', 60 * 10)  # Default: 10 minutes in seconds
+        else:
+            duration = 0  # A duration of 0 will be treated as disabled in the controller
         
         if not instance_id:
             return jsonify({

@@ -326,7 +326,13 @@ def create_instance(data):
                     conn.commit()
             
             # Start a timer for this instance
-            start_instance_timer(instance_id)
+            # Get the timer configuration from the test
+            enable_timer = test.get('enable_timer', 1)
+            timer_duration = test.get('timer_duration', 10)
+            
+            # Convert minutes to seconds and pass to timer
+            duration_seconds = timer_duration * 60 if enable_timer else 0
+            start_instance_timer(instance_id, duration_seconds)
             
             # Get the complete instance info
             cursor.execute(

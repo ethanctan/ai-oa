@@ -697,5 +697,80 @@
         "phase": "final"
       }
     }
+  ],
+  "39": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! To begin, how will you approach the design of the project based on the requirements provided in the README.md file?"
+    },
+    {
+      "role": "user",
+      "content": "end this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: initial",
+      "metadata": {
+        "phase": "initial"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "The focus of this interview is on how you'll approach the coding project, so let's begin with the design phase.  \n\nHow would you break down and plan the architecture or components for the project based on the instructions?"
+    },
+    {
+      "role": "user",
+      "content": "end this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final",
+      "metadata": {
+        "phase": "final"
+      }
+    }
+  ],
+  "42": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin.\n\nHow would you approach designing the solution for the project based on the requirements in the README.md?"
+    }
+  ],
+  "43": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great, let\u2019s begin! First question: How do you plan to approach the design phase for the project, and what specific factors will you consider?"
+    }
   ]
 }
