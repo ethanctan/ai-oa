@@ -1,7 +1,6 @@
 """
 Database migrations to handle schema changes. 
 This is automatically run on server startup to ensure the database is up-to-date.
-Whenever we make a new change to the database schema, we should add a new migration function here.
 """
 import sqlite3
 from pathlib import Path
@@ -26,6 +25,10 @@ def run_migrations():
     add_timer_config_columns()
     
     print("Migrations completed successfully.")
+
+"""
+Whenever we make a new change to the database schema, we should add a new migration function below.
+"""
 
 def add_timer_config_columns():
     """Add timer configuration columns to the tests table"""
