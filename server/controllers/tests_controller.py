@@ -1,4 +1,5 @@
 from database.db import get_connection
+from datetime import datetime, timezone
 
 def get_all_tests():
     """Get all tests from the database"""
@@ -24,6 +25,11 @@ def get_all_tests():
         tests = []
         for row in cursor.fetchall():
             test_dict = dict(row)
+
+            # Convert created_at and updated_at to UTC ISO 8601
+            test_dict["created_at"] = _convert_to_utc(test_dict["created_at"])
+            test_dict["updated_at"] = _convert_to_utc(test_dict["updated_at"])
+
             tests.append(test_dict)
         
         return tests
@@ -60,6 +66,10 @@ def get_test(test_id):
         
         # Convert to dictionary for easier manipulation
         test_dict = dict(test)
+
+        # Convert created_at and updated_at to UTC ISO 8601
+        test_dict["created_at"] = _convert_to_utc(test_dict["created_at"])
+        test_dict["updated_at"] = _convert_to_utc(test_dict["updated_at"])
         
         # Get candidates assigned to this test
         cursor.execute(
@@ -381,3 +391,10 @@ def assign_candidate_to_test(test_id, candidate_id):
         raise e
     finally:
         conn.close() 
+
+
+def _convert_to_utc(raw_ts):
+    """Convert SQLite string to UTC ISO 8601"""
+    dt = datetime.strptime(raw_ts, "%Y-%m-%d %H:%M:%S")
+    dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat() 

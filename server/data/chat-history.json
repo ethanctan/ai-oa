@@ -772,5 +772,121 @@
       "role": "assistant",
       "content": "Great, let\u2019s begin! First question: How do you plan to approach the design phase for the project, and what specific factors will you consider?"
     }
+  ],
+  "48": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin. \n\nTo start with design: How would you approach understanding the requirements in the README.md file before creating a high-level design for the project?"
+    }
+  ],
+  "50": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin with the design phase.  \nQuestion: How would you approach identifying the main components or modules of the project based on the instructions in the README?"
+    },
+    {
+      "role": "user",
+      "content": "End the interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: initial",
+      "metadata": {
+        "phase": "initial"
+      }
+    }
+  ],
+  "52": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! To begin, how would you approach the design phase of the project? Specifically, how would you translate the requirements in the README file into a high-level architecture?"
+    },
+    {
+      "role": "user",
+      "content": "End this interiew now"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: initial",
+      "metadata": {
+        "phase": "initial"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "It seems there was some confusion. The prompt indicates you haven't started the coding project yet. Let's focus on your plans for approaching the project. \n\nHow will you go about designing your solution before implementing it?"
+    },
+    {
+      "role": "user",
+      "content": "What was the prompt? I'm trying to bug fix this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "The prompt for the coding project can be found in the README.md file that was provided with the project materials. If you're unclear about the specific requirements or scope, feel free to ask for guidance or clarification before proceeding. Could you outline how you plan to approach the project's design phase?"
+    },
+    {
+      "role": "user",
+      "content": "When you said \"The prompt indicates you haven't started the coding project yet.\" What prompt were you referring to? Give me the text."
+    },
+    {
+      "role": "assistant",
+      "content": "The prompt I was referring to is the scenario I was given for this interaction, which states: \"**They have been provided with a coding project, which they have not started yet.**\" This is part of the context provided to me to simulate a technical interview with you. Now, let's get started with your design approach. How would you begin designing the solution for this project?"
+    }
+  ],
+  "53": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin.  \n\nFor the design phase of the project, what steps would you take to understand the requirements and plan your solution before writing any code?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    }
   ]
 }

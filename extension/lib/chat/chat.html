@@ -155,12 +155,6 @@
       background-color: var(--vscode-errorForeground, red);
       color: white;
     }
-    /* Add style for disabled timer */
-    #timer.disabled {
-      background-color: var(--vscode-disabledForeground, gray);
-      color: white;
-      font-style: italic;
-    }
     .messages {
       flex: 1;
       overflow-y: auto;
@@ -234,6 +228,16 @@
       font-size: 12px;
       border-bottom: 1px solid var(--vscode-panel-border);
     }
+    
+    /* Make timer info more prominent when timer is disabled */
+    .timer-info.no-timer {
+      font-size: 14px;
+      padding: 12px 16px;
+      background-color: var(--vscode-notificationsInfoIcon-background, rgba(0,127,255,0.2));
+      border-radius: 4px;
+      margin: 10px 20px;
+      font-weight: bold;
+    }
     /* Hidden class */
     .hidden {
       display: none !important;
@@ -285,17 +289,35 @@
       color: var(--vscode-editorWarning-foreground, #a05000);
     }
 
-    #timer.disabled + .action-button {
-      background-color: var(--vscode-button-prominentBackground, #0e70c0);
-      color: var(--vscode-button-prominentForeground, white);
-      font-weight: bold;
-      animation: pulse 2s infinite;
-    }
-    
     @keyframes pulse {
       0% { box-shadow: 0 0 0 0 rgba(14, 112, 192, 0.7); }
       70% { box-shadow: 0 0 0 10px rgba(14, 112, 192, 0); }
       100% { box-shadow: 0 0 0 0 rgba(14, 112, 192, 0); }
+    }
+    
+    /* Style for the Start Interview button when timer is disabled */
+    .timer-container #start-interview {
+      background-color: var(--vscode-button-prominentBackground, #0e70c0);
+      color: var(--vscode-button-prominentForeground, white);
+      font-weight: bold;
+    }
+    
+    /* Special styling when timer is hidden */
+    #timer.hidden + .action-button {
+      background-color: var(--vscode-button-prominentBackground, #0e70c0);
+      color: var(--vscode-button-prominentForeground, white);
+      font-weight: bold;
+      font-size: 16px;
+      padding: 10px 16px;
+      margin: 10px auto;
+      animation: pulse 2s infinite;
+    }
+    
+    /* Adjust timer container layout when timer is hidden */
+    #timer-section {
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
   </style>
 </head>
@@ -571,11 +593,13 @@
         // Check if timer is active or disabled
         if (data.hasOwnProperty('active') && !data.active) {
           console.log('Timer is disabled - waiting for user to start interview manually');
-          timerElement.textContent = 'Disabled';
-          timerElement.classList.add('disabled');
+          
+          // Hide the timer element completely
+          timerElement.classList.add('hidden');
           
           // Update timer info message
-          timerInfo.textContent = 'Timer is disabled. Click "Start Interview" to begin when you are ready.';
+          timerInfo.textContent = 'Familiarize yourself with the workspace, then click "Start Interview" to begin when you are ready.';
+          timerInfo.classList.add('no-timer');
           
           // Make sure start interview button is visible
           startInterviewBtn.classList.remove('hidden');
