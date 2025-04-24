@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from controllers.timer_controller import start_instance_timer, get_timer_status, reset_timer, set_interview_started
+from controllers.timer_controller import start_instance_timer, get_timer_status, reset_timer, set_interview_started, set_project_started
 
 # Create a Blueprint for timer routes
 timer_bp = Blueprint('timer', __name__)
@@ -24,8 +24,10 @@ def start_timer():
                 'error': 'Instance ID is required'
             }), 400
         
+        timer_type = data.get('timerType', 'interview')
+        
         # Start the timer
-        timer_info = start_instance_timer(instance_id, duration)
+        timer_info = start_instance_timer(instance_id, duration, timer_type)
         
         return jsonify({
             'success': True,
@@ -88,8 +90,10 @@ def reset_instance_timer():
                 'error': 'Instance ID is required'
             }), 400
         
+        timer_type = data.get('timerType')
+        
         # Reset the timer
-        timer_info = reset_timer(instance_id, duration)
+        timer_info = reset_timer(instance_id, duration, timer_type)
         
         return jsonify({
             'success': True,
@@ -135,4 +139,39 @@ def mark_interview_started():
         return jsonify({
             'success': False,
             'error': str(e)
-        }), 500 
+        }), 500
+
+# POST /timer/project-started - Mark a project as started
+@timer_bp.route('/project-started', methods=['POST'])
+def mark_project_started():
+    try:
+        data = request.json
+        instance_id = data.get('instanceId')
+        
+        if not instance_id:
+            return jsonify({
+                'success': False,
+                'error': 'Instance ID is required'
+            }), 400
+        
+        # Update timer with project started flag
+        timer = set_project_started(instance_id, True)
+        
+        if not timer:
+            return jsonify({
+                'success': False,
+                'error': 'No timer found for this instance'
+            }), 404
+        
+        # Return the updated timer status
+        return jsonify({
+            'success': True,
+            'timer': timer,
+            'projectStarted': True
+        })
+    except Exception as e:
+        print(f"Error marking project started: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500    

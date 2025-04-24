@@ -52,7 +52,7 @@ def save_timers():
     except Exception as e:
         print(f"Error saving timers: {str(e)}")
 
-def start_instance_timer(instance_id, duration=600):
+def start_instance_timer(instance_id, duration=600, timer_type='interview'):
     """
     Start a timer for an instance
     
@@ -60,6 +60,7 @@ def start_instance_timer(instance_id, duration=600):
         instance_id (int): The instance ID
         duration (int, optional): Duration in seconds. Defaults to 600 (10 minutes).
                                  If set to 0, timer will be created but marked as inactive.
+        timer_type (str, optional): Type of timer ('interview' or 'project'). Defaults to 'interview'.
     
     Returns:
         dict: Timer information
@@ -81,10 +82,12 @@ def start_instance_timer(instance_id, duration=600):
         'duration': duration,
         'active': is_active,
         'interviewStarted': False,  # Default to not started
+        'projectStarted': False,    # Default to not started for project timer
         'currentTimeMs': current_time * 1000,  # For frontend
         'endTimeMs': end_time * 1000,  # For frontend
         'timeRemaining': duration,
-        'timeRemainingMs': duration * 1000  # For frontend
+        'timeRemainingMs': duration * 1000,  # For frontend
+        'timerType': timer_type     # Store the timer type
     }
     
     timers[instance_id] = timer_info
@@ -121,6 +124,10 @@ def get_timer_status(instance_id):
     # Make sure all required fields exist in the timer
     if 'interviewStarted' not in timer:
         timer['interviewStarted'] = False
+    if 'projectStarted' not in timer:
+        timer['projectStarted'] = False
+    if 'timerType' not in timer:
+        timer['timerType'] = 'interview'  # Default to interview type for backward compatibility
     
     timer_status = {
         'instanceId': instance_id,
@@ -134,18 +141,21 @@ def get_timer_status(instance_id):
         'timeRemaining': time_remaining,
         'timeRemainingMs': time_remaining_ms,  # For frontend
         'isExpired': is_expired,
-        'interviewStarted': timer.get('interviewStarted', False)  # Return the interview started status
+        'interviewStarted': timer.get('interviewStarted', False),  # Return the interview started status
+        'projectStarted': timer.get('projectStarted', False),      # Return the project started status
+        'timerType': timer.get('timerType', 'interview')           # Return the timer type
     }
     
     return timer_status
 
-def reset_timer(instance_id, duration=3600):
+def reset_timer(instance_id, duration=3600, timer_type=None):
     """
     Reset a timer for an instance
     
     Args:
         instance_id (str): The instance ID
         duration (int, optional): New duration in seconds. Defaults to 1 hour.
+        timer_type (str, optional): Type of timer to set. If None, keeps the existing type.
     
     Returns:
         dict: Updated timer information
@@ -155,14 +165,17 @@ def reset_timer(instance_id, duration=3600):
     
     # Check if timer exists
     if instance_id not in timers:
-        return start_instance_timer(instance_id, duration)
+        return start_instance_timer(instance_id, duration, timer_type or 'interview')
     
     # Set the timer
     current_time = int(time.time())
     end_time = current_time + duration
     
-    # Preserve the interview started flag
+    # Preserve the interview and project started flags
     interview_started = timers[instance_id].get('interviewStarted', False)
+    project_started = timers[instance_id].get('projectStarted', False)
+    
+    timer_type = timer_type or timers[instance_id].get('timerType', 'interview')
     
     # Update existing timer
     timers[instance_id].update({
@@ -174,7 +187,9 @@ def reset_timer(instance_id, duration=3600):
         'endTimeMs': end_time * 1000,  # For frontend
         'timeRemaining': duration,
         'timeRemainingMs': duration * 1000,  # For frontend
-        'interviewStarted': interview_started  # Preserve the interview started status
+        'interviewStarted': interview_started,  # Preserve the interview started status
+        'projectStarted': project_started,     # Preserve the project started status
+        'timerType': timer_type                # Update or keep the timer type
     })
     
     # Save to persistent storage
@@ -208,5 +223,31 @@ def set_interview_started(instance_id, started=True):
     
     return get_timer_status(instance_id)
 
+def set_project_started(instance_id, started=True):
+    """
+    Mark a project as started for an instance
+    
+    Args:
+        instance_id (str): The instance ID
+        started (bool, optional): Whether to mark as started. Defaults to True.
+    
+    Returns:
+        dict: Updated timer information or None if no timer exists
+    """
+    # Convert instance_id to string for dictionary lookup
+    instance_id = str(instance_id)
+    
+    # Check if timer exists
+    if instance_id not in timers:
+        return None
+    
+    # Update the timer
+    timers[instance_id]['projectStarted'] = started
+    
+    # Save to persistent storage
+    save_timers()
+    
+    return get_timer_status(instance_id)
+
 # Load timers on module initialization
-load_timers() 
+load_timers()         

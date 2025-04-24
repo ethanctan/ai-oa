@@ -8,6 +8,7 @@ const SERVER_URL = 'http://host.docker.internal:3000';
 const SERVER_TIMER_START_URL = `${SERVER_URL}/timer/start`;
 const SERVER_TIMER_STATUS_URL = `${SERVER_URL}/timer/status`;
 const SERVER_TIMER_INTERVIEW_STARTED_URL = `${SERVER_URL}/timer/interview-started`;
+const SERVER_TIMER_PROJECT_STARTED_URL = `${SERVER_URL}/timer/project-started`;
 const SERVER_CHAT_URL = `${SERVER_URL}/chat`;
 
 // Global variables to store environment prompts - accessed throughout the module
@@ -99,6 +100,17 @@ function openChat() {
       global.timerConfig = message.config;
       global.chatPanel.webview.postMessage({ 
         command: 'timerConfigSet', 
+        success: true 
+      });
+    }
+
+    // Handle project timer configuration
+    if (message.command === 'setProjectTimerConfig') {
+      console.log(`Setting project timer configuration: ${JSON.stringify(message.config)}`);
+      // Store project timer configuration in global variable for use in startTimer
+      global.projectTimerConfig = message.config;
+      global.chatPanel.webview.postMessage({ 
+        command: 'projectTimerConfigSet', 
         success: true 
       });
     }
@@ -285,10 +297,30 @@ function openChat() {
       await sendInitialMessage(message.instanceId);
     }
 
+    // Handle starting the project
+    if (message.command === 'startProject') {
+      console.log(`Starting project for instance: ${message.instanceId}`);
+      
+      // Mark the project as started in the server
+      await setProjectStarted(message.instanceId);
+      
+      // Send a confirmation back to the webview
+      global.chatPanel.webview.postMessage({
+        command: 'projectStarted',
+        success: true
+      });
+    }
+
     // Handle timer start command
     if (message.command === 'startTimer') {
       console.log(`Starting timer for instance: ${message.instanceId}`);
       startTimer(message.instanceId);
+    }
+
+    // Handle project timer start command
+    if (message.command === 'startProjectTimer') {
+      console.log(`Starting project timer for instance: ${message.instanceId}`);
+      startTimer(message.instanceId, 'project');
     }
 
     // Handle get timer status command
@@ -365,12 +397,17 @@ async function sendInitialMessage(instanceId) {
 }
 
 // Handle starting the timer
-async function startTimer(instanceId) {
-  console.log(`Starting timer for instance: ${instanceId}`);
+async function startTimer(instanceId, timerType = 'interview') {
+  console.log(`Starting ${timerType} timer for instance: ${instanceId}`);
   
   try {
     // Check if there are any timer configuration parameters
-    const timerConfig = global.timerConfig || {};
+    let timerConfig = global.timerConfig || {};
+    
+    // Use project timer config if specified
+    if (timerType === 'project' && global.projectTimerConfig) {
+      timerConfig = global.projectTimerConfig;
+    }
     
     const response = await fetch(
       SERVER_TIMER_START_URL,
@@ -380,7 +417,8 @@ async function startTimer(instanceId) {
         body: JSON.stringify({ 
           instanceId,
           enableTimer: timerConfig.enableTimer !== false, // Default to true if not specified
-          duration: timerConfig.duration ? timerConfig.duration * 60 : undefined // Convert minutes to seconds
+          duration: timerConfig.duration ? timerConfig.duration * 60 : undefined, // Convert minutes to seconds
+          timerType: timerType
         })
       }
     );
@@ -715,6 +753,45 @@ async function setInterviewStarted(instanceId) {
     return true;
   } catch (error) {
     console.error(`Error setting interview started: ${error.message}`);
+    return false;
+  }
+}
+
+// Function to mark project as started
+async function setProjectStarted(instanceId) {
+  if (!instanceId) {
+    console.error('Cannot set project started: No instance ID provided');
+    return false;
+  }
+  
+  console.log(`Setting project started for instance: ${instanceId}`);
+  
+  try {
+    const response = await fetch(SERVER_TIMER_PROJECT_STARTED_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instanceId })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(`Project started status set for instance ${instanceId}: ${JSON.stringify(data)}`);
+    
+    // Notify UI that project has started
+    if (global.chatPanel) {
+      global.chatPanel.webview.postMessage({
+        command: 'projectStarted',
+        success: true,
+        timer: data.timer
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`Error setting project started: ${error.message}`);
     return false;
   }
 }
