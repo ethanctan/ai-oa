@@ -17,6 +17,7 @@ export default function TestsAdmin() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [currentReport, setCurrentReport] = useState(null);
   const [timerEnabled, setTimerEnabled] = useState(true);
+  const [projectTimerEnabled, setProjectTimerEnabled] = useState(true);
   
   // Add CSS for toggle switch
   useEffect(() => {
@@ -348,6 +349,11 @@ export default function TestsAdmin() {
     setTimerEnabled(e.target.checked);
   };
 
+  // Handle project timer toggle change
+  const handleProjectTimerToggleChange = (e) => {
+    setProjectTimerEnabled(e.target.checked);
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -458,10 +464,16 @@ export default function TestsAdmin() {
                 const enableTimer = formData.get('enableTimer') === 'on';
                 const timerDuration = parseInt(formData.get('timerDuration'), 10) || 10;
                 
+                // Get project timer configuration
+                const enableProjectTimer = formData.get('enableProjectTimer') === 'on';
+                const projectTimerDuration = parseInt(formData.get('projectTimerDuration'), 10) || 60;
+                
                 // Create the timer configuration JSON
                 const timerConfig = {
                   enableTimer: enableTimer,
-                  duration: timerDuration
+                  duration: timerDuration,
+                  enableProjectTimer: enableProjectTimer,
+                  projectDuration: projectTimerDuration
                 };
                 
                 // Set the value of the hidden field
@@ -527,6 +539,42 @@ export default function TestsAdmin() {
                     defaultValue="10"
                     disabled={!timerEnabled}
                     className={`w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!timerEnabled ? 'bg-gray-100 text-gray-500' : ''}`}
+                  />
+                </div>
+
+                <h4 className="font-medium text-lg mt-6">Project Work Timer Configuration</h4>
+                <div className="flex items-center">
+                  <div className="relative inline-block w-10 mr-2 align-middle select-none">
+                    <input 
+                      type="checkbox" 
+                      name="enableProjectTimer" 
+                      id="enableProjectTimer" 
+                      checked={projectTimerEnabled}
+                      onChange={handleProjectTimerToggleChange}
+                      className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                    />
+                    <label 
+                      htmlFor="enableProjectTimer" 
+                      className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                    ></label>
+                  </div>
+                  <label htmlFor="enableProjectTimer" className="text-sm font-medium text-gray-700">
+                    Enable project work timer
+                  </label>
+                </div>
+                <div>
+                  <label htmlFor="projectTimerDuration" className="block text-sm font-medium text-gray-700 mb-1">
+                    Project Work Duration (minutes)
+                  </label>
+                  <input 
+                    type="number" 
+                    id="projectTimerDuration" 
+                    name="projectTimerDuration" 
+                    min="1"
+                    max="240"
+                    defaultValue="60"
+                    disabled={!projectTimerEnabled}
+                    className={`w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!projectTimerEnabled ? 'bg-gray-100 text-gray-500' : ''}`}
                   />
                 </div>
                 {/* Hidden field for timer configuration */}

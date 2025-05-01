@@ -8,6 +8,8 @@ const SERVER_URL = 'http://host.docker.internal:3000';
 const SERVER_TIMER_START_URL = `${SERVER_URL}/timer/start`;
 const SERVER_TIMER_STATUS_URL = `${SERVER_URL}/timer/status`;
 const SERVER_TIMER_INTERVIEW_STARTED_URL = `${SERVER_URL}/timer/interview-started`;
+const SERVER_PROJECT_TIMER_START_URL = `${SERVER_URL}/timer/project/start`;
+const SERVER_TIMER_FINAL_INTERVIEW_STARTED_URL = `${SERVER_URL}/timer/final-interview-started`;
 const SERVER_CHAT_URL = `${SERVER_URL}/chat`;
 
 // Global variables to store environment prompts - accessed throughout the module
@@ -99,6 +101,17 @@ function openChat() {
       global.timerConfig = message.config;
       global.chatPanel.webview.postMessage({ 
         command: 'timerConfigSet', 
+        success: true 
+      });
+    }
+
+    // Handle project timer configuration
+    if (message.command === 'setProjectTimerConfig') {
+      console.log(`Setting project timer configuration: ${JSON.stringify(message.config)}`);
+      // Store project timer configuration in global variable for use in startProjectTimer
+      global.projectTimerConfig = message.config;
+      global.chatPanel.webview.postMessage({ 
+        command: 'projectTimerConfigSet', 
         success: true 
       });
     }
@@ -212,14 +225,30 @@ function openChat() {
           console.error(`Error saving user message to history: ${historyError.message}`);
         }
         
+        // Determine which prompt to use based on phase from the payload
+        let promptToUse = globalInitialPrompt;
+        let phaseName = 'initial';
+        
+        // Check if this message is for the final interview
+        if (message.phase === 'final' || 
+            (message.payload && message.payload.phase === 'final') ||
+            (message.payload && message.payload.payload && message.payload.payload.messages && 
+             message.payload.payload.messages.some(m => m.phase === 'final'))) {
+          console.log('Using FINAL interview prompt for this message');
+          promptToUse = globalFinalPrompt;
+          phaseName = 'final';
+        } else {
+          console.log('Using INITIAL interview prompt for this message');
+        }
+        
         // Create a new payload using the standardized format
         const newPayload = {
           instanceId: chatInstanceId,
           skipHistorySave: true,
           payload: {
             messages: [
-              // Use the global initial prompt as system message with ending instructions
-              { role: "system", content: globalInitialPrompt + " Based on the candidate's responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with 'END' as your complete message. Otherwise, ask your next question." },
+              // Use the appropriate prompt based on interview phase
+              { role: "system", content: promptToUse + " Based on the candidate's responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with 'END' as your complete message. Otherwise, ask your next question." },
               // Include the user message
               { role: "user", content: userMessage.content }
             ]
@@ -227,7 +256,7 @@ function openChat() {
         };
         
         // Log which prompt we're using
-        console.log(`Using system prompt: ${globalInitialPrompt.substring(0, 50)}...`);
+        console.log(`Using system prompt for ${phaseName} phase: ${promptToUse.substring(0, 50)}...`);
         
         const response = await fetch(SERVER_CHAT_URL, {
           method: 'POST',
@@ -285,10 +314,30 @@ function openChat() {
       await sendInitialMessage(message.instanceId);
     }
 
+    // Handle ending the initial interview and starting project work
+    if (message.command === 'startProjectWork') {
+      console.log(`Starting project work for instance: ${message.instanceId}`);
+      
+      // Start the project timer
+      await startProjectTimer(message.instanceId);
+      
+      // Send a confirmation back to the webview
+      global.chatPanel.webview.postMessage({
+        command: 'projectWorkStarted',
+        success: true
+      });
+    }
+
     // Handle timer start command
     if (message.command === 'startTimer') {
       console.log(`Starting timer for instance: ${message.instanceId}`);
       startTimer(message.instanceId);
+    }
+
+    // Handle project timer start command
+    if (message.command === 'startProjectTimer') {
+      console.log(`Starting project timer for instance: ${message.instanceId}`);
+      startProjectTimer(message.instanceId);
     }
 
     // Handle get timer status command
@@ -415,6 +464,112 @@ async function startTimer(instanceId) {
   }
 }
 
+// Handle starting the project timer
+async function startProjectTimer(instanceId) {
+  console.log(`Starting project timer for instance: ${instanceId}`);
+  
+  try {
+    // Check if there are any project timer configuration parameters
+    const projectTimerConfig = global.projectTimerConfig || {};
+    
+    // Extract config from test settings if not set directly
+    if (!projectTimerConfig.enableProjectTimer && global.timerConfig) {
+      console.log('No specific project timer config found, checking if available in timerConfig');
+      if (global.timerConfig.enableProjectTimer !== undefined) {
+        console.log('Found project timer config in general timer config, using that');
+        projectTimerConfig.enableProjectTimer = global.timerConfig.enableProjectTimer;
+        projectTimerConfig.projectDuration = global.timerConfig.projectDuration;
+      }
+    }
+    
+    console.log(`Project timer config: ${JSON.stringify(projectTimerConfig)}`);
+    
+    const response = await fetch(
+      SERVER_PROJECT_TIMER_START_URL,
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ 
+          instanceId,
+          enableTimer: projectTimerConfig.enableProjectTimer !== false, // Default to true if not specified
+          duration: projectTimerConfig.projectDuration ? projectTimerConfig.projectDuration * 60 : 3600 // Convert minutes to seconds, default 60 minutes
+        })
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(`Project timer started: ${JSON.stringify(data)}`);
+    
+    // Set up periodic logging of project timer status
+    startProjectTimerDebugLogging(instanceId);
+    
+    // Send the timer status back to the webview
+    if (global.chatPanel) {
+      global.chatPanel.webview.postMessage({
+        command: 'projectTimerStatus',
+        data: data.timer
+      });
+    }
+    
+    return data;
+  } catch (error) {
+    console.error(`Error starting project timer: ${error.message}`);
+    if (global.chatPanel) {
+      global.chatPanel.webview.postMessage({
+        command: 'projectTimerStatus',
+        data: { 
+          error: `Failed to start project timer: ${error.message}. Please ensure the server is running at ${SERVER_URL}.` 
+        }
+      });
+    }
+    return { error: error.message };
+  }
+}
+
+// Debug helper function to periodically check and log project timer status
+function startProjectTimerDebugLogging(instanceId) {
+  console.log(`Setting up debug logging for project timer on instance ${instanceId}`);
+  
+  // Check project timer status every 10 seconds and log it
+  const debugInterval = setInterval(async () => {
+    try {
+      const response = await fetch(
+        `${SERVER_TIMER_STATUS_URL}?instanceId=${instanceId}`,
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        }    
+      );
+      
+      if (!response.ok) {
+        console.error(`Debug log: Failed to get timer status: ${response.status}`);
+        return;
+      }
+      
+      const data = await response.json();
+      if (data.success && data.timer) {
+        // Only log if this is a project timer
+        if (data.timer.timerType === 'project') {
+          const timeRemaining = data.timer.timeRemaining;
+          const minutes = Math.floor(timeRemaining / 60);
+          const seconds = timeRemaining % 60;
+          
+          console.log(`PROJECT TIMER DEBUG - Time remaining: ${minutes}:${seconds.toString().padStart(2, '0')} - Raw data: ${JSON.stringify(data.timer)}`);
+        }
+      }
+    } catch (error) {
+      console.error(`Debug log: Error checking project timer status: ${error.message}`);
+    }
+  }, 10000);
+  
+  // Store the interval ID in a global variable so we can clear it later if needed
+  global.projectTimerDebugInterval = debugInterval;
+}
+
 // Get the status of a timer
 async function getTimerStatus(instanceId) {
   console.log(`Getting timer status for instance: ${instanceId}`);
@@ -492,17 +647,68 @@ async function checkTimerAndInterviewStatus(instanceId) {
     if (data.success && data.timer) {
       console.log(`Timer status: ${JSON.stringify(data.timer)}`);
       
-      // Check if the interview is already started
-      if (data.timer.interviewStarted) {
-        console.log('Interview is already marked as started');
-      }
-      
-      // Send the timer status to the webview for UI updates
-      if (global.chatPanel) {
-        global.chatPanel.webview.postMessage({
-          command: 'timerStatus',
-          data: data.timer
-        });
+      // Check what type of timer this is and which phase we're in
+      if (data.timer.timerType === 'project') {
+        console.log('Project work timer detected');
+        
+        // Start project timer debug logging
+        startProjectTimerDebugLogging(instanceId);
+        
+        // We're in the project work phase
+        if (global.chatPanel) {
+          global.chatPanel.webview.postMessage({
+            command: 'projectTimerStatus',
+            data: data.timer
+          });
+          
+          // Also send projectWorkStarted message to ensure UI updates correctly
+          global.chatPanel.webview.postMessage({
+            command: 'projectWorkStarted',
+            success: true
+          });
+        }
+        
+        // Check if the final interview has already started
+        if (data.timer.finalInterviewStarted) {
+          console.log('Final interview is already marked as started');
+          if (global.chatPanel) {
+            global.chatPanel.webview.postMessage({
+              command: 'finalInterviewStarted',
+              success: true
+            });
+          }
+        }
+      } else {
+        // This is the initial timer
+        // Check if the interview is already started
+        if (data.timer.interviewStarted) {
+          console.log('Initial interview is already marked as started');
+          
+          // Check if we need to transition to project phase
+          if (data.timer.interviewStarted && !data.timer.projectStarted) {
+            console.log('Initial interview completed, but project phase not started. Starting project phase...');
+            
+            // Slight delay to ensure UI is ready
+            setTimeout(() => {
+              startProjectTimer(instanceId);
+            }, 1000);
+          }
+          
+          if (global.chatPanel) {
+            global.chatPanel.webview.postMessage({
+              command: 'interviewStarted',
+              success: true
+            });
+          }
+        }
+        
+        // Send the timer status to the webview for UI updates
+        if (global.chatPanel) {
+          global.chatPanel.webview.postMessage({
+            command: 'timerStatus',
+            data: data.timer
+          });
+        }
       }
     } else {
       // Start a new timer if none exists
@@ -521,6 +727,37 @@ async function sendChatMessage(message, instanceId) {
   console.log(`Sending chat message for instance: ${instanceId}`);
   
   try {
+    // First check timer status to determine if we're in final interview phase
+    let isInFinalInterview = false;
+    try {
+      const timerResponse = await fetch(
+        `${SERVER_TIMER_STATUS_URL}?instanceId=${instanceId}`,
+        {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        }    
+      );
+      
+      if (timerResponse.ok) {
+        const timerData = await timerResponse.json();
+        
+        // Check if final interview has started in timer data
+        if (timerData.success && timerData.timer && 
+            (timerData.timer.finalInterviewStarted ||
+             (timerData.timer.timerType === 'project' && timerData.timer.finalInterviewStarted))) {
+          isInFinalInterview = true;
+          console.log('Final interview phase detected from timer status');
+        }
+      }
+    } catch (timerError) {
+      console.error(`Warning: Could not check timer status to determine phase: ${timerError.message}`);
+      // Continue with default initial interview phase
+    }
+    
+    // Choose prompt based on detected phase
+    const promptToUse = isInFinalInterview ? globalFinalPrompt : globalInitialPrompt;
+    const phaseName = isInFinalInterview ? 'final' : 'initial';
+    
     // First save the user message to history explicitly
     try {
       console.log('Explicitly saving user message to history before sending to API');
@@ -543,15 +780,15 @@ async function sendChatMessage(message, instanceId) {
       skipHistorySave: true, // Signal to server not to save to history
       payload: {
         messages: [
-          // Only include system prompt if we have one
-          ...(globalInitialPrompt ? [{ role: "system", content: globalInitialPrompt }] : []),
+          // Use appropriate prompt for current phase
+          { role: "system", content: promptToUse },
           { role: "user", content: message }
         ]
       }
     };
     
     // Log which prompt we're using
-    console.log(`Using prompt: ${globalInitialPrompt.substring(0, 50)}...`);
+    console.log(`Using ${phaseName} prompt: ${promptToUse.substring(0, 50)}...`);
     
     // Then call the API with the skip flag to avoid duplication
     const aiResponse = await fetch(
@@ -573,30 +810,82 @@ async function sendChatMessage(message, instanceId) {
     // Check if the AI is ending the interview
     if (data.reply.trim() === 'END') {
       console.log('AI has decided to end the interview with "END" message');
-    }
-    
-    // Save the AI response to history
-    try {
-      console.log('Explicitly saving AI response to history after receiving');
-      await fetch(`${SERVER_CHAT_URL}/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instanceId,
-          message: { role: 'assistant', content: data.reply }
-        })
-      });
-      console.log('Successfully saved AI response to history');
-    } catch (historyError) {
-      console.error(`Error saving AI response to history: ${historyError.message}`);
-    }
-    
-    // Send the AI response back to the webview
-    if (global.chatPanel) {
-      global.chatPanel.webview.postMessage({
-        command: 'chatMessage',
-        text: data.reply
-      });
+      
+      // Save the AI END response to history
+      try {
+        console.log('Saving AI END response to history');
+        await fetch(`${SERVER_CHAT_URL}/message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instanceId,
+            message: { role: 'assistant', content: 'END' }
+          })
+        });
+        
+        if (!isInFinalInterview) {
+          // Only add phase transition message for initial interview
+          // Also save a system message indicating the phase transition
+          await fetch(`${SERVER_CHAT_URL}/message`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              instanceId,
+              message: { 
+                role: 'system', 
+                content: 'Initial interview completed. Beginning project work phase.' 
+              }
+            })
+          });
+          console.log('Successfully saved phase transition messages to history');
+          
+          // Start the project phase timer if ending initial interview
+          console.log('Starting project timer after END message received');
+          await startProjectTimer(instanceId);
+          
+          // Send a system message to the chat instead of END
+          if (global.chatPanel) {
+            global.chatPanel.webview.postMessage({
+              command: 'chatMessage',
+              text: 'Initial interview completed. You may now begin working on the project.'
+            });
+          }
+        } else {
+          // Handle END of final interview
+          if (global.chatPanel) {
+            global.chatPanel.webview.postMessage({
+              command: 'chatMessage',
+              text: 'Final interview completed. Thank you for your participation.'
+            });
+          }
+        }
+      } catch (historyError) {
+        console.error(`Error saving phase transition to history: ${historyError.message}`);
+      }
+    } else {
+      // Save the normal AI response to history
+      try {
+        console.log('Explicitly saving AI response to history after receiving');
+        await fetch(`${SERVER_CHAT_URL}/message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instanceId,
+            message: { role: 'assistant', content: data.reply }
+          })
+        });
+        console.log('Successfully saved AI response to history');
+      } catch (historyError) {
+        console.error(`Error saving AI response to history: ${historyError.message}`);
+      }
+      
+      // Send the AI response back to the webview
+      if (global.chatPanel) {
+        global.chatPanel.webview.postMessage({
+          command: 'chatMessage',
+          text: data.reply
+        });
+      }
     }
     
     return data;
@@ -729,6 +1018,37 @@ async function setFinalInterviewStarted(instanceId) {
   console.log(`Setting final interview started for instance: ${instanceId}`);
   
   try {
+    // Call the server API to update the timer status
+    const response = await fetch(SERVER_TIMER_FINAL_INTERVIEW_STARTED_URL, {
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ instanceId })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(`Final interview started status set: ${JSON.stringify(data)}`);
+    
+    // Save the phase indicator to the server
+    await saveInterviewPhase(instanceId, 'final_started');
+    
+    // Notify UI that final interview has started
+    if (global.chatPanel) {
+      global.chatPanel.webview.postMessage({
+        command: 'finalInterviewStarted',
+        success: true,
+        timer: data.timer
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`Error setting final interview started: ${error.message}`);
+    
+    // Fall back to just saving the phase
     // Save the phase indicator to the server
     await saveInterviewPhase(instanceId, 'final_started');
     
@@ -740,9 +1060,6 @@ async function setFinalInterviewStarted(instanceId) {
       });
     }
     
-    return true;
-  } catch (error) {
-    console.error(`Error setting final interview started: ${error.message}`);
     return false;
   }
 }

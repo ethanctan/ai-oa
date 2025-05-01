@@ -24,6 +24,9 @@ def run_migrations():
     # Add timer configuration columns to tests table if they don't exist
     add_timer_config_columns()
     
+    # Add project timer configuration columns to tests table if they don't exist
+    add_project_timer_config_columns()
+    
     print("Migrations completed successfully.")
 
 """
@@ -54,6 +57,33 @@ def add_timer_config_columns():
         print("Timer configuration columns added successfully.")
     except Exception as e:
         print(f"Error adding timer configuration columns: {str(e)}")
+    finally:
+        conn.close()
+
+def add_project_timer_config_columns():
+    """Add project timer configuration columns to the tests table"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # First check if the columns already exist
+        cursor.execute("PRAGMA table_info(tests)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        # Add 'enable_project_timer' column if it doesn't exist
+        if 'enable_project_timer' not in columns:
+            print("Adding 'enable_project_timer' column to tests table...")
+            cursor.execute("ALTER TABLE tests ADD COLUMN enable_project_timer INTEGER DEFAULT 1")
+        
+        # Add 'project_timer_duration' column if it doesn't exist
+        if 'project_timer_duration' not in columns:
+            print("Adding 'project_timer_duration' column to tests table...")
+            cursor.execute("ALTER TABLE tests ADD COLUMN project_timer_duration INTEGER DEFAULT 60")
+        
+        conn.commit()
+        print("Project timer configuration columns added successfully.")
+    except Exception as e:
+        print(f"Error adding project timer configuration columns: {str(e)}")
     finally:
         conn.close()
 

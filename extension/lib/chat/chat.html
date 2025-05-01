@@ -319,6 +319,45 @@
       justify-content: center;
       align-items: center;
     }
+
+    /* Project timer container */
+    #project-timer-container {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      margin: 10px 0;
+      padding: 12px;
+      border-top: 1px solid var(--vscode-panel-border);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      background-color: var(--vscode-editorMarkerNavigationInfo-background, rgba(0, 100, 200, 0.1));
+      text-align: center;
+      width: 100%;
+    }
+
+    #project-timer-container.visible {
+      display: flex !important;
+    }
+
+    #project-timer {
+      font-size: 16px;
+      font-weight: bold;
+      padding: 5px 10px;
+      background-color: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+
+    #project-timer.expired {
+      background-color: var(--vscode-errorForeground, red);
+      color: white;
+    }
+
+    /* Project phase label */
+    .phase-label.project {
+      background-color: var(--vscode-gitDecoration-addedResourceForeground, rgba(0,255,127,0.1));
+      color: var(--vscode-gitDecoration-addedResourceForeground, #00a050);
+    }
   </style>
 </head>
 <body>
@@ -333,6 +372,15 @@
     
     <div class="timer-info" id="timer-info">
       The timer starts automatically. You can start the interview at any time, or it will start automatically when the timer reaches zero.
+    </div>
+    
+    <!-- Project timer container -->
+    <div id="project-timer-container">
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <div style="font-weight: bold; margin-bottom: 4px;">Project Work Timer</div>
+        <div id="project-timer" style="font-size: 24px; margin: 5px 0;">60:00</div>
+        <div>Complete your implementation before the timer ends</div>
+      </div>
     </div>
     
     <div class="messages" id="messages"></div>
@@ -361,6 +409,8 @@
       const timerInfo = document.getElementById('timer-info');
       const finalInterviewContainer = document.getElementById('final-interview-container');
       const startFinalInterviewBtn = document.getElementById('start-final-interview');
+      const projectTimerContainer = document.getElementById('project-timer-container');
+      const projectTimerElement = document.getElementById('project-timer');
 
       // Global variables to store chat history, workspace context, and prompts
       let chatHistory = [];
@@ -371,11 +421,14 @@
       let initialInterviewStarted = false;
       let finalInterviewStarted = false;
       let initialInterviewEnded = false;
+      let projectWorkStarted = false;
       let timerStarted = false;
       let timerEndTime = null;
       let timerInterval = null;
+      let projectTimerEndTime = null;
+      let projectTimerInterval = null;
       let instanceId = null;
-      let currentInterviewPhase = 'initial'; // 'initial' or 'final'
+      let currentInterviewPhase = 'initial'; // 'initial', 'project', or 'final'
 
       // Immediately request environment prompts
       vscode.postMessage({ command: 'getEnvironmentPrompts' });
@@ -569,6 +622,12 @@
           return;
         }
         
+        // Check if this is a project timer
+        if (data.timerType === 'project') {
+          handleProjectTimerStatus(data);
+          return;
+        }
+        
         // Update the global timer end time
         if (data.endTimeMs) {
           timerEndTime = data.endTimeMs;
@@ -624,39 +683,181 @@
         timerStarted = true;
       }
 
-      // Update timer display
-      function updateTimerDisplay() {
-        if (!timerEndTime) {
-          console.log('No timer end time available');
+      // Function to handle project timer status updates
+      function handleProjectTimerStatus(data) {
+        console.log('Received project timer status:', data);
+        
+        if (data.error) {
+          console.error('Project timer error:', data.error);
+          projectTimerElement.textContent = 'Timer error';
+          return;
+        }
+        
+        // Debug info - log all data received
+        console.log('PROJECT TIMER DEBUG - Full data:', JSON.stringify(data));
+        
+        // Update the global project timer end time
+        if (data.endTimeMs) {
+          projectTimerEndTime = data.endTimeMs;
+          console.log(`Project timer end time set to: ${new Date(projectTimerEndTime).toISOString()}`);
+        }
+        
+        // Show project timer container - ensure it's visible
+        projectTimerContainer.classList.add('visible');
+        console.log('Project timer container visibility:', 
+          projectTimerContainer.classList.contains('visible'), 
+          'Display style:', window.getComputedStyle(projectTimerContainer).display);
+        
+        // Force visibility after a delay (helps with rendering issues)
+        setTimeout(() => {
+          projectTimerContainer.style.display = 'flex';
+          console.log('Forced project timer display style to flex');
+        }, 100);
+        
+        // Mark the current phase as project
+        currentInterviewPhase = 'project';
+        projectWorkStarted = true;
+        
+        // Add project phase label if not already present
+        if (!document.querySelector('.phase-label.project')) {
+          const phaseLabel = document.createElement('div');
+          phaseLabel.className = 'phase-label project';
+          phaseLabel.textContent = 'Project Implementation';
+          messagesContainer.appendChild(phaseLabel);
+          
+          // Add system message indicating project work phase
+          appendMessage('system', 'Initial interview completed. Please implement your solution now. You can submit your work and start the final interview at any time.', true);
+        }
+        
+        // Show final interview container to allow early submission
+        finalInterviewContainer.classList.add('visible');
+        
+        // Check if the final interview has already started
+        if (data.finalInterviewStarted) {
+          console.log('Final interview already started according to server');
+          finalInterviewStarted = true;
+          initialInterviewEnded = true;
+          
+          // Hide project timer
+          projectTimerContainer.classList.remove('visible');
+          
+          // Hide final interview container since we're already in that phase
+          finalInterviewContainer.classList.remove('visible');
+          
+          // Enable chat input for final interview
+          chatInput.disabled = false;
+          chatSubmit.disabled = false;
+          return;
+        }
+        
+        // Set up project timer display updates
+        updateProjectTimerDisplay();
+        
+        // Clear any existing interval to prevent duplicates
+        if (projectTimerInterval) {
+          clearInterval(projectTimerInterval);
+        }
+        
+        // Start a new interval for project timer updates
+        projectTimerInterval = setInterval(updateProjectTimerDisplay, 1000);
+      }
+
+      // Update project timer display
+      function updateProjectTimerDisplay() {
+        if (!projectTimerEndTime) {
+          console.log('No project timer end time available');
           return;
         }
         
         const now = Date.now();
-        const timeLeft = Math.max(0, timerEndTime - now);
+        const timeLeft = Math.max(0, projectTimerEndTime - now);
                 
         // Format the time remaining
         const minutes = Math.floor(timeLeft / 60000);
         const seconds = Math.floor((timeLeft % 60000) / 1000);
         const display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        timerElement.textContent = display;
+        projectTimerElement.textContent = display;
         
         // Check if timer expired
         if (timeLeft <= 0) {
-          clearInterval(timerInterval);
-          timerElement.textContent = '0:00';
-          timerElement.classList.add('expired');
-          console.log('Timer expired');
+          clearInterval(projectTimerInterval);
+          projectTimerElement.textContent = '0:00';
+          projectTimerElement.classList.add('expired');
+          console.log('Project timer expired');
           
-          // Get the latest timer status to check if timer is active before auto-starting
-          getTimerStatus().then(timerData => {
-            if (timerData && timerData.active && !initialInterviewStarted) {
-              // Auto-start interview if timer expires, is active, and interview not started
-              startInitialInterview();
-            }
-          }).catch(err => {
-            console.error('Error checking timer status before auto-starting interview:', err);
-          });
+          // Auto-start final interview if timer expires
+          if (!finalInterviewStarted) {
+            startFinalInterview();
+          }
         }
+      }
+
+      // Start the project work phase
+      function startProjectWork() {
+        if (projectWorkStarted) {
+          console.log('Project work already started');
+          return;
+        }
+        
+        console.log('Starting project work phase');
+        
+        // Mark initial interview as ended
+        initialInterviewEnded = true;
+        projectWorkStarted = true;
+        currentInterviewPhase = 'project';
+        
+        // Immediately make project timer container visible
+        projectTimerContainer.classList.add('visible');
+        projectTimerContainer.style.display = 'flex';
+        console.log('Forcing project timer container visibility:', 
+          projectTimerContainer.classList.contains('visible'), 
+          'Style:', projectTimerContainer.style.display);
+        
+        // Add a direct manual fix to ensure the container is displayed
+        document.querySelectorAll('#project-timer-container').forEach(el => {
+          el.style.display = 'flex';
+          console.log('Applied direct style on project-timer-container:', el);
+        });
+        
+        // Add project phase label if not already present
+        if (!document.querySelector('.phase-label.project')) {
+          const phaseLabel = document.createElement('div');
+          phaseLabel.className = 'phase-label project';
+          phaseLabel.textContent = 'Project Implementation';
+          messagesContainer.appendChild(phaseLabel);
+        }
+        
+        // Notify server to start project timer
+        vscode.postMessage({
+          command: 'startProjectTimer',
+          instanceId
+        });
+        
+        // Also notify project work started to ensure extension handles it
+        vscode.postMessage({
+          command: 'startProjectWork',
+          instanceId
+        });
+        
+        // Save the project phase to the server
+        vscode.postMessage({
+          command: 'saveInterviewPhase',
+          instanceId,
+          phase: 'project_started'
+        });
+        
+        // Disable chat input during project work
+        chatInput.disabled = true;
+        chatSubmit.disabled = true;
+        
+        // Show final interview container to allow early submission
+        finalInterviewContainer.classList.add('visible');
+        
+        // Send a debug log to ensure communication is working
+        setTimeout(() => {
+          console.log('DEBUG: Checking if project timer container is visible after delay', 
+            window.getComputedStyle(projectTimerContainer).display);
+        }, 500);
       }
 
       // Function to handle chat history
@@ -860,104 +1061,73 @@
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
 
-      // Handle messages from the extension
-      window.addEventListener('message', event => {
+      // Listen for messages from the extension
+      window.addEventListener('message', (event) => {
         const message = event.data;
-        
         console.log(`Received message from extension: ${message.command}`);
         
-        // If we get a GPT response
-        if (message.command === 'chatResponse') {
+        // Handle workspace content received
+        if (message.command === 'workspaceContent') {
           if (message.error) {
-            appendMessage('system', `Error: ${message.error}`, true);
-          } else {
-            const reply = message.reply || 'No reply';
-            
-            // Check if the reply is "END" to handle interview ending
-            if (reply.trim() === 'END') {
-              // Display a system message instead of the "END" message
-              if (!finalInterviewStarted) {
-                // This is the end of the initial interview
-                if (!initialInterviewEnded) {
-                  appendMessage('system', 'The interviewer has concluded the initial interview. Thank you for your responses!', true);
-                  console.log('Initial interview ended by AI with END message');
-                  
-                  initialInterviewEnded = true;
-                  
-                  // Show the final interview button and disable chat input
-                  finalInterviewContainer.classList.add('visible');
-                  chatInput.disabled = true;
-                  chatSubmit.disabled = true;
-                  
-                  // Save initial interview flag to backend
-                  vscode.postMessage({
-                    command: 'saveInterviewPhase',
-                    phase: 'initial',
-                    instanceId
-                  });
-                }
-              } else {
-                // This is the end of the final interview
-                if (!document.querySelector('.system-message:last-child')) {
-                  appendMessage('system', 'The final interview has concluded. Thank you for your participation!', true);
-                  console.log('Final interview ended by AI with END message');
-                  
-                  chatInput.disabled = true;
-                  chatSubmit.disabled = true;
-                  
-                  // Save final interview flag to backend
-                  vscode.postMessage({
-                    command: 'saveInterviewPhase',
-                    phase: 'final',
-                    instanceId
-                  });
-                }
-              }
-            } else {
-              // Normal reply
-              appendMessage('assistant', reply);
-            }
-          }
-          
-          // Enable input after response unless initial interview has ended and final not started
-          if (!initialInterviewEnded || finalInterviewStarted) {
-            chatInput.disabled = false;
-            chatSubmit.disabled = false;
-          }
-        } 
-        // If we get the contents of this workspace
-        else if (message.command === 'workspaceContent') { 
-          if (message.error) {
-            console.error('Error retrieving workspace content:', message.error);
+            console.error('Error getting workspace content:', message.error);
           } else {
             workspaceContext = message.content;
+            console.log(`Received workspace content, length: ${workspaceContext.length}`);
           }
         }
-        // If we get the environment prompts
+        // Handle environment prompts received
         else if (message.command === 'environmentPrompts') {
           if (message.error) {
-            console.error('Error retrieving environment prompts:', message.error);
-          }
-          
-          initialPrompt = message.initialPrompt;
-          finalPrompt = message.finalPrompt;
-          assessmentPrompt = message.assessmentPrompt;
-          
-          // Store the instance ID if provided
-          if (message.instanceId) {
+            console.error('Error getting environment prompts:', message.error);
+          } else {
+            initialPrompt = message.initialPrompt || '';
+            finalPrompt = message.finalPrompt || '';
+            assessmentPrompt = message.assessmentPrompt || '';
             instanceId = message.instanceId;
-            console.log(`Instance ID set: ${instanceId}`);
             
-            // Now that we have the instance ID, check the timer status
-            checkTimerStatus();
+            console.log(`Received environment prompts. Initial prompt length: ${initialPrompt.length}`);
+            console.log(`Instance ID: ${instanceId}`);
             
-            // Also fetch chat history if available
-            vscode.postMessage({ command: 'getChatHistory', instanceId });
+            // Check timer status if instance ID is available
+            if (instanceId) {
+              checkTimerStatus();
+              
+              // Also fetch chat history if available
+              vscode.postMessage({ command: 'getChatHistory', instanceId });
+            }
           }
         }
         // If we get timer status from server
         else if (message.command === 'timerStatus') {
           handleTimerStatus(message.data);
+        }
+        // Handle project timer status received
+        else if (message.command === 'projectTimerStatus') {
+          console.log('Received projectTimerStatus message from extension');
+          handleProjectTimerStatus(message.data);
+        }
+        // Handle project work started event
+        else if (message.command === 'projectWorkStarted') {
+          console.log('Received projectWorkStarted message from extension');
+          
+          // Update state
+          projectWorkStarted = true;
+          initialInterviewEnded = true;
+          currentInterviewPhase = 'project';
+          
+          // Force display of project timer container
+          projectTimerContainer.classList.add('visible');
+          setTimeout(() => {
+            projectTimerContainer.style.display = 'flex';
+            console.log('Forced project timer container display to flex after projectWorkStarted');
+          }, 100);
+          
+          // Disable chat input during project work
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+          
+          // Show final interview container to allow submission when ready
+          finalInterviewContainer.classList.add('visible');
         }
         // Handle chat message received
         else if (message.command === 'chatMessage') {
@@ -967,11 +1137,25 @@
             loadingMessage.remove();
           }
           
-          appendMessage('assistant', message.text);
+          const messageText = message.text;
           
-          // Enable input after response
-          chatInput.disabled = false;
-          chatSubmit.disabled = false;
+          // Check if the AI is ending the interview with "END"
+          if (messageText.trim() === 'END') {
+            console.log('AI has decided to end the initial interview');
+            appendMessage('system', 'Initial interview complete. Beginning project phase...', true);
+            
+            // Start the project phase
+            startProjectWork();
+          } else {
+            // Normal AI message
+            appendMessage('assistant', messageText);
+          }
+          
+          // Enable input after response unless in project phase
+          if (!projectWorkStarted) {
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+          }
         }
         // Handle chat history received
         else if (message.command === 'chatHistory') {
@@ -1020,6 +1204,9 @@
           console.log('Final interview started status confirmed by server');
           finalInterviewStarted = true;
           initialInterviewEnded = true;
+          
+          // Hide project timer if visible
+          projectTimerContainer.classList.remove('visible');
           
           // Enable chat input for final interview
           chatInput.disabled = false;
@@ -1111,6 +1298,24 @@
       startInterviewBtn.addEventListener('click', () => {
         console.log('Start interview button clicked');
         startInitialInterview();
+      });
+
+      // Final interview button handler
+      startFinalInterviewBtn.addEventListener('click', () => {
+        console.log('Start final interview button clicked');
+        
+        // If we're in the project phase, make sure to handle the transition properly
+        if (currentInterviewPhase === 'project') {
+          // Stop the project timer if it's running
+          if (projectTimerInterval) {
+            clearInterval(projectTimerInterval);
+          }
+          
+          // Hide the project timer
+          projectTimerContainer.classList.remove('visible');
+        }
+        
+        startFinalInterview();
       });
 
       // Start the final interview
@@ -1225,12 +1430,41 @@
           });
         }, 500); // Short delay to ensure everything is processed first
       }
-      
-      // Start final interview button handler
-      startFinalInterviewBtn.addEventListener('click', () => {
-        console.log('Start final interview button clicked');
-        startFinalInterview();
-      });
+
+      // Update timer display
+      function updateTimerDisplay() {
+        if (!timerEndTime) {
+          console.log('No timer end time available');
+          return;
+        }
+        
+        const now = Date.now();
+        const timeLeft = Math.max(0, timerEndTime - now);
+                
+        // Format the time remaining
+        const minutes = Math.floor(timeLeft / 60000);
+        const seconds = Math.floor((timeLeft % 60000) / 1000);
+        const display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        timerElement.textContent = display;
+        
+        // Check if timer expired
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          timerElement.textContent = '0:00';
+          timerElement.classList.add('expired');
+          console.log('Timer expired');
+          
+          // Get the latest timer status to check if timer is active before auto-starting
+          getTimerStatus().then(timerData => {
+            if (timerData && timerData.active && !initialInterviewStarted) {
+              // Auto-start interview if timer expires, is active, and interview not started
+              startInitialInterview();
+            }
+          }).catch(err => {
+            console.error('Error checking timer status before auto-starting interview:', err);
+          });
+        }
+      }
     }());
   </script>
 </body>

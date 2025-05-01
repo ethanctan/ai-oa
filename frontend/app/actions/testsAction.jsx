@@ -63,6 +63,11 @@ export async function action({ request }) {
             const timerConfig = JSON.parse(payload.timerConfigJson);
             payload.enableTimer = timerConfig.enableTimer;
             payload.timerDuration = timerConfig.duration;
+            
+            // Add project timer configuration
+            payload.enableProjectTimer = timerConfig.enableProjectTimer;
+            payload.projectTimerDuration = timerConfig.projectDuration;
+            
             // Remove the raw JSON from the payload
             delete payload.timerConfigJson;
           } catch (e) {

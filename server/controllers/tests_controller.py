@@ -103,6 +103,10 @@ def create_test(data):
     enable_timer = data.get('enableTimer', True)
     timer_duration = data.get('timerDuration', 10)  # Default: 10 minutes
     
+    # Extract project timer configuration
+    enable_project_timer = data.get('enableProjectTimer', True)
+    project_timer_duration = data.get('projectTimerDuration', 60)  # Default: 60 minutes
+    
     if not name:
         raise ValueError('Test name is required')
     
@@ -117,8 +121,9 @@ def create_test(data):
                 name, github_repo, github_token, 
                 initial_prompt, final_prompt, assessment_prompt,
                 candidates_assigned, candidates_completed,
-                enable_timer, timer_duration
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                enable_timer, timer_duration,
+                enable_project_timer, project_timer_duration
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 name,
@@ -130,7 +135,9 @@ def create_test(data):
                 0,  # candidates_assigned (will be updated if candidates are assigned)
                 0,  # candidates_completed
                 1 if enable_timer else 0,  # Store as integer for SQLite compatibility
-                timer_duration
+                timer_duration,
+                1 if enable_project_timer else 0,  # Store as integer for SQLite compatibility
+                project_timer_duration
             )
         )
         conn.commit()
