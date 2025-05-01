@@ -880,6 +880,7 @@
         // Detect interview phases from history
         let foundInitialEnd = false;
         let foundFinalStart = false;
+        let foundProjectPhase = false;
         let detectedPhase = 'initial';
         
         // First pass - check for phase markers and END messages
@@ -910,6 +911,10 @@
             } else if (phase === 'final' || phase === 'final_started') {
               detectedPhase = 'final';
               foundFinalStart = true;
+            } else if (phase === 'project' || phase === 'project_started') {
+              detectedPhase = 'project';
+              foundProjectPhase = true;
+              console.log('Detected project phase from history');
             }
           }
           
@@ -919,23 +924,45 @@
             if (message.metadata.phase === 'final') {
               detectedPhase = 'final';
               foundFinalStart = true;
+            } else if (message.metadata.phase === 'project') {
+              detectedPhase = 'project';
+              foundProjectPhase = true;
             }
+          }
+          
+          // Check for project phase message content
+          if (message.role === 'system' && 
+              (message.content.includes('Beginning project work phase') || 
+               message.content.includes('Initial interview completed. Please implement your solution'))) {
+            console.log('Detected project phase from system message content');
+            detectedPhase = 'project';
+            foundProjectPhase = true;
+            foundInitialEnd = true;
           }
         }
         
         // Set global state based on detected phases
         initialInterviewStarted = true; // If we have chat history, initial must have started
         
-        if (foundInitialEnd) {
+        if (foundInitialEnd || foundProjectPhase) {
           initialInterviewEnded = true;
+          console.log('Setting initialInterviewEnded=true based on history');
+        }
+        
+        if (foundProjectPhase) {
+          projectWorkStarted = true;
+          currentInterviewPhase = 'project';
+          console.log('Setting projectWorkStarted=true based on history');
         }
         
         if (foundFinalStart) {
           finalInterviewStarted = true;
+          console.log('Setting finalInterviewStarted=true based on history');
         }
         
         // Second pass - add messages to UI
         let addedInitialPhaseLabel = false;
+        let addedProjectPhaseLabel = false;
         let addedFinalPhaseLabel = false;
         let currentPhase = 'initial';
         let messagesAdded = 0;
@@ -956,6 +983,8 @@
               const phase = message.content.replace('PHASE_MARKER:', '').trim();
               if (phase === 'final' || phase === 'final_started') {
                 currentPhase = 'final';
+              } else if (phase === 'project' || phase === 'project_started') {
+                currentPhase = 'project';
               }
               
               return;
@@ -971,7 +1000,7 @@
                 messagesContainer.appendChild(systemElem);
                 
                 // This marks the transition to final phase
-                currentPhase = 'between';
+                currentPhase = 'project';
               } else if (currentPhase === 'final') {
                 // Add system message for final END
                 const systemElem = document.createElement('div');
@@ -998,6 +1027,12 @@
               phaseLabel.textContent = 'Initial Interview';
               messagesContainer.appendChild(phaseLabel);
               addedInitialPhaseLabel = true;
+            } else if (currentPhase === 'project' && !addedProjectPhaseLabel) {
+              const phaseLabel = document.createElement('div');
+              phaseLabel.className = 'phase-label project';
+              phaseLabel.textContent = 'Project Implementation';
+              messagesContainer.appendChild(phaseLabel);
+              addedProjectPhaseLabel = true;
             } else if (currentPhase === 'final' && !addedFinalPhaseLabel) {
               const phaseLabel = document.createElement('div');
               phaseLabel.className = 'phase-label final';
@@ -1038,21 +1073,37 @@
         });
         
         console.log(`Successfully restored ${messagesAdded} messages from history`);
-        console.log(`Interview phases - Initial: ${initialInterviewStarted}, Initial ended: ${initialInterviewEnded}, Final: ${finalInterviewStarted}`);
+        console.log(`Interview phases - Initial: ${initialInterviewStarted}, Initial ended: ${initialInterviewEnded}, Project: ${projectWorkStarted}, Final: ${finalInterviewStarted}`);
         
         // Update UI based on detected state
-        if (initialInterviewEnded && !finalInterviewStarted) {
-          // Show the final interview button
+        if (projectWorkStarted && !finalInterviewStarted) {
+          // We're in the project phase
+          console.log('UI update: Project phase detected from history');
           finalInterviewContainer.classList.add('visible');
-          // Disable chat
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+          
+          // Make sure project timer container is visible
+          projectTimerContainer.classList.add('visible');
+          projectTimerContainer.style.display = 'flex';
+        } else if (initialInterviewEnded && !finalInterviewStarted) {
+          // Initial interview ended but not in project phase yet
+          console.log('UI update: Initial interview ended, waiting for project phase');
+          finalInterviewContainer.classList.add('visible');
           chatInput.disabled = true;
           chatSubmit.disabled = true;
         } else if (finalInterviewStarted) {
           // Final interview is ongoing
+          console.log('UI update: Final interview phase');
           chatInput.disabled = false;
           chatSubmit.disabled = false;
+          
+          // Hide project UI if still visible
+          projectTimerContainer.classList.remove('visible');
+          finalInterviewContainer.classList.remove('visible');
         } else if (initialInterviewStarted) {
           // Initial interview is ongoing
+          console.log('UI update: Initial interview phase');
           chatInput.disabled = false;
           chatSubmit.disabled = false;
         }
@@ -1151,8 +1202,20 @@
             appendMessage('assistant', messageText);
           }
           
-          // Enable input after response unless in project phase
-          if (!projectWorkStarted) {
+          // Enable input based on current phase
+          if (finalInterviewStarted) {
+            // Always enable input during final interview
+            console.log('Enabling chat input for final interview phase (via chatMessage)');
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+          } else if (projectWorkStarted) {
+            // Always disable in project phase
+            console.log('Disabling chat input for project phase (via chatMessage)');
+            chatInput.disabled = true;
+            chatSubmit.disabled = true;
+          } else if (initialInterviewStarted && !initialInterviewEnded) {
+            // Enable in initial interview phase
+            console.log('Enabling chat input for initial interview phase (via chatMessage)');
             chatInput.disabled = false;
             chatSubmit.disabled = false;
           }
@@ -1190,8 +1253,20 @@
             }
           }
           
-          // Enable input after response unless in project phase
-          if (!projectWorkStarted) {
+          // Enable input based on current phase
+          if (finalInterviewStarted) {
+            // Always enable input during final interview
+            console.log('Enabling chat input for final interview phase');
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+          } else if (projectWorkStarted) {
+            // Always disable in project phase
+            console.log('Disabling chat input for project phase');
+            chatInput.disabled = true;
+            chatSubmit.disabled = true;
+          } else if (initialInterviewStarted && !initialInterviewEnded) {
+            // Enable in initial interview phase
+            console.log('Enabling chat input for initial interview phase');
             chatInput.disabled = false;
             chatSubmit.disabled = false;
           }

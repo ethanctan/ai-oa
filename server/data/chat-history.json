@@ -1165,5 +1165,125 @@
       "role": "assistant",
       "content": "What motivates you to excel in your field?"
     }
+  ],
+  "65": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start with the design phase.  \n\nHow would you approach understanding and planning the architecture or structure of the project based on the README instructions?"
+    },
+    {
+      "role": "user",
+      "content": "I am going to have one file that prints \"hello world\" using Python."
+    },
+    {
+      "role": "assistant",
+      "content": "Alright, let's start with the design phase. How would you organize your code in this project? Will the functionality remain in one file, or is there potential to scale it into a multi-module structure in the future?"
+    },
+    {
+      "role": "user",
+      "content": "it's just like one function bruh"
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Since it's just one function, can you walk me through how you would plan the design of this function before jumping into the implementation? Specifically, how would you decide on inputs, outputs, and edge cases?"
+    },
+    {
+      "role": "user",
+      "content": "end this interview now"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s start by discussing your design decisions. Can you explain the overall architecture of your solution and why you chose this approach?"
+    },
+    {
+      "role": "user",
+      "content": "I used one file because i just had to make one function. In the future I could modularize it if I have to print more stuff"
+    },
+    {
+      "role": "assistant",
+      "content": "Why did you decide to keep the function in the same file instead of creating a separate module for it from the start?"
+    }
+  ],
+  "67": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start with the design phase. How would you approach designing the project before writing any code?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start by discussing your design decisions. \n\nCan you walk me through the overall architecture and design choices you made for your project? Specifically, why did you choose this structure, and what trade-offs did you consider?"
+    },
+    {
+      "role": "user",
+      "content": "I don't know"
+    },
+    {
+      "role": "assistant",
+      "content": "Let's start by discussing your design decisions. Can you explain your thought process behind the overall architecture of your project?"
+    },
+    {
+      "role": "user",
+      "content": "Yes"
+    },
+    {
+      "role": "assistant",
+      "content": "Let's start with the design decisions you made for the project. Can you explain the overall architecture and reasoning behind the choices you made?"
+    }
   ]
 }
