@@ -1157,6 +1157,45 @@
             chatSubmit.disabled = false;
           }
         }
+        // Handle chatResponse command - used for direct AI responses
+        else if (message.command === 'chatResponse') {
+          console.log('Received chatResponse:', message);
+          
+          // Remove loading message if it exists
+          const loadingMessage = document.getElementById('loading-message');
+          if (loadingMessage) {
+            loadingMessage.remove();
+          }
+          
+          if (message.error) {
+            // Show error as system message
+            console.error('Chat response error:', message.error);
+            appendMessage('system', `Error: ${message.error}`, true);
+          } else if (message.reply) {
+            // Check if the AI is ending the interview with "END"
+            if (message.reply.trim() === 'END') {
+              console.log('AI has decided to end the interview with "END" message');
+              appendMessage('system', 'Interview complete. Moving to next phase...', true);
+              
+              // If in initial phase, start project work
+              if (!finalInterviewStarted && !initialInterviewEnded) {
+                startProjectWork();
+              } else {
+                // In final phase, show completion message
+                appendMessage('system', 'Final interview complete. Thank you for your participation.', true);
+              }
+            } else {
+              // Normal AI message
+              appendMessage('assistant', message.reply);
+            }
+          }
+          
+          // Enable input after response unless in project phase
+          if (!projectWorkStarted) {
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+          }
+        }
         // Handle chat history received
         else if (message.command === 'chatHistory') {
           if (message.error) {
