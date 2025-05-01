@@ -646,6 +646,10 @@
           // Enable chat input
           chatInput.disabled = false;
           chatSubmit.disabled = false;
+          
+          // Update input state based on phase
+          updateInputStateBasedOnPhase();
+          
           return; // Exit early if interview already started
         }
         
@@ -717,6 +721,15 @@
         // Mark the current phase as project
         currentInterviewPhase = 'project';
         projectWorkStarted = true;
+        initialInterviewEnded = true; // Ensure initial interview is marked as ended
+        
+        // IMPORTANT: Always disable chat input during project phase
+        console.log('DISABLING CHAT INPUT: Project timer detected');
+        chatInput.disabled = true;
+        chatSubmit.disabled = true;
+        
+        // Ensure UI state is consistent with project phase
+        updateInputStateBasedOnPhase();
         
         // Add project phase label if not already present
         if (!document.querySelector('.phase-label.project')) {
@@ -747,6 +760,10 @@
           // Enable chat input for final interview
           chatInput.disabled = false;
           chatSubmit.disabled = false;
+          
+          // Update UI state based on final interview phase
+          updateInputStateBasedOnPhase();
+          
           return;
         }
         
@@ -1110,6 +1127,9 @@
         
         // Scroll to the bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Make sure UI state is consistent after loading history
+        setTimeout(updateInputStateBasedOnPhase, 500);
       }
 
       // Listen for messages from the extension
@@ -1145,6 +1165,9 @@
               
               // Also fetch chat history if available
               vscode.postMessage({ command: 'getChatHistory', instanceId });
+              
+              // Force update of input state
+              setTimeout(updateInputStateBasedOnPhase, 1000);
             }
           }
         }
@@ -1179,6 +1202,9 @@
           
           // Show final interview container to allow submission when ready
           finalInterviewContainer.classList.add('visible');
+          
+          // Ensure UI state is consistent with project phase
+          updateInputStateBasedOnPhase();
         }
         // Handle chat message received
         else if (message.command === 'chatMessage') {
@@ -1579,6 +1605,49 @@
           });
         }
       }
+
+      // Function to update UI based on current phase
+      function updateInputStateBasedOnPhase() {
+        console.log(`Updating input state based on current phase: ${currentInterviewPhase}`);
+        console.log(`Phase flags - Initial: ${initialInterviewStarted}, Initial ended: ${initialInterviewEnded}, Project: ${projectWorkStarted}, Final: ${finalInterviewStarted}`);
+        
+        if (projectWorkStarted && !finalInterviewStarted) {
+          // We're in the project phase - always disable chat
+          console.log('DISABLING CHAT INPUT: In project phase');
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+          
+          // Show final interview button
+          finalInterviewContainer.classList.add('visible');
+          
+          // Make sure project timer is visible
+          projectTimerContainer.classList.add('visible');
+          projectTimerContainer.style.display = 'flex';
+        } else if (finalInterviewStarted) {
+          // Final interview - always enable chat
+          console.log('ENABLING CHAT INPUT: In final interview phase');
+          chatInput.disabled = false;
+          chatSubmit.disabled = false;
+          
+          // Hide project UI elements
+          projectTimerContainer.classList.remove('visible');
+          finalInterviewContainer.classList.remove('visible');
+        } else if (initialInterviewStarted && !initialInterviewEnded) {
+          // Initial interview - enable chat
+          console.log('ENABLING CHAT INPUT: In initial interview phase');
+          chatInput.disabled = false;
+          chatSubmit.disabled = false;
+        } else {
+          // Not in any interview phase yet
+          console.log('DISABLING CHAT INPUT: No interview active');
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+        }
+      }
+      
+      // Call this function every time a timer status update is received
+      // or any event that might change the phase
+      setInterval(updateInputStateBasedOnPhase, 2000); // Check every 2 seconds to be safe
     }());
   </script>
 </body>

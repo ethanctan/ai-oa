@@ -1285,5 +1285,30 @@
       "role": "assistant",
       "content": "Let's start with the design decisions you made for the project. Can you explain the overall architecture and reasoning behind the choices you made?"
     }
+  ],
+  "68": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! To begin, when approaching the design phase of the project, how would you determine the core components or modules of your implementation?"
+    },
+    {
+      "role": "user",
+      "content": "end this"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    }
   ]
 }
