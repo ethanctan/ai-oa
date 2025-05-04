@@ -1235,10 +1235,11 @@
             // Check if the AI is ending the interview with "END"
             if (message.reply.trim() === 'END') {
               console.log('AI has decided to end the interview with "END" message');
-              appendMessage('system', 'Interview complete. Moving to next phase...', true);
               
               // If in initial phase, start project work
               if (!finalInterviewStarted && !initialInterviewEnded) {
+                appendMessage('system', 'Interview complete. Moving to next phase...', true);
+
                 // Stop the initial timer interval before starting project work
                 if (timerInterval) {
                   console.log('Clearing initial timer interval before starting project work');
@@ -1248,7 +1249,7 @@
                 startProjectWork();
               } else {
                 // In final phase, show completion message
-                appendMessage('system', 'Final interview complete. Thank you for your participation.', true);
+                appendMessage('system', 'Final interview complete. Thank you for your participation. You may now safely close this window.', true);
               }
             } else {
               // Normal AI message
