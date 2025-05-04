@@ -215,7 +215,12 @@ def create_instance(data):
             f"INITIAL_PROMPT={test.get('initial_prompt', '')}",
             f"FINAL_PROMPT={test.get('final_prompt', '')}",
             f"ASSESSMENT_PROMPT={test.get('assessment_prompt', '')}",
-            f"INSTANCE_ID={instance_id}"
+            f"INSTANCE_ID={instance_id}",
+            # Add project timer settings from the test definition
+            f"ENABLE_INITIAL_TIMER={test.get('enable_timer', 1)}",
+            f"INITIAL_DURATION_MINUTES={test.get('timer_duration', 10)}",
+            f"ENABLE_PROJECT_TIMER={test.get('enable_project_timer', 1)}",
+            f"PROJECT_DURATION_MINUTES={test.get('project_timer_duration', 60)}"
         ]
         
         # Define volumes if we have a project path

@@ -595,7 +595,7 @@ export default function TestsAdmin() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  GitHub Token (if needed)
+                  GitHub Token <span class="text-red-500">(if the above repo is private, this is required!)</span>
                 </label>
                 <input 
                   type="text" 

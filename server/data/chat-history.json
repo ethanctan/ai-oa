@@ -1601,5 +1601,55 @@
       "role": "assistant",
       "content": "END"
     }
+  ],
+  "83": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start with design. Based on the instructions provided in the README.md file, how would you approach the high-level design for this project? Specifically, what key components or modules would you identify, and how would they interact?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    }
+  ],
+  "84": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "How would you approach the design phase of the project? Specifically, what steps would you take to ensure you have a clear and efficient plan before you start writing any code?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    }
   ]
 }

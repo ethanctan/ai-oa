@@ -16,6 +16,9 @@ const SERVER_CHAT_URL = `${SERVER_URL}/chat`;
 let globalInitialPrompt = '';
 let globalFinalPrompt = '';
 let globalAssessmentPrompt = '';
+// Store timer config globally
+let globalTimerConfig = {};
+let globalProjectTimerConfig = {};
 
 // Function to get environment variables 
 async function getEnvironmentVariables() {
@@ -23,7 +26,8 @@ async function getEnvironmentVariables() {
     // Execute a command to read environment variables
     const result = await new Promise((resolve, reject) => {
       const { exec } = require('child_process');
-      exec('env | grep -E "INITIAL_PROMPT|FINAL_PROMPT|ASSESSMENT_PROMPT|INSTANCE_ID"', (error, stdout, stderr) => {
+      // Update grep pattern to include timer variables
+      exec('env | grep -E "INITIAL_PROMPT|FINAL_PROMPT|ASSESSMENT_PROMPT|INSTANCE_ID|ENABLE_INITIAL_TIMER|INITIAL_DURATION_MINUTES|ENABLE_PROJECT_TIMER|PROJECT_DURATION_MINUTES"', (error, stdout, stderr) => {
         if (error) {
           console.error(`Error getting env variables: ${error.message}`);
           // Don't reject - just return empty if there's an issue
@@ -44,9 +48,25 @@ async function getEnvironmentVariables() {
       });
     });
     
+    // Populate global timer configs from env vars
+    globalTimerConfig = {
+      enableTimer: result.ENABLE_INITIAL_TIMER ? (result.ENABLE_INITIAL_TIMER === '1') : true, // Default true if not set
+      duration: result.INITIAL_DURATION_MINUTES ? parseInt(result.INITIAL_DURATION_MINUTES, 10) : 10 // Default 10 mins
+    };
+    globalProjectTimerConfig = {
+      enableProjectTimer: result.ENABLE_PROJECT_TIMER ? (result.ENABLE_PROJECT_TIMER === '1') : true, // Default true
+      projectDuration: result.PROJECT_DURATION_MINUTES ? parseInt(result.PROJECT_DURATION_MINUTES, 10) : 60 // Default 60 mins
+    };
+    
+    console.log('Populated globalTimerConfig:', globalTimerConfig);
+    console.log('Populated globalProjectTimerConfig:', globalProjectTimerConfig);
+    
     return result;
   } catch (error) {
     console.error('Error getting environment variables:', error);
+    // Return default configs on error
+    globalTimerConfig = { enableTimer: true, duration: 10 };
+    globalProjectTimerConfig = { enableProjectTimer: true, projectDuration: 60 };
     return {};
   }
 }
@@ -469,20 +489,10 @@ async function startProjectTimer(instanceId) {
   console.log(`Starting project timer for instance: ${instanceId}`);
   
   try {
-    // Check if there are any project timer configuration parameters
-    const projectTimerConfig = global.projectTimerConfig || {};
+    // Use the globally set project timer config from env vars
+    const projectConfig = globalProjectTimerConfig || {}; // Use global config
     
-    // Extract config from test settings if not set directly
-    if (!projectTimerConfig.enableProjectTimer && global.timerConfig) {
-      console.log('No specific project timer config found, checking if available in timerConfig');
-      if (global.timerConfig.enableProjectTimer !== undefined) {
-        console.log('Found project timer config in general timer config, using that');
-        projectTimerConfig.enableProjectTimer = global.timerConfig.enableProjectTimer;
-        projectTimerConfig.projectDuration = global.timerConfig.projectDuration;
-      }
-    }
-    
-    console.log(`Project timer config: ${JSON.stringify(projectTimerConfig)}`);
+    console.log(`Using project timer config from environment: ${JSON.stringify(projectConfig)}`);
     
     const response = await fetch(
       SERVER_PROJECT_TIMER_START_URL,
@@ -491,8 +501,8 @@ async function startProjectTimer(instanceId) {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ 
           instanceId,
-          enableTimer: projectTimerConfig.enableProjectTimer !== false, // Default to true if not specified
-          duration: projectTimerConfig.projectDuration ? projectTimerConfig.projectDuration * 60 : 3600 // Convert minutes to seconds, default 60 minutes
+          enableTimer: projectConfig.enableProjectTimer !== false, // Default to true if not specified
+          duration: projectConfig.projectDuration ? projectConfig.projectDuration * 60 : 3600 // Convert minutes to seconds, default 60 minutes
         })
       }
     );
