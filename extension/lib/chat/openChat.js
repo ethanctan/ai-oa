@@ -314,20 +314,6 @@ function openChat() {
       await sendInitialMessage(message.instanceId);
     }
 
-    // Handle ending the initial interview and starting project work
-    if (message.command === 'startProjectWork') {
-      console.log(`Starting project work for instance: ${message.instanceId}`);
-      
-      // Start the project timer
-      await startProjectTimer(message.instanceId);
-      
-      // Send a confirmation back to the webview
-      global.chatPanel.webview.postMessage({
-        command: 'projectWorkStarted',
-        success: true
-      });
-    }
-
     // Handle timer start command
     if (message.command === 'startTimer') {
       console.log(`Starting timer for instance: ${message.instanceId}`);
@@ -337,7 +323,21 @@ function openChat() {
     // Handle project timer start command
     if (message.command === 'startProjectTimer') {
       console.log(`Starting project timer for instance: ${message.instanceId}`);
-      startProjectTimer(message.instanceId);
+      // Call the local function to start the project timer on the server
+      const timerData = await startProjectTimer(message.instanceId);
+      
+      // Check if timer started successfully and send confirmation
+      if (timerData && !timerData.error) {
+          // Send projectWorkStarted message to ensure UI updates correctly
+          console.log('Sending projectWorkStarted after project timer started');
+          global.chatPanel.webview.postMessage({
+            command: 'projectWorkStarted',
+            success: true
+          });
+      } else {
+        // Log error if timer didn't start correctly
+        console.error('Failed to start project timer, not sending projectWorkStarted message.');
+      }
     }
 
     // Handle get timer status command

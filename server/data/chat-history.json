@@ -1439,5 +1439,111 @@
         "phase": "project_started"
       }
     }
+  ],
+  "79": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s start with the design phase. How would you approach designing the architecture or structure for this project based on the details in the README.md file?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    }
+  ],
+  "80": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "How would you approach the design phase of this project?"
+    },
+    {
+      "role": "user",
+      "content": "END"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    }
+  ],
+  "81": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin with the design phase. How would you approach understanding the requirements and breaking them into smaller components for this project?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start with the design side of your project. Can you explain the main components or modules of your solution and how they interact with each other?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "user",
+      "content": "END"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    }
   ]
 }

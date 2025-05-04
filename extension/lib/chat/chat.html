@@ -731,51 +731,26 @@
         // Ensure UI state is consistent with project phase
         updateInputStateBasedOnPhase();
         
-        // Add project phase label if not already present
-        if (!document.querySelector('.phase-label.project')) {
-          const phaseLabel = document.createElement('div');
-          phaseLabel.className = 'phase-label project';
-          phaseLabel.textContent = 'Project Implementation';
-          messagesContainer.appendChild(phaseLabel);
-          
-          // Add system message indicating project work phase
-          appendMessage('system', 'Initial interview completed. Please implement your solution now. You can submit your work and start the final interview at any time.', true);
-        }
-        
         // Show final interview container to allow early submission
         finalInterviewContainer.classList.add('visible');
         
         // Check if the final interview has already started
         if (data.finalInterviewStarted) {
-          console.log('Final interview already started according to server');
-          finalInterviewStarted = true;
-          initialInterviewEnded = true;
-          
-          // Hide project timer
-          projectTimerContainer.classList.remove('visible');
-          
-          // Hide final interview container since we're already in that phase
-          finalInterviewContainer.classList.remove('visible');
-          
-          // Enable chat input for final interview
-          chatInput.disabled = false;
-          chatSubmit.disabled = false;
-          
-          // Update UI state based on final interview phase
-          updateInputStateBasedOnPhase();
-          
+          console.log('Final interview already started according to server, not starting project timer interval.');
+          // State already handled by updateInputStateBasedOnPhase
           return;
         }
         
         // Set up project timer display updates
-        updateProjectTimerDisplay();
-        
+        updateProjectTimerDisplay(); // Call once immediately
+
         // Clear any existing interval to prevent duplicates
         if (projectTimerInterval) {
           clearInterval(projectTimerInterval);
         }
-        
+
         // Start a new interval for project timer updates
+        console.log('Starting project timer interval...');
         projectTimerInterval = setInterval(updateProjectTimerDisplay, 1000);
       }
 
@@ -818,6 +793,13 @@
         
         console.log('Starting project work phase');
         
+        // Stop the initial timer interval if it's running
+        if (timerInterval) {
+          console.log('Clearing initial timer interval');
+          clearInterval(timerInterval);
+          timerInterval = null; // Reset interval variable
+        }
+        
         // Mark initial interview as ended
         initialInterviewEnded = true;
         projectWorkStarted = true;
@@ -836,23 +818,12 @@
           console.log('Applied direct style on project-timer-container:', el);
         });
         
-        // Add project phase label if not already present
-        if (!document.querySelector('.phase-label.project')) {
-          const phaseLabel = document.createElement('div');
-          phaseLabel.className = 'phase-label project';
-          phaseLabel.textContent = 'Project Implementation';
-          messagesContainer.appendChild(phaseLabel);
-        }
+        // Add system message indicating start of project work phase
+        appendMessage('system', 'Initial interview completed. Please implement your solution now. You can submit your work and start the final interview at any time.', true);
         
         // Notify server to start project timer
         vscode.postMessage({
           command: 'startProjectTimer',
-          instanceId
-        });
-        
-        // Also notify project work started to ensure extension handles it
-        vscode.postMessage({
-          command: 'startProjectWork',
           instanceId
         });
         
@@ -1268,6 +1239,12 @@
               
               // If in initial phase, start project work
               if (!finalInterviewStarted && !initialInterviewEnded) {
+                // Stop the initial timer interval before starting project work
+                if (timerInterval) {
+                  console.log('Clearing initial timer interval before starting project work');
+                  clearInterval(timerInterval);
+                  timerInterval = null;
+                }
                 startProjectWork();
               } else {
                 // In final phase, show completion message
