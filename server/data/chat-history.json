@@ -1310,5 +1310,134 @@
         "phase": "project_started"
       }
     }
+  ],
+  "69": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! To begin, how will you approach the design phase of the project? Specifically, how will you break down the requirements provided in the README.md file into components or functionalities?"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's dive into your project. To start with the design discussion: Can you explain your overall approach to designing the solution, including how you decided on the architecture or structure of your code?"
+    }
+  ],
+  "72": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    }
+  ],
+  "73": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "user",
+      "content": "Hello"
+    }
+  ],
+  "74": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "user",
+      "content": "Hello"
+    }
+  ],
+  "75": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "user",
+      "content": "Helloooo"
+    }
+  ],
+  "test-instance-123": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! To begin, can you provide a high-level overview of your project? Specifically, what problem does it solve, and what are the core components of your solution?"
+    }
+  ],
+  "77": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin. When approaching the design phase of the project, what key factors will you consider to ensure the system is scalable and maintainable?"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin by discussing your design decisions. \n\n**Question 1:** Can you briefly explain the overall architecture of your solution and why you chose it?"
+    }
+  ],
+  "78": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s begin. Based on the project instructions in the README.md file, can you describe how you would approach designing the architecture or overall structure of the solution?"
+    },
+    {
+      "role": "user",
+      "content": "Hello"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi! Let's begin. How would you approach designing the high-level architecture for this project before writing any code?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    }
   ]
 }

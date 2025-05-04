@@ -682,18 +682,9 @@ async function checkTimerAndInterviewStatus(instanceId) {
         // This is the initial timer
         // Check if the interview is already started
         if (data.timer.interviewStarted) {
-          console.log('Initial interview is already marked as started');
+          console.log('Initial interview is already marked as started according to timer status');
           
-          // Check if we need to transition to project phase
-          if (data.timer.interviewStarted && !data.timer.projectStarted) {
-            console.log('Initial interview completed, but project phase not started. Starting project phase...');
-            
-            // Slight delay to ensure UI is ready
-            setTimeout(() => {
-              startProjectTimer(instanceId);
-            }, 1000);
-          }
-          
+          // Send interviewStarted confirmation to UI
           if (global.chatPanel) {
             global.chatPanel.webview.postMessage({
               command: 'interviewStarted',
@@ -702,7 +693,7 @@ async function checkTimerAndInterviewStatus(instanceId) {
           }
         }
         
-        // Send the timer status to the webview for UI updates
+        // Send the timer status to the webview for UI updates regardless
         if (global.chatPanel) {
           global.chatPanel.webview.postMessage({
             command: 'timerStatus',
