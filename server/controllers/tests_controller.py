@@ -14,6 +14,7 @@ def get_all_tests():
                 t.candidates_assigned, t.candidates_completed,
                 t.enable_timer, t.timer_duration,
                 t.created_at, t.updated_at,
+                t.target_github_repo, t.target_github_token,
                 COUNT(DISTINCT tc.candidate_id) as total_candidates
             FROM tests t
             LEFT JOIN test_candidates tc ON t.id = tc.test_id
@@ -50,6 +51,7 @@ def get_test(test_id):
                 t.candidates_assigned, t.candidates_completed, 
                 t.enable_timer, t.timer_duration,
                 t.created_at, t.updated_at,
+                t.target_github_repo, t.target_github_token,
                 COUNT(DISTINCT tc.candidate_id) as total_candidates
             FROM tests t
             LEFT JOIN test_candidates tc ON t.id = tc.test_id
@@ -122,22 +124,25 @@ def create_test(data):
                 initial_prompt, final_prompt, assessment_prompt,
                 candidates_assigned, candidates_completed,
                 enable_timer, timer_duration,
-                enable_project_timer, project_timer_duration
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                enable_project_timer, project_timer_duration,
+                target_github_repo, target_github_token
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 name,
-                data.get('githubRepo'),
-                data.get('githubToken'),
-                data.get('initialPrompt'),
-                data.get('finalPrompt'),
-                data.get('assessmentPrompt'),
+                data.get('githubRepo', None),
+                data.get('githubToken', None),
+                data.get('initialPrompt', None),
+                data.get('finalPrompt', None),
+                data.get('assessmentPrompt', None),
                 0,  # candidates_assigned (will be updated if candidates are assigned)
                 0,  # candidates_completed
                 1 if enable_timer else 0,  # Store as integer for SQLite compatibility
                 timer_duration,
                 1 if enable_project_timer else 0,  # Store as integer for SQLite compatibility
-                project_timer_duration
+                project_timer_duration,
+                data.get('targetGithubRepo', None),
+                data.get('targetGithubToken', None)
             )
         )
         conn.commit()

@@ -55,6 +55,8 @@ def init_database():
         name TEXT NOT NULL,
         github_repo TEXT,
         github_token TEXT,
+        target_github_repo TEXT,
+        target_github_token TEXT,
         initial_prompt TEXT,
         final_prompt TEXT,
         assessment_prompt TEXT,

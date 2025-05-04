@@ -19,6 +19,13 @@ export default function TestsAdmin() {
   const [timerEnabled, setTimerEnabled] = useState(true);
   const [projectTimerEnabled, setProjectTimerEnabled] = useState(true);
   
+  // State for optional field toggles
+  const [targetGithubRepoEnabled, setTargetGithubRepoEnabled] = useState(true);
+  const [targetGithubTokenEnabled, setTargetGithubTokenEnabled] = useState(true);
+  const [initialPromptEnabled, setInitialPromptEnabled] = useState(true);
+  const [finalPromptEnabled, setFinalPromptEnabled] = useState(true);
+  const [assessmentPromptEnabled, setAssessmentPromptEnabled] = useState(true);
+  
   // Add CSS for toggle switch
   useEffect(() => {
     // Add CSS for toggle switch
@@ -459,6 +466,7 @@ export default function TestsAdmin() {
               method="post" 
               className="space-y-6"
               onSubmit={(event) => {
+                event.preventDefault(); // Prevent default browser submission
                 // Get the form data to extract timer configuration
                 const formData = new FormData(event.target);
                 const enableTimer = formData.get('enableTimer') === 'on';
@@ -476,12 +484,46 @@ export default function TestsAdmin() {
                   projectDuration: projectTimerDuration
                 };
                 
-                // Set the value of the hidden field
-                const timerConfigJsonField = event.target.querySelector('#timerConfigJson');
-                if (timerConfigJsonField) {
-                  timerConfigJsonField.value = JSON.stringify(timerConfig);
+                // Create a new FormData object for submission
+                const finalFormData = new FormData();
+
+                // Always include test name and timer config
+                finalFormData.append('instanceName', formData.get('instanceName'));
+                finalFormData.append('timerConfigJson', JSON.stringify(timerConfig));
+                finalFormData.append('enableTimer', enableTimer ? 'on' : 'off');
+                finalFormData.append('timerDuration', timerDuration.toString());
+                finalFormData.append('enableProjectTimer', enableProjectTimer ? 'on' : 'off');
+                finalFormData.append('projectTimerDuration', projectTimerDuration.toString());
+
+                // Add required GitHub fields (Get values directly from formData)
+                finalFormData.append('githubRepo', formData.get('githubRepo') || '');
+                finalFormData.append('githubToken', formData.get('githubToken') || '');
+
+                // Add optional fields based on toggles
+                if (targetGithubRepoEnabled) {
+                  finalFormData.append('targetGithubRepo', formData.get('targetGithubRepo'));
                 }
-                
+                if (targetGithubTokenEnabled) {
+                  finalFormData.append('targetGithubToken', formData.get('targetGithubToken'));
+                }
+                if (initialPromptEnabled) {
+                  finalFormData.append('initialPrompt', formData.get('initialPrompt'));
+                }
+                if (finalPromptEnabled) {
+                  finalFormData.append('finalPrompt', formData.get('finalPrompt'));
+                }
+                if (assessmentPromptEnabled) {
+                  finalFormData.append('assessmentPrompt', formData.get('assessmentPrompt'));
+                }
+
+                // Add selected candidate IDs
+                newTestSelectedCandidates.forEach(id => {
+                  finalFormData.append('candidateIds', id.toString());
+                });
+
+                // Use useSubmit hook to submit the processed data
+                submit(finalFormData, { method: 'post' });
+
                 // Form will be submitted normally via Remix
                 // Add a slight delay before closing the modal to ensure the form is submitted
                 setTimeout(() => {
@@ -507,24 +549,29 @@ export default function TestsAdmin() {
 
               <div className="space-y-4">
                 <h4 className="font-medium text-lg">Initial Timer Configuration</h4>
-                <div className="flex items-center">
-                  <div className="relative inline-block w-10 mr-2 align-middle select-none">
-                    <input 
-                      type="checkbox" 
-                      name="enableTimer" 
-                      id="enableTimer" 
-                      checked={timerEnabled}
-                      onChange={handleTimerToggleChange}
-                      className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                    />
-                    <label 
-                      htmlFor="enableTimer" 
-                      className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                    ></label>
-                  </div>
+                <div className="flex items-center justify-between">
                   <label htmlFor="enableTimer" className="text-sm font-medium text-gray-700">
-                    Enable initial waiting timer
+                    Initial Waiting Timer
                   </label>
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-sm ${timerEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {timerEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <div className="relative inline-block w-10 align-middle select-none">
+                      <input 
+                        type="checkbox" 
+                        name="enableTimer" 
+                        id="enableTimer" 
+                        checked={timerEnabled}
+                        onChange={handleTimerToggleChange}
+                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                      />
+                      <label 
+                        htmlFor="enableTimer" 
+                        className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                      ></label>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label htmlFor="timerDuration" className="block text-sm font-medium text-gray-700 mb-1">
@@ -543,24 +590,29 @@ export default function TestsAdmin() {
                 </div>
 
                 <h4 className="font-medium text-lg mt-6">Project Work Timer Configuration</h4>
-                <div className="flex items-center">
-                  <div className="relative inline-block w-10 mr-2 align-middle select-none">
-                    <input 
-                      type="checkbox" 
-                      name="enableProjectTimer" 
-                      id="enableProjectTimer" 
-                      checked={projectTimerEnabled}
-                      onChange={handleProjectTimerToggleChange}
-                      className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                    />
-                    <label 
-                      htmlFor="enableProjectTimer" 
-                      className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                    ></label>
-                  </div>
+                <div className="flex items-center justify-between">
                   <label htmlFor="enableProjectTimer" className="text-sm font-medium text-gray-700">
-                    Enable project work timer
+                    Project Work Timer
                   </label>
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-sm ${projectTimerEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {projectTimerEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <div className="relative inline-block w-10 align-middle select-none">
+                      <input 
+                        type="checkbox" 
+                        name="enableProjectTimer" 
+                        id="enableProjectTimer" 
+                        checked={projectTimerEnabled}
+                        onChange={handleProjectTimerToggleChange}
+                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                      />
+                      <label 
+                        htmlFor="enableProjectTimer" 
+                        className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                      ></label>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label htmlFor="projectTimerDuration" className="block text-sm font-medium text-gray-700 mb-1">
@@ -581,93 +633,208 @@ export default function TestsAdmin() {
                 <input type="hidden" name="timerConfigJson" id="timerConfigJson" />
               </div>
 
+              {/* GitHub Repo URL (Required) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  GitHub Repo URL
-                </label>
-                <input 
-                  type="text" 
-                  name="githubRepo" 
-                  placeholder="https://github.com/owner/repo.git" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
+                 <label htmlFor="githubRepo" className="block text-sm font-medium text-gray-700 mb-1">
+                   GitHub Repo URL
+                 </label>
+                 <input 
+                   type="text" 
+                   id="githubRepo"
+                   name="githubRepo" 
+                   required
+                   placeholder="https://github.com/owner/repo.git" 
+                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                 />
               </div>
 
+              {/* GitHub Token (Required if repo is private) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  GitHub Token <span class="text-red-500">(if the above repo is private, this is required!)</span>
-                </label>
-                <input 
-                  type="text" 
-                  name="githubToken" 
-                  placeholder="Personal Access Token" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
+                 <label htmlFor="githubToken" className="block text-sm font-medium text-gray-700 mb-1">
+                   GitHub Token <span className="text-red-500">(Required if target repo is private)</span>
+                 </label>
+                 <input 
+                   type="text" 
+                   id="githubToken"
+                   name="githubToken" 
+                   placeholder="Personal Access Token" 
+                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Target GitHub Repo URL (for Upload)
-                </label>
+              {/* Target GitHub Repo URL */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Target GitHub Repo URL (for Upload)
+                  </label>
+                   <div className="flex items-center space-x-2">
+                    <span className={`text-sm ${targetGithubRepoEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {targetGithubRepoEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <div className="relative inline-block w-10 align-middle select-none">
+                      <input 
+                        type="checkbox" 
+                        id="targetGithubRepoEnabled" 
+                        checked={targetGithubRepoEnabled}
+                        onChange={(e) => setTargetGithubRepoEnabled(e.target.checked)}
+                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                      />
+                      <label 
+                        htmlFor="targetGithubRepoEnabled" 
+                        className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                      ></label>
+                    </div>
+                  </div>
+                </div>
                 <input 
                   type="text" 
                   name="targetGithubRepo" 
                   placeholder="https://github.com/owner/target-repo.git" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  disabled={!targetGithubRepoEnabled}
+                   className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!targetGithubRepoEnabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                 />
                 <p className="text-xs text-gray-500 mt-1">The completed project files will be uploaded here.</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Target GitHub Token (for Upload) <span class="text-red-500">(if the above repo is private, this is required!)</span>
-                </label>
+              {/* Target GitHub Token */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                   <label className="block text-sm font-medium text-gray-700">
+                    Target GitHub Token (for Upload) <span className="text-red-500">(Required if target repo is private)</span>
+                  </label>
+                   <div className="flex items-center space-x-2">
+                    <span className={`text-sm ${targetGithubTokenEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {targetGithubTokenEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <div className="relative inline-block w-10 align-middle select-none">
+                      <input 
+                        type="checkbox" 
+                        id="targetGithubTokenEnabled" 
+                        checked={targetGithubTokenEnabled}
+                        onChange={(e) => setTargetGithubTokenEnabled(e.target.checked)}
+                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                      />
+                      <label 
+                        htmlFor="targetGithubTokenEnabled" 
+                        className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                      ></label>
+                    </div>
+                  </div>
+                </div>
                 <input 
                   type="text" 
                   name="targetGithubToken" 
                   placeholder="Personal Access Token with repo write access" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  disabled={!targetGithubTokenEnabled}
+                   className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!targetGithubTokenEnabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                 />
               </div>
 
               <div className="space-y-4">
                 <h4 className="font-medium text-lg mb-2">Interviewer Prompts</h4>
                 
-                <div>
-                  <label htmlFor="initialPrompt" className="block text-sm font-medium text-gray-700 mb-1">
-                    Initial Interview
-                  </label>
+                {/* Initial Interview Prompt */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="initialPrompt" className="block text-sm font-medium text-gray-700">
+                      Initial Interview
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-sm ${initialPromptEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
+                        {initialPromptEnabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input 
+                          type="checkbox" 
+                          id="initialPromptEnabled" 
+                          checked={initialPromptEnabled}
+                          onChange={(e) => setInitialPromptEnabled(e.target.checked)}
+                          className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                        />
+                        <label 
+                          htmlFor="initialPromptEnabled" 
+                          className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                        ></label>
+                      </div>
+                    </div>
+                  </div>
                   <textarea
                     id="initialPrompt"
                     name="initialPrompt"
                     rows="5"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    disabled={!initialPromptEnabled}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!initialPromptEnabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                     defaultValue="You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have not started yet. Instructions for the project have been provided in the README.md file. Interview the candidate about how they'll go about the project's design, implementation, and testing, in that order. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused."
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="finalPrompt" className="block text-sm font-medium text-gray-700 mb-1">
-                    Post-completion Interview
-                  </label>
+                {/* Final Interview Prompt */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="finalPrompt" className="block text-sm font-medium text-gray-700">
+                      Post-completion Interview
+                    </label>
+                     <div className="flex items-center space-x-2">
+                      <span className={`text-sm ${finalPromptEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
+                        {finalPromptEnabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input 
+                          type="checkbox" 
+                          id="finalPromptEnabled" 
+                          checked={finalPromptEnabled}
+                          onChange={(e) => setFinalPromptEnabled(e.target.checked)}
+                          className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                        />
+                        <label 
+                          htmlFor="finalPromptEnabled" 
+                          className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                        ></label>
+                      </div>
+                    </div>
+                  </div>
                   <textarea
                     id="finalPrompt"
                     name="finalPrompt"
                     rows="5"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    disabled={!finalPromptEnabled}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!finalPromptEnabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                     defaultValue="You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have completed. Interview them about their design decisions, implementation, and testing, in that order. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused."
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="assessmentPrompt" className="block text-sm font-medium text-gray-700 mb-1">
-                    Code & Interview Assessment Criteria
-                  </label>
+                {/* Assessment Prompt */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="assessmentPrompt" className="block text-sm font-medium text-gray-700">
+                      Code & Interview Assessment Criteria
+                    </label>
+                     <div className="flex items-center space-x-2">
+                      <span className={`text-sm ${assessmentPromptEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
+                        {assessmentPromptEnabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                      <div className="relative inline-block w-10 align-middle select-none">
+                        <input 
+                          type="checkbox" 
+                          id="assessmentPromptEnabled" 
+                          checked={assessmentPromptEnabled}
+                          onChange={(e) => setAssessmentPromptEnabled(e.target.checked)}
+                          className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                        />
+                        <label 
+                          htmlFor="assessmentPromptEnabled" 
+                          className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
+                        ></label>
+                      </div>
+                    </div>
+                  </div>
                   <textarea
                     id="assessmentPrompt"
                     name="assessmentPrompt"
                     rows="5"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    disabled={!assessmentPromptEnabled}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!assessmentPromptEnabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                     defaultValue="Please review the following code and interview content. Consider:
 1. Code quality and adherence to best practices
 2. Potential bugs or edge cases
