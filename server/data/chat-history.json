@@ -1545,5 +1545,61 @@
       "role": "assistant",
       "content": "END"
     }
+  ],
+  "82": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin. Looking at the project's requirements, how do you plan to approach the overall design of the system?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start by discussing your design decisions. \n\n**Question:** Can you walk me through the overall architecture and design choices you made for your project? What were the key considerations that influenced these decisions?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "user",
+      "content": "END"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    }
   ]
 }

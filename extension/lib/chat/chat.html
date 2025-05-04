@@ -429,6 +429,7 @@
       let projectTimerInterval = null;
       let instanceId = null;
       let currentInterviewPhase = 'initial'; // 'initial', 'project', or 'final'
+      let finalInterviewTrulyEnded = false; // Flag for permanent disable after final END
 
       // Immediately request environment prompts
       vscode.postMessage({ command: 'getEnvironmentPrompts' });
@@ -885,7 +886,8 @@
               detectedPhase = 'between'; // Between initial and final
               console.log('Detected end of initial interview in history');
             } else if (detectedPhase === 'final') {
-              console.log('Detected end of final interview in history');
+              console.log('Detected end of final interview in history - setting TrulyEnded flag.');
+              finalInterviewTrulyEnded = true; // Set the flag when final END is found in history
             }
           }
           
@@ -993,7 +995,7 @@
                 // Add system message for final END
                 const systemElem = document.createElement('div');
                 systemElem.className = 'system-message';
-                systemElem.textContent = 'The final interview has concluded. Thank you for your participation!';
+                systemElem.textContent = 'Final interview complete. Thank you for your participation. You may now safely close this window.';
                 messagesContainer.appendChild(systemElem);
               }
               
@@ -1248,8 +1250,10 @@
                 }
                 startProjectWork();
               } else {
-                // In final phase, show completion message
+                // In final phase, show completion message and permanently disable input
                 appendMessage('system', 'Final interview complete. Thank you for your participation. You may now safely close this window.', true);
+                finalInterviewTrulyEnded = true;
+                updateInputStateBasedOnPhase(); // Immediately disable input
               }
             } else {
               // Normal AI message
@@ -1321,7 +1325,7 @@
         else if (message.command === 'finalInterviewStarted') {
           console.log('Final interview started status confirmed by server');
           finalInterviewStarted = true;
-          initialInterviewEnded = true;
+          currentInterviewPhase = 'final';
           
           // Hide project timer if visible
           projectTimerContainer.classList.remove('visible');
@@ -1479,6 +1483,7 @@
         
         // Mark final interview as started
         finalInterviewStarted = true;
+        currentInterviewPhase = 'final';
         
         // Hide the final interview button container
         finalInterviewContainer.classList.remove('visible');
@@ -1587,7 +1592,15 @@
       // Function to update UI based on current phase
       function updateInputStateBasedOnPhase() {
         console.log(`Updating input state based on current phase: ${currentInterviewPhase}`);
-        console.log(`Phase flags - Initial: ${initialInterviewStarted}, Initial ended: ${initialInterviewEnded}, Project: ${projectWorkStarted}, Final: ${finalInterviewStarted}`);
+        console.log(`Phase flags - Initial: ${initialInterviewStarted}, Initial ended: ${initialInterviewEnded}, Project: ${projectWorkStarted}, Final: ${finalInterviewStarted}, TrulyEnded: ${finalInterviewTrulyEnded}`);
+        
+        // Check if final interview has permanently ended first
+        if (finalInterviewTrulyEnded) {
+          console.log('DISABLING CHAT INPUT: Final interview has ended permanently.');
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+          return; // Don't proceed with other phase checks
+        }
         
         if (projectWorkStarted && !finalInterviewStarted) {
           // We're in the project phase - always disable chat
