@@ -587,7 +587,7 @@ def upload_project_to_github(instance_id, file_storage):
                 os.chdir(clone_dir_path)
                 try:
                     exec_command("git config user.name \"Automated Uploader\"")
-                    exec_command("git config user.email \"uploader@example.com\"") # Configure a dummy email
+                    exec_command("git config user.email \"uploader@example.com\"") # Placeholder because git requires an uploader email
                     exec_command("git add .")
                     commit_message = f"feat: Upload project submission for candidate {candidate_name} (ID: {candidate_id}), Instance: {instance_id}"
                     exec_command(f'git commit -m "{commit_message}"' )
