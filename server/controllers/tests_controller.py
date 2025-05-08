@@ -47,7 +47,8 @@ def get_test(test_id):
             '''
             SELECT 
                 t.id, t.name, t.github_repo, t.github_token, 
-                t.initial_prompt, t.final_prompt, t.assessment_prompt,
+                t.initial_prompt, t.final_prompt, 
+                t.qualitative_assessment_prompt, t.quantitative_assessment_prompt,
                 t.candidates_assigned, t.candidates_completed, 
                 t.enable_timer, t.timer_duration,
                 t.created_at, t.updated_at,
@@ -121,12 +122,13 @@ def create_test(data):
             '''
             INSERT INTO tests (
                 name, github_repo, github_token, 
-                initial_prompt, final_prompt, assessment_prompt,
+                initial_prompt, final_prompt, 
+                qualitative_assessment_prompt, quantitative_assessment_prompt,
                 candidates_assigned, candidates_completed,
                 enable_timer, timer_duration,
                 enable_project_timer, project_timer_duration,
                 target_github_repo, target_github_token
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 name,
@@ -134,7 +136,8 @@ def create_test(data):
                 data.get('githubToken', None),
                 data.get('initialPrompt', None),
                 data.get('finalPrompt', None),
-                data.get('assessmentPrompt', None),
+                data.get('qualitativeAssessmentPrompt', None),
+                data.get('quantitativeAssessmentPrompt', None),
                 0,  # candidates_assigned (will be updated if candidates are assigned)
                 0,  # candidates_completed
                 1 if enable_timer else 0,  # Store as integer for SQLite compatibility
@@ -235,7 +238,8 @@ def update_test(test_id, data):
             'githubToken': 'github_token',
             'initialPrompt': 'initial_prompt',
             'finalPrompt': 'final_prompt',
-            'assessmentPrompt': 'assessment_prompt',
+            'qualitativeAssessmentPrompt': 'qualitative_assessment_prompt',
+            'quantitativeAssessmentPrompt': 'quantitative_assessment_prompt',
             'candidatesAssigned': 'candidates_assigned',
             'candidatesCompleted': 'candidates_completed'
         }

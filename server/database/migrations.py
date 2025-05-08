@@ -27,6 +27,9 @@ def run_migrations():
     # Add project timer configuration columns to tests table if they don't exist
     add_project_timer_config_columns()
     
+    # Add assessment prompt columns and remove old one
+    migrate_assessment_prompt_columns()
+    
     print("Migrations completed successfully.")
 
 """
@@ -84,6 +87,56 @@ def add_project_timer_config_columns():
         print("Project timer configuration columns added successfully.")
     except Exception as e:
         print(f"Error adding project timer configuration columns: {str(e)}")
+    finally:
+        conn.close()
+
+def migrate_assessment_prompt_columns():
+    """
+    Remove the old assessment_prompt column and 
+    add qualitative_assessment_prompt and quantitative_assessment_prompt columns to the tests table.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("PRAGMA table_info(tests)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        # Add new columns if they don't exist
+        if 'qualitative_assessment_prompt' not in columns:
+            print("Adding 'qualitative_assessment_prompt' column to tests table...")
+            cursor.execute("ALTER TABLE tests ADD COLUMN qualitative_assessment_prompt TEXT")
+        
+        if 'quantitative_assessment_prompt' not in columns:
+            print("Adding 'quantitative_assessment_prompt' column to tests table...")
+            cursor.execute("ALTER TABLE tests ADD COLUMN quantitative_assessment_prompt TEXT")
+            
+        # Check if the old 'assessment_prompt' column exists
+        if 'assessment_prompt' in columns:
+            print("Removing old 'assessment_prompt' column from tests table...")
+            # SQLite doesn't directly support DROP COLUMN for older versions easily without recreating table.
+            # A common workaround is to create a new table, copy data, drop old table, rename new table.
+            # However, for simplicity in this auto-migration, if users have old data, they might need manual adjustment
+            # or a more robust migration script. Here, we'll attempt a simple drop if supported, 
+            # or if not, acknowledge its presence.
+            # For very old SQLite versions, this might error. Modern SQLite supports it.
+            try:
+                # Check SQLite version, sqlite_version_info was added in 3.7.17
+                # If it's a modern enough SQLite, we can try to drop the column.
+                # Python's sqlite3 module typically links against a recent SQLite.
+                cursor.execute("ALTER TABLE tests DROP COLUMN assessment_prompt")
+                print("'assessment_prompt' column removed.")
+            except sqlite3.OperationalError as e:
+                if "near \"DROP\": syntax error" in str(e) or "Cannot drop a column" in str(e):
+                    print("Warning: SQLite version may not support DROP COLUMN. 'assessment_prompt' was not removed.")
+                    print("Consider a manual migration (backup, new table, copy data, drop old, rename new) if this column needs to be removed.")
+                else:
+                    raise # Re-raise other operational errors
+        
+        conn.commit()
+        print("Assessment prompt columns migrated successfully.")
+    except Exception as e:
+        print(f"Error migrating assessment prompt columns: {str(e)}")
     finally:
         conn.close()
 

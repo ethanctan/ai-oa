@@ -24,7 +24,9 @@ export default function TestsAdmin() {
   const [targetGithubTokenEnabled, setTargetGithubTokenEnabled] = useState(true);
   const [initialPromptEnabled, setInitialPromptEnabled] = useState(true);
   const [finalPromptEnabled, setFinalPromptEnabled] = useState(true);
-  const [assessmentPromptEnabled, setAssessmentPromptEnabled] = useState(true);
+  const [assessmentType, setAssessmentType] = useState('qualitative');
+  const [qualitativeCriteria, setQualitativeCriteria] = useState(['']);
+  const [quantitativeCriteria, setQuantitativeCriteria] = useState([['', '']]);
   
   // Add CSS for toggle switch
   useEffect(() => {
@@ -512,8 +514,43 @@ export default function TestsAdmin() {
                 if (finalPromptEnabled) {
                   finalFormData.append('finalPrompt', formData.get('finalPrompt'));
                 }
-                if (assessmentPromptEnabled) {
-                  finalFormData.append('assessmentPrompt', formData.get('assessmentPrompt'));
+
+                // Add assessment criteria based on type
+                if (assessmentType === 'qualitative' || assessmentType === 'both') {
+                  // Filter out empty strings from qualitativeCriteria before stringifying
+                  const activeQualitativeCriteria = qualitativeCriteria.filter(criterion => criterion.trim() !== '');
+                  if (activeQualitativeCriteria.length > 0) {
+                    finalFormData.append('qualitativeAssessmentPrompt', JSON.stringify(activeQualitativeCriteria));
+                  } else {
+                    finalFormData.append('qualitativeAssessmentPrompt', JSON.stringify([])); // Send empty array if all are empty
+                  }
+                } else {
+                  finalFormData.append('qualitativeAssessmentPrompt', JSON.stringify([])); // Send empty if not selected
+                }
+
+                if (assessmentType === 'quantitative' || assessmentType === 'both') {
+                  // Filter out incomplete quantitative criteria before stringifying
+                  const activeQuantitativeCriteria = quantitativeCriteria.filter(row => {
+                    // A row is active if its description (row[0]) is not empty 
+                    // AND it has at least one non-empty score description (row[1] onwards)
+                    const descriptionNotEmpty = row[0] && row[0].trim() !== '';
+                    const scoreDescriptions = row.slice(1).filter(desc => desc && desc.trim() !== '');
+                    return descriptionNotEmpty && scoreDescriptions.length > 0;
+                  }).map(row => {
+                    // For active rows, also filter out empty score descriptions within that row
+                    const description = row[0];
+                    const filteredScores = row.slice(1).filter(desc => desc && desc.trim() !== '');
+                    return [description, ...filteredScores];
+                  });
+
+                  if (activeQuantitativeCriteria.length > 0) {
+                    finalFormData.append('quantitativeAssessmentPrompt', JSON.stringify(activeQuantitativeCriteria));
+                  }
+                  else {
+                    finalFormData.append('quantitativeAssessmentPrompt', JSON.stringify([])); // Send empty array if all are empty/incomplete
+                  }
+                } else {
+                  finalFormData.append('quantitativeAssessmentPrompt', JSON.stringify([])); // Send empty if not selected
                 }
 
                 // Add selected candidate IDs
@@ -701,7 +738,7 @@ export default function TestsAdmin() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                    <label className="block text-sm font-medium text-gray-700">
-                    Target GitHub Token (for Upload) <span className="text-red-500">(Always required with write access to code!)</span>
+                    Target GitHub Token (for Upload) <span className="text-red-500">(Token with code write access always required!)</span>
                   </label>
                    <div className="flex items-center space-x-2">
                     <span className={`text-sm ${targetGithubTokenEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
@@ -803,47 +840,174 @@ export default function TestsAdmin() {
                     defaultValue="You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have completed. Interview them about their design decisions, implementation, and testing, in that order. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused."
                   />
                 </div>
+              </div>
 
-                {/* Assessment Prompt */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="assessmentPrompt" className="block text-sm font-medium text-gray-700">
-                      Code & Interview Assessment Criteria
-                    </label>
-                     <div className="flex items-center space-x-2">
-                      <span className={`text-sm ${assessmentPromptEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
-                        {assessmentPromptEnabled ? 'Enabled' : 'Disabled'}
-                      </span>
-                      <div className="relative inline-block w-10 align-middle select-none">
-                        <input 
-                          type="checkbox" 
-                          id="assessmentPromptEnabled" 
-                          checked={assessmentPromptEnabled}
-                          onChange={(e) => setAssessmentPromptEnabled(e.target.checked)}
-                          className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
-                        />
-                        <label 
-                          htmlFor="assessmentPromptEnabled" 
-                          className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                        ></label>
-                      </div>
-                    </div>
+              {/* New Assessment Criteria Section */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-lg mb-2">Assessment Criteria</h4>
+                
+                {/* Toggle for Assessment Type */}
+                <div className="flex items-center space-x-4 mb-4">
+                  <label className="block text-sm font-medium text-gray-700">Criteria Type:</label>
+                  <div className="flex items-center">
+                    <input 
+                      type="radio" 
+                      id="qualitative" 
+                      name="assessmentType" 
+                      value="qualitative" 
+                      checked={assessmentType === 'qualitative'}
+                      onChange={() => setAssessmentType('qualitative')} 
+                      className="mr-1"
+                    />
+                    <label htmlFor="qualitative" className="text-sm">Qualitative</label>
                   </div>
-                  <textarea
-                    id="assessmentPrompt"
-                    name="assessmentPrompt"
-                    rows="5"
-                    disabled={!assessmentPromptEnabled}
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!assessmentPromptEnabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
-                    defaultValue="Please review the following code and interview content. Consider:
-1. Code quality and adherence to best practices
-2. Potential bugs or edge cases
-3. Performance optimizations
-4. Readability and maintainability
-5. Any security concerns
-Suggest improvements and explain your reasoning for each suggestion."
-                  />
+                  <div className="flex items-center">
+                    <input 
+                      type="radio" 
+                      id="quantitative" 
+                      name="assessmentType" 
+                      value="quantitative" 
+                      checked={assessmentType === 'quantitative'}
+                      onChange={() => setAssessmentType('quantitative')} 
+                      className="mr-1"
+                    />
+                    <label htmlFor="quantitative" className="text-sm">Quantitative</label>
+                  </div>
+                  <div className="flex items-center">
+                    <input 
+                      type="radio" 
+                      id="both" 
+                      name="assessmentType" 
+                      value="both" 
+                      checked={assessmentType === 'both'}
+                      onChange={() => setAssessmentType('both')} 
+                      className="mr-1"
+                    />
+                    <label htmlFor="both" className="text-sm">Both</label>
+                  </div>
                 </div>
+
+                {/* Qualitative Criteria UI */}
+                {(assessmentType === 'qualitative' || assessmentType === 'both') && (
+                  <div className="space-y-3 p-4 border border-gray-200 rounded-md">
+                    <h5 className="font-medium text-md mb-2">Qualitative Criteria</h5>
+                    {qualitativeCriteria.map((criterion, index) => (
+                      <div key={index} className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          value={criterion}
+                          onChange={(e) => {
+                            const newCriteria = [...qualitativeCriteria];
+                            newCriteria[index] = e.target.value;
+                            setQualitativeCriteria(newCriteria);
+                          }}
+                          placeholder={`Criterion ${index + 1}`}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            const newCriteria = qualitativeCriteria.filter((_, i) => i !== index);
+                            setQualitativeCriteria(newCriteria.length > 0 ? newCriteria : ['']);
+                          }}
+                          className="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
+                        >
+                          -
+                        </button>
+                      </div>
+                    ))}
+                    <button 
+                      type="button" 
+                      onClick={() => setQualitativeCriteria([...qualitativeCriteria, ''])}
+                      className="px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm mt-2"
+                    >
+                      + Add Criterion
+                    </button>
+                  </div>
+                )}
+
+                {/* Quantitative Criteria (Rubric) UI */}
+                {(assessmentType === 'quantitative' || assessmentType === 'both') && (
+                  <div className="space-y-4 p-4 border border-gray-200 rounded-md">
+                    <h5 className="font-medium text-md mb-3">Quantitative Criteria (Rubric)</h5>
+                    {quantitativeCriteria.map((row, rowIndex) => (
+                      <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-gray-50">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <input
+                            type="text"
+                            value={row[0]} // First element is the rubric item description
+                            onChange={(e) => {
+                              const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
+                              newCriteria[rowIndex][0] = e.target.value;
+                              setQuantitativeCriteria(newCriteria);
+                            }}
+                            placeholder={`Rubric Item ${rowIndex + 1} (e.g., Code Quality)`}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-medium"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              const newCriteria = quantitativeCriteria.filter((_, i) => i !== rowIndex);
+                              setQuantitativeCriteria(newCriteria.length > 0 ? newCriteria : [['', '']]);
+                            }}
+                            className="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
+                          >
+                            Remove Item
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 ml-1">Score Descriptions (Lowest to Highest):</p>
+                        {row.slice(1).map((scoreDesc, scoreIndex) => ( // Iterate from the second element for score descriptions
+                          <div key={scoreIndex} className="flex items-center space-x-2 pl-4">
+                            <input
+                              type="text"
+                              value={scoreDesc}
+                              onChange={(e) => {
+                                const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
+                                newCriteria[rowIndex][scoreIndex + 1] = e.target.value;
+                                setQuantitativeCriteria(newCriteria);
+                              }}
+                              placeholder={`Score ${scoreIndex + 1} Description`}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
+                                newCriteria[rowIndex].splice(scoreIndex + 1, 1);
+                                // Ensure at least one score description input remains if the item itself is not empty
+                                if (newCriteria[rowIndex].length < 2 && newCriteria[rowIndex][0] !== '') {
+                                   newCriteria[rowIndex].push(''); 
+                                }
+                                setQuantitativeCriteria(newCriteria);
+                              }}
+                              className="px-2 py-1 bg-red-400 text-white rounded-md hover:bg-red-500 text-xs"
+                            >
+                              -
+                            </button>
+                          </div>
+                        ))}
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
+                            newCriteria[rowIndex].push('');
+                            setQuantitativeCriteria(newCriteria);
+                          }}
+                          className="px-3 py-1 bg-green-400 text-white rounded-md hover:bg-green-500 text-xs mt-1 ml-4"
+                        >
+                          + Add Score Point
+                        </button>
+                      </div>
+                    ))}
+                    <button 
+                      type="button" 
+                      onClick={() => setQuantitativeCriteria([...quantitativeCriteria, ['', '']])} // New row with item description and one score point
+                      className="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm mt-2"
+                    >
+                      + Add Rubric Item
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
