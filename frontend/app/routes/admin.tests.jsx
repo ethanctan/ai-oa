@@ -701,7 +701,7 @@ export default function TestsAdmin() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                    <label className="block text-sm font-medium text-gray-700">
-                    Target GitHub Token (for Upload) <span className="text-red-500">(Required if target repo is private)</span>
+                    Target GitHub Token (for Upload) <span className="text-red-500">(Always required with write access to code!)</span>
                   </label>
                    <div className="flex items-center space-x-2">
                     <span className={`text-sm ${targetGithubTokenEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
