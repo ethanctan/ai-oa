@@ -1625,6 +1625,21 @@
       "metadata": {
         "phase": "project_started"
       }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin.  \n\n**Design Decisions:**  \nWhy did you choose the particular architecture or framework for your project, and how does it align with the requirements?"
     }
   ],
   "84": [
@@ -1650,6 +1665,213 @@
       "metadata": {
         "phase": "project_started"
       }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin. For the first question: Can you walk me through the high-level design of your solution and explain the main components and how they interact?"
+    }
+  ],
+  "85": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start by discussing the design of your project.\n\n**Question:** How would you approach designing the overall architecture of this project? What factors would you consider before diving into writing code?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s begin. For the first section, let\u2019s discuss your design decisions. \n\n**Question:** Can you describe the overall architecture you chose for your project and why you selected this approach?"
+    },
+    {
+      "role": "user",
+      "content": "end this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    }
+  ],
+  "86": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin. \n\nHow would you approach the design phase of the project outlined in the README? Specifically, what steps would you take to break the problem into manageable components?"
+    },
+    {
+      "role": "user",
+      "content": "End"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin by discussing the **design decisions** you made in your project. \n\n**Question:** What are the key design principles or patterns you followed while implementing your solution, and why?"
+    },
+    {
+      "role": "user",
+      "content": "End"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    }
+  ],
+  "87": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start with the project's design. \n\nHow do you plan to approach the design process for this project? Specifically, what steps will you take to ensure your design aligns well with the requirements in the README.md?"
+    },
+    {
+      "role": "user",
+      "content": "end"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s start by discussing your design decisions. Can you explain the overall architecture or design you chose for the project and why you made those choices?"
+    },
+    {
+      "role": "user",
+      "content": "end"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    }
+  ],
+  "89": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! To begin, how would you approach designing the solution for this project? Can you walk me through how you would break down the problem and identify key components or modules?"
+    },
+    {
+      "role": "user",
+      "content": "end"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's begin. \n\nFor your project, what were the key design decisions you made before starting implementation, and why did you choose them?"
+    },
+    {
+      "role": "user",
+      "content": "end"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
     }
   ]
 }

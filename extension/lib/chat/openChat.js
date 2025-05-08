@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const { getChatHtml } = require('./getChatHtml');
 const { getWorkspaceContent } = require('../context/getWorkspaceContent');
+const JSZip = require('jszip'); // Added for zipping files
 
 const SERVER_URL = 'http://host.docker.internal:3000';
 const SERVER_TIMER_START_URL = `${SERVER_URL}/timer/start`;
@@ -384,7 +385,7 @@ function openChat() {
       saveInterviewPhase(message.instanceId, message.phase);
     }
     
-    // Handle submitting workspace content for report generation
+    // Handle submitting workspace content
     if (message.command === 'submitWorkspaceContent') {
       console.log(`Submitting workspace content for instance: ${message.instanceId}`);
       
@@ -1097,40 +1098,109 @@ async function saveInterviewPhase(instanceId, phase) {
   }
 }
 
-// Function to submit workspace content to the backend for report generation
+// Function to submit workspace content to the backend for report generation AND GitHub upload
 async function submitWorkspaceContent(instanceId, content) {
   if (!instanceId) {
     throw new Error('No instance ID provided for workspace submission');
   }
   
-  if (!content) {
-    throw new Error('No workspace content provided for submission');
-  }
-  
-  console.log(`Submitting workspace content for instance ${instanceId}, size: ${content.length} chars`);
-  
-  try {
-    // POST the workspace content to the report endpoint
-    const response = await fetch(`${SERVER_URL}/instances/${instanceId}/report`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        instanceId,
-        workspaceContent: content,
-        timestamp: new Date().toISOString()
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
+  console.log(`Submitting workspace content for instance ${instanceId}`);
+
+  // 1. Submit for report generation (existing functionality)
+  if (content) {
+    console.log(`Submitting for report, content size: ${content.length} chars`);
+    try {
+      const reportResponse = await fetch(`${SERVER_URL}/instances/${instanceId}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instanceId,
+          workspaceContent: content,
+          timestamp: new Date().toISOString()
+        })
+      });
+      if (!reportResponse.ok) {
+        console.error(`HTTP error submitting for report: ${reportResponse.status} - ${await reportResponse.text()}`);
+        // Don't throw here, attempt GitHub upload regardless
+      } else {
+        const reportData = await reportResponse.json();
+        console.log(`Workspace content submitted for report successfully: ${JSON.stringify(reportData)}`);
+      }
+    } catch (error) {
+      console.error(`Error submitting workspace content for report: ${error.message}`);
+      // Don't throw here, attempt GitHub upload regardless
     }
-    
-    const data = await response.json();
-    console.log(`Workspace content submitted successfully: ${JSON.stringify(data)}`);
-    return data;
+  }
+
+  // 2. Gather files, ZIP them, and upload to GitHub
+  try {
+    console.log('Gathering workspace files for GitHub upload...');
+    // We need a more robust way to get all files with their relative paths and content.
+    // getWorkspaceContent as currently used gives a flat string.
+    // For zipping, we need file paths and content.
+    // This part requires a new utility or modification of getWorkspaceContent
+    // to return a structure like: [{ path: 'path/to/file.js', content: 'file content' }, ...]
+
+    const filesToZip = [];
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (workspaceFolders && workspaceFolders.length > 0) {
+      const workspaceRoot = workspaceFolders[0].uri;
+      // Example: Find all files, excluding .git and node_modules. 
+      // You might want to refine this based on typical project structures.
+      const allFiles = await vscode.workspace.findFiles('**/*', '{**/.git/**,**/node_modules/**,**/.*}'); 
+
+      for (const fileUri of allFiles) {
+        const fileContent = await vscode.workspace.fs.readFile(fileUri);
+        // Get relative path from workspace root
+        const relativePath = vscode.workspace.asRelativePath(fileUri, false);
+        filesToZip.push({
+          path: relativePath,
+          content: Buffer.from(fileContent) // JSZip expects Buffer or similar
+        });
+      }
+    }
+
+    if (filesToZip.length === 0) {
+      console.log('No files found to zip for GitHub upload.');
+      // Optionally, you might want to inform the user or skip the upload
+      return { reportSubmitted: true, githubUploadSkipped: true, message: "No files to upload." }; 
+    }
+
+    console.log(`Found ${filesToZip.length} files to zip.`);
+
+    const zip = new JSZip();
+    filesToZip.forEach(file => {
+      zip.file(file.path, file.content);
+      console.log(`Added to zip: ${file.path}`);
+    });
+
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: "DEFLATE", compressionOptions: { level: 9 } });
+    console.log('ZIP file generated in memory.');
+
+    const formData = new FormData();
+    formData.append('file', zipBlob, `submission_instance_${instanceId}.zip`);
+
+    const githubUploadResponse = await fetch(`${SERVER_URL}/instances/${instanceId}/upload-to-github`, {
+      method: 'POST',
+      body: formData, // Sending FormData handles multipart/form-data for file upload
+      // Note: Do not set Content-Type header manually when using FormData with fetch,
+      // the browser or Node fetch will set it correctly with the boundary.
+    });
+
+    const githubUploadData = await githubUploadResponse.json();
+    if (!githubUploadResponse.ok) {
+      console.error(`HTTP error uploading to GitHub: ${githubUploadResponse.status} - ${JSON.stringify(githubUploadData)}`);
+      throw new Error(githubUploadData.error || `GitHub upload failed with status ${githubUploadResponse.status}`);
+    }
+
+    console.log(`Project uploaded to GitHub successfully: ${JSON.stringify(githubUploadData)}`);
+    return githubUploadData; // Contains success and message from backend
+
   } catch (error) {
-    console.error(`Error submitting workspace content: ${error.message}`);
-    throw error;
+    console.error(`Error during GitHub upload process: ${error.message}`);
+    // Depending on requirements, you might re-throw or handle differently
+    // For now, let's not make the whole submission fail if only GitHub upload fails
+    return { success: false, error: error.message }; 
   }
 }
 

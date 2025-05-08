@@ -38,7 +38,7 @@ def init_database():
         # Insert dummy data
         candidates_data = [
             ('Jane Smith', 'jane.smith@example.com', 1),
-            ('John Doe', 'john.doe@example.com', 1),
+            ('John Doe', 'john.doe@mail.com', 0),
             ('Alex Johnson', 'alex.johnson@example.com', 1),
             ('Sam Wilson', 'sam.wilson@example.com', 1)
         ]
@@ -46,7 +46,18 @@ def init_database():
             'INSERT INTO candidates (name, email, completed) VALUES (?, ?, ?)',
             candidates_data
         )
-        print('Created candidates table with dummy data')
+        print('Created candidates table with dummy data, including admin test user.')
+    else:
+        # Ensure the admin test user exists even if table is not empty
+        cursor.execute("SELECT id FROM candidates WHERE email = ?", ('john.doe@mail.com',))
+        admin_user = cursor.fetchone()
+        if not admin_user:
+            cursor.execute(
+                'INSERT INTO candidates (name, email, completed) VALUES (?, ?, ?)',
+                ('John Doe', 'john.doe@mail.com', 0)
+            )
+            print('Added admin test user (john.doe@mail.com) as it was missing.')
+        conn.commit() # Commit here in case admin user was added
     
     # Create tests table
     cursor.execute('''

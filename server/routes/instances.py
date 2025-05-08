@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance
+from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github
 from controllers.reports_controller import get_report
 
 # Create a Blueprint for instances routes
@@ -56,4 +56,27 @@ def get_instance_report(instance_id):
         return jsonify(report)
     except Exception as e:
         print(f'Error getting report: {str(e)}')
-        return jsonify({'error': str(e)}), 500 
+        return jsonify({'error': str(e)}), 500
+
+# POST /instances/:instance_id/upload-to-github - Upload project files to GitHub
+@instances_bp.route('/<int:instance_id>/upload-to-github', methods=['POST'])
+def upload_to_github_route(instance_id):
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part in the request'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+
+        if file and file.filename.endswith('.zip'):
+            result = upload_project_to_github(instance_id, file)
+            return jsonify(result)
+        else:
+            return jsonify({'error': 'Invalid file type, please upload a ZIP file'}), 400
+            
+    except Exception as e:
+        print(f'Error uploading to GitHub: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+# TODO: Route for uploading to gh. Should be separate from report submission route

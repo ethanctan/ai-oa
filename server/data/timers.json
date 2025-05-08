@@ -1021,7 +1021,7 @@
     "timeRemaining": 3600,
     "timeRemainingMs": 3600000,
     "projectStarted": true,
-    "finalInterviewStarted": false
+    "finalInterviewStarted": true
   },
   "84": {
     "instanceId": "84",
@@ -1036,6 +1036,79 @@
     "timeRemaining": 5400,
     "timeRemainingMs": 5400000,
     "projectStarted": true,
-    "finalInterviewStarted": false
+    "finalInterviewStarted": true
+  },
+  "85": {
+    "instanceId": "85",
+    "startTime": 1746675456,
+    "endTime": 1746679056,
+    "duration": 3600,
+    "active": true,
+    "interviewStarted": false,
+    "timerType": "project",
+    "currentTimeMs": 1746675456000,
+    "endTimeMs": 1746679056000,
+    "timeRemaining": 3600,
+    "timeRemainingMs": 3600000,
+    "projectStarted": true,
+    "finalInterviewStarted": true
+  },
+  "86": {
+    "instanceId": "86",
+    "startTime": 1746675923,
+    "endTime": 1746679523,
+    "duration": 3600,
+    "active": true,
+    "interviewStarted": false,
+    "timerType": "project",
+    "currentTimeMs": 1746675923000,
+    "endTimeMs": 1746679523000,
+    "timeRemaining": 3600,
+    "timeRemainingMs": 3600000,
+    "projectStarted": true,
+    "finalInterviewStarted": true
+  },
+  "87": {
+    "instanceId": "87",
+    "startTime": 1746676876,
+    "endTime": 1746680476,
+    "duration": 3600,
+    "active": true,
+    "interviewStarted": false,
+    "timerType": "project",
+    "currentTimeMs": 1746676876000,
+    "endTimeMs": 1746680476000,
+    "timeRemaining": 3600,
+    "timeRemainingMs": 3600000,
+    "projectStarted": true,
+    "finalInterviewStarted": true
+  },
+  "88": {
+    "instanceId": "88",
+    "startTime": 1746676920,
+    "endTime": 1746677520,
+    "duration": 600,
+    "active": true,
+    "interviewStarted": false,
+    "timerType": "initial",
+    "currentTimeMs": 1746676920000,
+    "endTimeMs": 1746677520000,
+    "timeRemaining": 600,
+    "timeRemainingMs": 600000
+  },
+  "89": {
+    "instanceId": "89",
+    "startTime": 1746676991,
+    "endTime": 1746680591,
+    "duration": 3600,
+    "active": true,
+    "interviewStarted": false,
+    "timerType": "project",
+    "currentTimeMs": 1746676991000,
+    "endTimeMs": 1746680591000,
+    "timeRemaining": 3600,
+    "timeRemainingMs": 3600000,
+    "projectStarted": true,
+    "finalInterviewStarted": true
   }
 }
