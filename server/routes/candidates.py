@@ -1,5 +1,16 @@
 from flask import Blueprint, request, jsonify
-from controllers.candidates_controller import get_all_candidates, get_candidate, create_candidate, update_candidate, delete_candidate, get_candidate_tests
+from controllers.candidates_controller import (
+    get_all_candidates, 
+    get_candidate, 
+    create_candidate, 
+    update_candidate, 
+    delete_candidate, 
+    get_candidate_tests,
+    handle_file_upload
+)
+import pandas as pd
+from werkzeug.utils import secure_filename
+import os
 
 # Create a Blueprint for candidates routes
 candidates_bp = Blueprint('candidates', __name__)
@@ -66,4 +77,21 @@ def get_tests_for_candidate(candidate_id):
         return jsonify(tests)
     except Exception as e:
         print(f'Error getting tests for candidate: {str(e)}')
-        return jsonify({'error': str(e)}), 500 
+        return jsonify({'error': str(e)}), 500
+
+# POST /candidates/upload - Upload candidates from file
+@candidates_bp.route('/upload', methods=['POST'])
+def upload_candidates():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+            
+        file = request.files['file']
+        results = handle_file_upload(file)
+        return jsonify(results)
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        print(f'Error uploading candidates: {str(e)}')
+        return jsonify({'error': 'Internal server error'}), 500 

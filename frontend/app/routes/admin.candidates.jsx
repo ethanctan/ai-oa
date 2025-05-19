@@ -1,20 +1,112 @@
-import { useLoaderData } from "@remix-run/react";
+import { useLoaderData, useSubmit } from "@remix-run/react";
 import { loader } from "../loaders/candidatesLoader.jsx";
+import { useState } from "react";
 
 // Re-export the loader so Remix can pick it up
 export { loader };
 
 export default function CandidatesAdmin() {
   const { candidates } = useLoaderData();
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const submit = useSubmit();
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Reset status
+    setUploadStatus(null);
+    setIsUploading(true);
+
+    // Validate file type
+    if (!file.name.match(/\.(csv|xlsx|xls)$/)) {
+      setUploadStatus({
+        type: 'error',
+        message: 'Please upload a CSV or Excel file'
+      });
+      setIsUploading(false);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://127.0.0.1:3000/candidates/upload', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned non-JSON response');
+      }
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed');
+      }
+
+      setUploadStatus({
+        type: 'success',
+        message: `Successfully added ${result.success.length} candidates. ${result.errors.length} errors.`
+      });
+
+      // Refresh the page to show new candidates
+      window.location.reload();
+    } catch (error) {
+      setUploadStatus({
+        type: 'error',
+        message: error.message || 'Failed to upload file. Please try again.'
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset the file input
+      event.target.value = '';
+    }
+  };
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold">Candidates</h2>
-        <p className="text-sm text-gray-500">
-          Candidates are automatically added through job applications
-        </p>
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleFileUpload}
+              className="hidden"
+              id="file-upload"
+              disabled={isUploading}
+            />
+            <label
+              htmlFor="file-upload"
+              className={`bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded cursor-pointer ${
+                isUploading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {isUploading ? 'Uploading...' : 'Upload Candidates'}
+            </label>
+          </div>
+          <p className="text-sm text-gray-500">
+            Candidates are automatically added through job applications
+          </p>
+        </div>
       </div>
+
+      {uploadStatus && (
+        <div className={`mb-4 p-4 rounded ${
+          uploadStatus.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        }`}>
+          {uploadStatus.message}
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white rounded-lg overflow-hidden">
