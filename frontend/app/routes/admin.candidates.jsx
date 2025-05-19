@@ -73,9 +73,9 @@ export default function CandidatesAdmin() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-start mb-6">
         <h2 className="text-2xl font-semibold">Candidates</h2>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col items-end">
           <div className="relative">
             <input
               type="file"
@@ -94,8 +94,8 @@ export default function CandidatesAdmin() {
               {isUploading ? 'Uploading...' : 'Upload Candidates'}
             </label>
           </div>
-          <p className="text-sm text-gray-500">
-            Candidates are automatically added through job applications
+          <p className="text-sm text-gray-500 mt-5">
+            .csv and .xlsx files are supported. Ensure the file contains two columns: 'Name' and 'Email'.
           </p>
         </div>
       </div>
