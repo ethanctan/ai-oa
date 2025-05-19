@@ -1,6 +1,7 @@
 import { useLoaderData, useSubmit } from "@remix-run/react";
 import { loader } from "../loaders/candidatesLoader.jsx";
 import { useState } from "react";
+import { getApiEndpoint } from "../utils/api";
 
 // Re-export the loader so Remix can pick it up
 export { loader };
@@ -33,7 +34,7 @@ export default function CandidatesAdmin() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('http://127.0.0.1:3000/candidates/upload', {
+      const response = await fetch(getApiEndpoint('candidates/upload'), {
         method: 'POST',
         body: formData,
         headers: {

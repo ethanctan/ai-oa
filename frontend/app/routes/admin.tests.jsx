@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useLoaderData, Form, useSubmit, useNavigation } from "@remix-run/react";
 import { loader } from "../loaders/testsLoader.jsx";
 import { action } from "../actions/testsAction.jsx";
+import { getApiEndpoint } from "../utils/api";
 
 // Re-export the loader and action so Remix can pick them up
 export { loader, action };
@@ -63,14 +64,9 @@ export default function TestsAdmin() {
   // Function to fetch instances
   const fetchInstances = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:3000/instances/');
-      if (response.ok) {
-        const instanceData = await response.json();
-        console.log('Fetched instances:', instanceData);
-        setInstances(instanceData);
-      } else {
-        console.error('Failed to fetch instances');
-      }
+      const response = await fetch(getApiEndpoint('instances/'));
+      const data = await response.json();
+      setInstances(data);
     } catch (error) {
       console.error('Error fetching instances:', error);
     }
@@ -100,13 +96,9 @@ export default function TestsAdmin() {
   // Fetch candidates when opening the new test form
   const handleCreateTestClick = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:3000/candidates/');
-      if (response.ok) {
-        const candidateData = await response.json();
-        setCandidates(candidateData);
-      } else {
-        console.error('Failed to fetch candidates');
-      }
+      const response = await fetch(getApiEndpoint('candidates/'));
+      const data = await response.json();
+      setCandidates(data);
     } catch (error) {
       console.error('Error fetching candidates:', error);
     }
@@ -117,7 +109,7 @@ export default function TestsAdmin() {
   // Handle Try Test button click
   const handleTryTest = async (testId, testName) => {
     try {
-      const response = await fetch(`http://127.0.0.1:3000/tests/${testId}/try/`, {
+      const response = await fetch(getApiEndpoint(`tests/${testId}/try/`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -160,7 +152,7 @@ export default function TestsAdmin() {
     
     try {
       console.log(`Deleting instance with ID: ${instanceId}`);
-      const response = await fetch(`http://127.0.0.1:3000/instances/${instanceId}/stop`, {
+      const response = await fetch(getApiEndpoint(`instances/${instanceId}/stop`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -192,7 +184,7 @@ export default function TestsAdmin() {
     setManageCandidatesSelection([]);
     
     try {
-      const response = await fetch(`http://127.0.0.1:3000/tests/${testId}/candidates/`);
+      const response = await fetch(getApiEndpoint(`tests/${testId}/candidates/`));
       if (response.ok) {
         const data = await response.json();
         setTestCandidates(data);
@@ -220,7 +212,7 @@ export default function TestsAdmin() {
     }
     
     try {
-      const response = await fetch(`http://127.0.0.1:3000/tests/${currentTestId}/send/`, {
+      const response = await fetch(getApiEndpoint(`tests/${currentTestId}/send/`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -269,7 +261,7 @@ export default function TestsAdmin() {
   const handleViewReport = async (instanceId) => {
     try {
       console.log(`Fetching report for instance ID: ${instanceId}`);
-      const response = await fetch(`http://127.0.0.1:3000/reports/${instanceId}`);
+      const response = await fetch(getApiEndpoint(`reports/${instanceId}`));
       if (response.ok) {
         const data = await response.json();
         setCurrentReport(data);
@@ -292,14 +284,10 @@ export default function TestsAdmin() {
   // Function to fetch tests
   const fetchTests = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:3000/tests/');
-      if (response.ok) {
-        const testsData = await response.json();
-        console.log('Fetched tests:', testsData);
-        setTests(testsData);
-      } else {
-        console.error('Failed to fetch tests');
-      }
+      const response = await fetch(getApiEndpoint('tests/'));
+      const testsData = await response.json();
+      console.log('Fetched tests:', testsData);
+      setTests(testsData);
     } catch (error) {
       console.error('Error fetching tests:', error);
     }
@@ -330,7 +318,7 @@ export default function TestsAdmin() {
     
     try {
       console.log(`Deleting test with ID: ${testId}`);
-      const response = await fetch(`http://127.0.0.1:3000/tests/${testId}`, {
+      const response = await fetch(getApiEndpoint(`tests/${testId}`), {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'

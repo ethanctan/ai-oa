@@ -1,28 +1,27 @@
 import fetch from "node-fetch";
 import { redirect } from "@remix-run/node";
+import { getApiEndpoint } from "../utils/api";
 
 // Handle form submissions to create or delete tests
 export async function action({ request }) {
   const formData = await request.formData();
   const action = formData.get("action");
 
-  let response;
-  
   try {
+    let response;
     switch (action) {
       case "delete":
-        // Check if we're deleting a test or an instance
-        const testId = formData.get("testId");
-        const instanceId = formData.get("instanceId");
+        const deleteTestId = formData.get("testId");
+        const deleteInstanceId = formData.get("instanceId");
         
-        if (testId) {
+        if (deleteTestId) {
           // Delete test
-          response = await fetch(`http://127.0.0.1:3000/tests/${testId}`, {
+          response = await fetch(getApiEndpoint(`tests/${deleteTestId}`), {
             method: "DELETE",
           });
-        } else if (instanceId) {
+        } else if (deleteInstanceId) {
           // Delete instance
-          response = await fetch(`http://127.0.0.1:3000/instances/${instanceId}`, {
+          response = await fetch(getApiEndpoint(`instances/${deleteInstanceId}`), {
             method: "DELETE",
           });
         }
@@ -35,7 +34,35 @@ export async function action({ request }) {
         // Return to the same page after deletion
         return redirect("/admin/tests");
       
-      case "create":
+      case "updateTest":
+        const updateTestId = formData.get("testId");
+        const testData = JSON.parse(formData.get("testData"));
+        response = await fetch(getApiEndpoint(`tests/${updateTestId}`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(testData),
+        });
+        break;
+
+      case "updateInstance":
+        const updateInstanceId = formData.get("instanceId");
+        const instanceData = JSON.parse(formData.get("instanceData"));
+        response = await fetch(getApiEndpoint(`instances/${updateInstanceId}`), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(instanceData),
+        });
+        break;
+
+      case "createTest":
+        const newTestData = JSON.parse(formData.get("testData"));
+        response = await fetch(getApiEndpoint("tests"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newTestData),
+        });
+        break;
+
       default: // Default action is to create a test
         // Extract form data and prepare payload
         const formEntries = Array.from(formData.entries());
@@ -76,7 +103,7 @@ export async function action({ request }) {
         }
         
         // Create the test
-        const response = await fetch("http://127.0.0.1:3000/tests", {
+        response = await fetch(getApiEndpoint("tests"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
