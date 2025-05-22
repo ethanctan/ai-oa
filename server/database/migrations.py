@@ -33,6 +33,12 @@ def run_migrations():
     # Add deadline field to test_candidates table
     add_deadline_field()
     
+    # Add tags column to candidates table
+    add_candidate_tags_column()
+    
+    # Clean up 'nan' tags
+    clean_up_nan_tags()
+    
     print("Migrations completed successfully.")
 
 """
@@ -162,6 +168,51 @@ def add_deadline_field():
         conn.commit()
     except Exception as e:
         print(f"Error adding deadline field: {str(e)}")
+    finally:
+        conn.close()
+
+def add_candidate_tags_column():
+    """Add tags column to the candidates table"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # First check if the column already exists
+        cursor.execute("PRAGMA table_info(candidates)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        # Add 'tags' column if it doesn't exist
+        if 'tags' not in columns:
+            print("Adding 'tags' column to candidates table...")
+            cursor.execute("ALTER TABLE candidates ADD COLUMN tags TEXT")
+            print("Tags column added successfully.")
+        
+        conn.commit()
+    except Exception as e:
+        print(f"Error adding tags column: {str(e)}")
+    finally:
+        conn.close()
+
+def clean_up_nan_tags():
+    """Clean up 'nan' tags in the candidates table"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Update any 'nan' tags to NULL
+        cursor.execute("""
+            UPDATE candidates 
+            SET tags = NULL 
+            WHERE tags = 'nan' OR tags = 'NaN' OR tags = 'NAN'
+        """)
+        
+        # Count how many rows were updated
+        rows_updated = cursor.rowcount
+        
+        conn.commit()
+        print(f"Cleaned up {rows_updated} 'nan' tags in candidates table.")
+    except Exception as e:
+        print(f"Error cleaning up 'nan' tags: {str(e)}")
     finally:
         conn.close()
 

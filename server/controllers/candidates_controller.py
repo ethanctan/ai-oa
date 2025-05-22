@@ -187,7 +187,8 @@ def create_candidates_from_file(df):
     
     results = {
         'success': [],
-        'errors': []
+        'errors': [],
+        'duplicates': []  # New field to track potential duplicates
     }
     
     try:
@@ -196,6 +197,8 @@ def create_candidates_from_file(df):
             try:
                 name = str(row['Name']).strip()
                 email = str(row['Email']).strip()
+                # Handle tags - ensure they're semicolon-separated and clean up any extra spaces
+                tags = ';'.join(tag.strip() for tag in str(row.get('Tags', '')).split(';') if tag.strip()) if 'Tags' in row else ''
                 
                 if not name or not email:
                     results['errors'].append({
@@ -204,21 +207,30 @@ def create_candidates_from_file(df):
                     })
                     continue
                 
-                # Check if email already exists
-                cursor.execute('SELECT id FROM candidates WHERE email = ?', (email,))
-                existing = cursor.fetchone()
+                # Check for existing candidates with same email or name
+                cursor.execute('''
+                    SELECT id, name, email, tags 
+                    FROM candidates 
+                    WHERE email = ? OR name = ?
+                ''', (email, name))
+                existing = cursor.fetchall()
                 
                 if existing:
-                    results['errors'].append({
-                        'row': row.to_dict(),
-                        'error': f'Candidate with email {email} already exists'
+                    # Add to duplicates list for frontend resolution
+                    results['duplicates'].append({
+                        'new': {
+                            'name': name,
+                            'email': email,
+                            'tags': tags
+                        },
+                        'existing': [dict(row) for row in existing]
                     })
                     continue
                 
                 # Insert new candidate
                 cursor.execute(
-                    'INSERT INTO candidates (name, email, completed) VALUES (?, ?, ?)',
-                    (name, email, 0)
+                    'INSERT INTO candidates (name, email, tags, completed) VALUES (?, ?, ?, ?)',
+                    (name, email, tags, 0)
                 )
                 
                 # Get the inserted candidate
@@ -272,4 +284,59 @@ def handle_file_upload(file):
     except pd.errors.ParserError:
         raise ValueError('Error parsing the file. Please ensure it is properly formatted')
     except Exception as e:
-        raise ValueError(f'Error processing file: {str(e)}') 
+        raise ValueError(f'Error processing file: {str(e)}')
+
+def handle_duplicate_resolution(decisions):
+    """Handle the resolution of duplicate candidates based on user decisions"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    results = {
+        'success': [],
+        'errors': []
+    }
+    
+    try:
+        for decision in decisions:
+            try:
+                new_data = decision['new']
+                action = decision['action']  # 'create_new', 'update', or 'skip'
+                existing_id = decision.get('existing_id')  # Only present for 'update' action
+                
+                if action == 'create_new':
+                    # Insert as new candidate
+                    cursor.execute(
+                        'INSERT INTO candidates (name, email, tags, completed) VALUES (?, ?, ?, ?)',
+                        (new_data['name'], new_data['email'], new_data['tags'], 0)
+                    )
+                    candidate_id = cursor.lastrowid
+                    cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+                    results['success'].append(dict(cursor.fetchone()))
+                    
+                elif action == 'update' and existing_id:
+                    # Update existing candidate
+                    cursor.execute(
+                        'UPDATE candidates SET name = ?, email = ?, tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        (new_data['name'], new_data['email'], new_data['tags'], existing_id)
+                    )
+                    cursor.execute('SELECT * FROM candidates WHERE id = ?', (existing_id,))
+                    results['success'].append(dict(cursor.fetchone()))
+                    
+                elif action == 'skip':
+                    # Do nothing, just skip this entry
+                    continue
+                    
+            except Exception as e:
+                results['errors'].append({
+                    'data': new_data,
+                    'error': str(e)
+                })
+        
+        conn.commit()
+        return results
+        
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close() 

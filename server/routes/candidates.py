@@ -6,7 +6,8 @@ from controllers.candidates_controller import (
     update_candidate, 
     delete_candidate, 
     get_candidate_tests,
-    handle_file_upload
+    handle_file_upload,
+    handle_duplicate_resolution
 )
 import pandas as pd
 from werkzeug.utils import secure_filename
@@ -94,4 +95,19 @@ def upload_candidates():
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         print(f'Error uploading candidates: {str(e)}')
-        return jsonify({'error': 'Internal server error'}), 500 
+        return jsonify({'error': 'Internal server error'}), 500
+
+# POST /candidates/resolve-duplicates - Handle duplicate resolution
+@candidates_bp.route('/resolve-duplicates', methods=['POST'])
+def resolve_duplicates():
+    try:
+        data = request.json
+        if not data or not isinstance(data, list):
+            return jsonify({'error': 'Invalid request data'}), 400
+            
+        results = handle_duplicate_resolution(data)
+        return jsonify(results)
+        
+    except Exception as e:
+        print(f'Error resolving duplicates: {str(e)}')
+        return jsonify({'error': str(e)}), 500 
