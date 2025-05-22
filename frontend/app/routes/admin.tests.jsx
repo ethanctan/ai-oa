@@ -29,29 +29,6 @@ export default function TestsAdmin() {
   const [qualitativeCriteria, setQualitativeCriteria] = useState(['']);
   const [quantitativeCriteria, setQuantitativeCriteria] = useState([['', '']]);
   
-  // Add CSS for toggle switch
-  useEffect(() => {
-    // Add CSS for toggle switch
-    const style = document.createElement('style');
-    style.innerHTML = `
-      .toggle-checkbox:checked {
-        right: 0;
-        border-color: #3B82F6;
-      }
-      .toggle-checkbox:checked + .toggle-label {
-        background-color: #3B82F6;
-      }
-      .toggle-label {
-        transition: background-color 0.2s ease;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-  
   // Separate state for candidates in different contexts
   const [newTestSelectedCandidates, setNewTestSelectedCandidates] = useState([]);
   const [manageCandidatesSelection, setManageCandidatesSelection] = useState([]);
@@ -61,6 +38,30 @@ export default function TestsAdmin() {
   const submit = useSubmit();
   const navigation = useNavigation();
   
+  // Add new state for selected assigned candidates to remove
+  const [selectedAssignedCandidates, setSelectedAssignedCandidates] = useState([]);
+  
+  // Remove time-related state
+  const [editingDeadline, setEditingDeadline] = useState(null);
+  const [assignedDeadlineDate, setAssignedDeadlineDate] = useState({});
+  const [availableDeadlineDate, setAvailableDeadlineDate] = useState('');
+  const [error, setError] = useState(null);
+  
+  // Helper function to get midnight EST for a given date
+  const getMidnightEST = (dateStr) => {
+    const date = new Date(dateStr);
+    // Create date string for midnight EST (UTC-5)
+    const estMidnight = new Date(date.getTime() + (5 * 60 * 60 * 1000));
+    estMidnight.setUTCHours(0, 0, 0, 0);
+    return estMidnight.toISOString();
+  };
+
+  // Helper function to get min date
+  const getMinDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
   // Function to fetch instances
   const fetchInstances = async () => {
     try {
@@ -202,40 +203,133 @@ export default function TestsAdmin() {
     setShowManageCandidatesModal(false);
     setManageCandidatesSelection([]);
     setCurrentTestId(null);
+    setEditingDeadline(null);
+    setAssignedDeadlineDate({});
+    setAvailableDeadlineDate('');
   };
 
-  // Send test to selected candidates
-  const handleSendToSelected = async () => {
-    if (manageCandidatesSelection.length === 0) {
-      alert('Please select at least one candidate');
-      return;
-    }
-    
+  // Update handleUpdateDeadline to use midnight EST
+  const handleUpdateDeadline = async (candidateId) => {
     try {
-      const response = await fetch(getApiEndpoint(`tests/${currentTestId}/send/`), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          candidateIds: manageCandidatesSelection
-        })
-      });
+      const date = assignedDeadlineDate[candidateId];
       
-      if (response.ok) {
-        const result = await response.json();
-        alert(`Test sent to ${result.candidates.length} candidates`);
-        handleCloseManageCandidates();
-        
-        // Refresh the lists
-        fetchTests();
-        fetchInstances();
-      } else {
-        const error = await response.text();
-        alert(`Failed to send test: ${error}`);
+      if (!date) {
+        setError('Please select a date for the deadline');
+        return;
       }
-    } catch (error) {
-      alert(`Error sending test: ${error.message}`);
+    
+      const deadline = getMidnightEST(date);
+      
+      if (new Date(deadline) < new Date()) {
+        setError('Deadline must be in the future');
+        return;
+      }
+
+      const endpoint = getApiEndpoint(`tests/${currentTestId}/candidates/${candidateId}/deadline`);
+      
+      const response = await fetch(
+        endpoint,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ deadline }),
+        }
+      );
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.error || 'Failed to update deadline');
+      }
+
+      // Refresh the candidates list to ensure we have the latest data
+      const candidatesResponse = await fetch(getApiEndpoint(`tests/${currentTestId}/candidates/`));
+      if (candidatesResponse.ok) {
+        const candidatesData = await candidatesResponse.json();
+        setTestCandidates(candidatesData);
+      } else {
+        // If refresh fails, update the local state as a fallback
+        setTestCandidates(prev => ({
+          ...prev,
+          assigned: prev.assigned.map(c => 
+            c.id === candidateId 
+              ? { ...c, deadline: responseData.deadline }
+              : c
+          )
+        }));
+      }
+
+      // Clear the editing state and reset form values
+      setEditingDeadline(null);
+      setAssignedDeadlineDate({});
+      setError(null);
+    } catch (err) {
+      console.error('Error updating deadline:', err);
+      setError(err.message || 'Failed to update deadline');
+    }
+  };
+
+  // Update handleSendToSelected to use midnight EST
+  const handleSendToSelected = async () => {
+    try {
+      const selectedAvailable = testCandidates.available.filter(c => manageCandidatesSelection.includes(c.id));
+      
+      if (selectedAvailable.length === 0) {
+        setError('Please select at least one candidate');
+        return;
+      }
+
+      const date = availableDeadlineDate;
+      
+      if (!date) {
+        setError('Please select a date for the deadline');
+        return;
+      }
+
+      const deadline = getMidnightEST(date);
+      if (new Date(deadline) < new Date()) {
+        setError('Deadline must be in the future');
+        return;
+      }
+
+      // Assign each selected candidate with the deadline
+      const assignments = await Promise.all(
+        selectedAvailable.map(candidate =>
+          fetch(getApiEndpoint(`tests/${currentTestId}/candidates/${candidate.id}`), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ deadline }),
+          }).then(async res => {
+            if (!res.ok) {
+              throw new Error(`Failed to assign test to ${candidate.name}`);
+            }
+            const result = await res.json();
+            return {
+              ...candidate,
+              deadline,
+              test_completed: false
+            };
+          })
+        )
+      );
+
+      // Update the testCandidates state with the new assignments
+      setTestCandidates(prev => ({
+        assigned: [...prev.assigned, ...assignments],
+        available: prev.available.filter(c => !manageCandidatesSelection.includes(c.id))
+      }));
+      
+      // Clear the selection and deadline
+      setManageCandidatesSelection([]);
+      setAvailableDeadlineDate('');
+      setError(null);
+    } catch (err) {
+      console.error('Error assigning candidates:', err);
+      setError(err.message || 'Failed to assign candidates');
     }
   };
 
@@ -351,6 +445,61 @@ export default function TestsAdmin() {
     setProjectTimerEnabled(e.target.checked);
   };
 
+  // Add handler for removing candidates
+  const handleRemoveSelected = async () => {
+    if (selectedAssignedCandidates.length === 0) {
+      alert('Please select at least one candidate to remove');
+      return;
+    }
+    
+    if (!confirm(`Are you sure you want to remove ${selectedAssignedCandidates.length} candidate(s) from this test?`)) {
+      return;
+    }
+    
+    try {
+      const results = await Promise.all(
+        selectedAssignedCandidates.map(candidateId =>
+          fetch(getApiEndpoint(`tests/${currentTestId}/candidates/${candidateId}`), {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }).then(res => res.json())
+        )
+      );
+      
+      // Check if all removals were successful
+      const allSuccessful = results.every(result => result.success);
+      
+      if (allSuccessful) {
+        alert(`Successfully removed ${selectedAssignedCandidates.length} candidate(s) from the test`);
+        // Refresh the candidates list
+        const response = await fetch(getApiEndpoint(`tests/${currentTestId}/candidates/`));
+        if (response.ok) {
+          const data = await response.json();
+          setTestCandidates(data);
+        }
+        // Clear selection
+        setSelectedAssignedCandidates([]);
+        // Refresh tests list to update counts
+        fetchTests();
+      } else {
+        alert('Some candidates could not be removed. Please try again.');
+      }
+    } catch (error) {
+      alert(`Error removing candidates: ${error.message}`);
+    }
+  };
+
+  // Add handler for selecting assigned candidates to remove
+  const toggleAssignedCandidateSelection = (candidateId) => {
+    setSelectedAssignedCandidates(prev => 
+      prev.includes(candidateId)
+        ? prev.filter(id => id !== candidateId)
+        : [...prev, candidateId]
+    );
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -365,7 +514,8 @@ export default function TestsAdmin() {
 
       {/* Tests Table */}
       <div className="overflow-x-auto mb-8">
-        <table className="min-w-full bg-white rounded-lg overflow-hidden">
+        <div className="min-w-[1024px]">
+          <table className="w-full bg-white rounded-lg overflow-hidden">
           <thead className="bg-gray-100">
             <tr>
               <th className="py-3 px-4 text-left font-medium text-gray-600">Test Name</th>
@@ -387,7 +537,7 @@ export default function TestsAdmin() {
                       <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
                         <div 
                           className="bg-blue-600 h-2.5 rounded-full" 
-                          style={{ width: `${test.candidates_assigned > 0 
+                            style={{ width: `${test.candidates_completed > 0 
                             ? Math.round((test.candidates_completed / test.candidates_assigned) * 100) 
                             : 0}%` }}
                         ></div>
@@ -436,6 +586,7 @@ export default function TestsAdmin() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* New Test Form Modal */}
@@ -1083,13 +1234,28 @@ export default function TestsAdmin() {
               </button>
             </div>
             
-            <div className="mb-6">
-              <h4 className="font-medium text-lg mb-2">Assigned Candidates</h4>
+            {/* Assigned Candidates Section */}
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-medium text-lg">Assigned Candidates</h4>
+                {selectedAssignedCandidates.length > 0 && (
+                  <button
+                    onClick={handleRemoveSelected}
+                    className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
+                  >
+                    Remove Selected ({selectedAssignedCandidates.length})
+                  </button>
+                )}
+              </div>
               {testCandidates.assigned && testCandidates.assigned.length > 0 ? (
-                <div className="border border-gray-300 rounded-md overflow-hidden">
-                  <table className="min-w-full divide-y divide-gray-200">
+                <div className="overflow-x-auto">
+                  <div className="min-w-[1024px]">
+                    <table className="w-full border border-gray-300 rounded-md overflow-hidden">
                     <thead className="bg-gray-50">
                       <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Select
+                          </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Name
                         </th>
@@ -1099,11 +1265,25 @@ export default function TestsAdmin() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Status
                         </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Deadline
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {testCandidates.assigned.map((candidate) => (
                         <tr key={candidate.id}>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <input 
+                                type="checkbox" 
+                                checked={selectedAssignedCandidates.includes(candidate.id)}
+                                onChange={() => toggleAssignedCandidateSelection(candidate.id)}
+                                className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                              />
+                            </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             {candidate.name}
                           </td>
@@ -1111,79 +1291,166 @@ export default function TestsAdmin() {
                             {candidate.email}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            {candidate.completed ? 
-                              <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">Completed</span> 
-                              : 
-                              <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs">In Progress</span>
-                            }
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                candidate.test_completed 
+                                  ? "bg-green-100 text-green-800" 
+                                  : "bg-yellow-100 text-yellow-800"
+                              }`}>
+                                {candidate.test_completed ? "Completed" : "Pending"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {editingDeadline === candidate.id ? (
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="date"
+                                    value={assignedDeadlineDate[candidate.id]}
+                                    min={getMinDate()}
+                                    onChange={(e) => setAssignedDeadlineDate({ ...assignedDeadlineDate, [candidate.id]: e.target.value })}
+                                    className={`px-2 py-1 border border-gray-300 rounded text-sm ${
+                                      !assignedDeadlineDate[candidate.id] ? 'bg-gray-100' : ''
+                                    }`}
+                                  />
+                                  <button
+                                    onClick={() => handleUpdateDeadline(candidate.id)}
+                                    className="px-2 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingDeadline(null);
+                                      setAssignedDeadlineDate({});
+                                    }}
+                                    className="px-2 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-sm">
+                                    {candidate.deadline 
+                                      ? new Date(candidate.deadline).toLocaleDateString('en-US', { 
+                                          timeZone: 'America/New_York',
+                                          year: 'numeric',
+                                          month: 'short',
+                                          day: 'numeric'
+                                        })
+                                      : 'No deadline set'}
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      setEditingDeadline(candidate.id);
+                                      if (candidate.deadline) {
+                                        const date = new Date(candidate.deadline);
+                                        setAssignedDeadlineDate({ 
+                                          ...assignedDeadlineDate, 
+                                          [candidate.id]: date.toISOString().split('T')[0] 
+                                        });
+                                      }
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 text-sm"
+                                  >
+                                    Edit
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {/* Add any additional actions here */}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               ) : (
-                <p className="text-gray-500">No candidates assigned yet.</p>
+                <p className="text-gray-500 text-sm">No candidates assigned to this test yet.</p>
               )}
             </div>
             
-            <div>
-              <h4 className="font-medium text-lg mb-2">Send Test to Available Candidates</h4>
-              {testCandidates.available && testCandidates.available.length > 0 ? (
-                <div className="border border-gray-300 rounded-md overflow-hidden">
-                  <table className="min-w-full divide-y divide-gray-200">
+            {/* Available Candidates Section */}
+            <div className="mt-8">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Available Candidates</h3>
+              {testCandidates.available.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-4 mb-4">
+                    <div className="flex-1">
+                      <label htmlFor="available-deadline-date" className="block text-sm font-medium text-gray-700">
+                        Deadline
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1">Deadline will be set to midnight EST on the selected date</p>
+                      <input
+                        type="date"
+                        id="available-deadline-date"
+                        value={availableDeadlineDate}
+                        min={getMinDate()}
+                        onChange={(e) => setAvailableDeadlineDate(e.target.value)}
+                        className={`mt-1 block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
+                          !availableDeadlineDate ? 'bg-gray-100' : ''
+                        }`}
+                      />
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto overflow-y-auto max-h-96">
+                    <div className="min-w-[1024px]">
+                      <table className="w-full bg-white shadow sm:rounded-md">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Select
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Name
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Email
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {testCandidates.available.map((candidate) => (
-                        <tr key={candidate.id}>
-                          <td className="px-4 py-3 whitespace-nowrap">
+                            <tr key={candidate.id} className="bg-white">
+                              <td className="px-6 py-4 whitespace-nowrap">
                             <input 
                               type="checkbox" 
                               checked={manageCandidatesSelection.includes(candidate.id)}
-                              onChange={() => toggleManageCandidateSelection(candidate.id)}
-                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setManageCandidatesSelection([...manageCandidatesSelection, candidate.id]);
+                                    } else {
+                                      setManageCandidatesSelection(manageCandidatesSelection.filter(id => id !== candidate.id));
+                                    }
+                                  }}
+                                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                             />
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {candidate.name}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {candidate.email}
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="text-sm font-medium text-gray-900">{candidate.name}</div>
+                                <div className="text-sm text-gray-500">{candidate.email}</div>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <p className="text-gray-500">No available candidates.</p>
-              )}
-              
-              <div className="flex justify-end mt-4">
+                  </div>
+                  {manageCandidatesSelection.length > 0 && (
+                    <div className="mt-4 flex justify-end">
                 <button
                   onClick={handleSendToSelected}
-                  disabled={manageCandidatesSelection.length === 0}
-                  className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-                    manageCandidatesSelection.length === 0 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
-                  }`}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
-                  Send Test to {manageCandidatesSelection.length} Candidates
+                        Send Test to Selected Candidates
                 </button>
               </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">No available candidates to assign.</p>
+              )}
             </div>
           </div>
         </div>
@@ -1196,7 +1463,8 @@ export default function TestsAdmin() {
           <p className="text-gray-500">No active test instances.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full bg-white rounded-lg overflow-hidden">
+            <div className="min-w-[1024px]">
+              <table className="w-full bg-white rounded-lg overflow-hidden">
               <thead className="bg-gray-100">
                 <tr>
                   <th className="py-3 px-4 text-left font-medium text-gray-600">Instance Name</th>
@@ -1238,6 +1506,7 @@ export default function TestsAdmin() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

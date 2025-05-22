@@ -332,7 +332,7 @@ def delete_test(test_id):
         conn.close()
 
 def get_test_candidates(test_id):
-    """Get all candidates assigned to a test"""
+    """Get all candidates assigned to a test and available candidates"""
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -346,19 +346,49 @@ def get_test_candidates(test_id):
         
         # Get candidates assigned to test
         cursor.execute('''
-            SELECT c.*, tc.completed as test_completed
+            SELECT c.*, tc.completed as test_completed, tc.deadline
             FROM candidates c
             JOIN test_candidates tc ON c.id = tc.candidate_id
             WHERE tc.test_id = ?
         ''', (test_id,))
         
-        candidates = [dict(row) for row in cursor.fetchall()]
-        return candidates
+        assigned_candidates = []
+        for row in cursor.fetchall():
+            candidate = dict(row)
+            # Convert deadline to ISO format if it exists
+            if candidate['deadline']:
+                try:
+                    # Parse SQLite datetime and convert to UTC ISO
+                    dt = datetime.strptime(candidate['deadline'], '%Y-%m-%d %H:%M:%S')
+                    dt = dt.replace(tzinfo=timezone.utc)
+                    candidate['deadline'] = dt.isoformat()
+                except ValueError as e:
+                    print(f"Warning: Could not parse deadline for candidate {candidate['id']}: {str(e)}")
+                    candidate['deadline'] = None
+            assigned_candidates.append(candidate)
+        
+        # Get all candidates not assigned to this test
+        cursor.execute('''
+            SELECT c.*
+            FROM candidates c
+            WHERE c.id NOT IN (
+                SELECT tc.candidate_id 
+                FROM test_candidates tc 
+                WHERE tc.test_id = ?
+            )
+        ''', (test_id,))
+        
+        available_candidates = [dict(row) for row in cursor.fetchall()]
+        
+        return {
+            "assigned": assigned_candidates,
+            "available": available_candidates
+        }
     finally:
         conn.close()
 
-def assign_candidate_to_test(test_id, candidate_id):
-    """Assign a candidate to a test"""
+def assign_candidate_to_test(test_id, candidate_id, deadline=None):
+    """Assign a candidate to a test with an optional deadline"""
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -385,12 +415,19 @@ def assign_candidate_to_test(test_id, candidate_id):
         existing = cursor.fetchone()
         
         if existing:
+            # Update deadline if provided
+            if deadline:
+                cursor.execute(
+                    'UPDATE test_candidates SET deadline = ? WHERE test_id = ? AND candidate_id = ?',
+                    (deadline, test_id, candidate_id)
+                )
+                conn.commit()
             return {"success": True, "message": "Candidate already assigned to this test"}
         
-        # Create the relationship
+        # Create the relationship with deadline if provided
         cursor.execute(
-            'INSERT INTO test_candidates (test_id, candidate_id, completed) VALUES (?, ?, ?)',
-            (test_id, candidate_id, 0)
+            'INSERT INTO test_candidates (test_id, candidate_id, completed, deadline) VALUES (?, ?, ?, ?)',
+            (test_id, candidate_id, 0, deadline)
         )
         
         # Update test's candidates_assigned count
@@ -408,6 +445,114 @@ def assign_candidate_to_test(test_id, candidate_id):
     finally:
         conn.close() 
 
+def update_candidate_deadline(test_id, candidate_id, deadline):
+    """Update the deadline for a candidate's test assignment"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if test-candidate relationship exists
+        cursor.execute(
+            'SELECT id FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+            (test_id, candidate_id)
+        )
+        existing = cursor.fetchone()
+        
+        if not existing:
+            raise ValueError("Candidate is not assigned to this test")
+        
+        # Convert ISO format to SQLite datetime format
+        try:
+            # Parse the ISO format date
+            dt = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
+            # Convert to SQLite format
+            sqlite_deadline = dt.strftime('%Y-%m-%d %H:%M:%S')
+        except ValueError as e:
+            raise ValueError(f"Invalid deadline format: {str(e)}")
+        
+        # Update the deadline
+        cursor.execute(
+            'UPDATE test_candidates SET deadline = ? WHERE test_id = ? AND candidate_id = ?',
+            (sqlite_deadline, test_id, candidate_id)
+        )
+        conn.commit()
+        
+        # Get the updated candidate data to return
+        cursor.execute('''
+            SELECT c.*, tc.completed as test_completed, tc.deadline
+            FROM candidates c
+            JOIN test_candidates tc ON c.id = tc.candidate_id
+            WHERE tc.test_id = ? AND tc.candidate_id = ?
+        ''', (test_id, candidate_id))
+        
+        updated_candidate = dict(cursor.fetchone())
+        if updated_candidate['deadline']:
+            try:
+                # Parse SQLite datetime and convert to UTC ISO
+                dt = datetime.strptime(updated_candidate['deadline'], '%Y-%m-%d %H:%M:%S')
+                dt = dt.replace(tzinfo=timezone.utc)
+                updated_candidate['deadline'] = dt.isoformat()
+            except ValueError as e:
+                print(f"Warning: Could not parse deadline for candidate {candidate_id}: {str(e)}")
+                updated_candidate['deadline'] = None
+        
+        return updated_candidate
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
+def remove_candidate_from_test(test_id, candidate_id):
+    """Remove a candidate from a test"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if test exists
+        cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        test = cursor.fetchone()
+        
+        if not test:
+            raise ValueError(f"Test with ID {test_id} not found")
+        
+        # Check if candidate exists
+        cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        candidate = cursor.fetchone()
+        
+        if not candidate:
+            raise ValueError(f"Candidate with ID {candidate_id} not found")
+        
+        # Check if relationship exists
+        cursor.execute(
+            'SELECT id FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+            (test_id, candidate_id)
+        )
+        existing = cursor.fetchone()
+        
+        if not existing:
+            return {"success": True, "message": "Candidate is not assigned to this test"}
+        
+        # Delete the relationship
+        cursor.execute(
+            'DELETE FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+            (test_id, candidate_id)
+        )
+        
+        # Update test's candidates_assigned count
+        cursor.execute(
+            'UPDATE tests SET candidates_assigned = candidates_assigned - 1 WHERE id = ?',
+            (test_id,)
+        )
+        
+        conn.commit()
+        
+        return {"success": True, "message": f"Candidate {candidate_id} removed from test {test_id}"}
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
 
 def _convert_to_utc(raw_ts):
     """Convert SQLite string to UTC ISO 8601"""

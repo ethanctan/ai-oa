@@ -103,6 +103,7 @@ def init_database():
         test_id INTEGER,
         candidate_id INTEGER,
         completed BOOLEAN DEFAULT 0,
+        deadline TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(test_id, candidate_id),

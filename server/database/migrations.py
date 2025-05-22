@@ -30,6 +30,9 @@ def run_migrations():
     # Add assessment prompt columns and remove old one
     migrate_assessment_prompt_columns()
     
+    # Add deadline field to test_candidates table
+    add_deadline_field()
+    
     print("Migrations completed successfully.")
 
 """
@@ -137,6 +140,28 @@ def migrate_assessment_prompt_columns():
         print("Assessment prompt columns migrated successfully.")
     except Exception as e:
         print(f"Error migrating assessment prompt columns: {str(e)}")
+    finally:
+        conn.close()
+
+def add_deadline_field():
+    """Add deadline field to the test_candidates table"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # First check if the column already exists
+        cursor.execute("PRAGMA table_info(test_candidates)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        # Add 'deadline' column if it doesn't exist
+        if 'deadline' not in columns:
+            print("Adding 'deadline' column to test_candidates table...")
+            cursor.execute("ALTER TABLE test_candidates ADD COLUMN deadline TIMESTAMP")
+            print("Deadline column added successfully.")
+        
+        conn.commit()
+    except Exception as e:
+        print(f"Error adding deadline field: {str(e)}")
     finally:
         conn.close()
 
