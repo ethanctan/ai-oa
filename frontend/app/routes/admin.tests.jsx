@@ -1,5 +1,5 @@
 //app/routes/admin.tests.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLoaderData, Form, useSubmit, useNavigation } from "@remix-run/react";
 import { loader } from "../loaders/testsLoader.jsx";
 import { action } from "../actions/testsAction.jsx";
@@ -47,6 +47,62 @@ export default function TestsAdmin() {
   const [availableDeadlineDate, setAvailableDeadlineDate] = useState('');
   const [error, setError] = useState(null);
   
+  // Add new state for tag filtering and selection
+  const [tagFilter, setTagFilter] = useState('');
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [selectAllShown, setSelectAllShown] = useState(false);
+
+  // Add function to get unique tags from candidates
+  const getAllTags = useMemo(() => {
+    const tags = new Set();
+    candidates.forEach(candidate => {
+      if (candidate.tags) {
+        candidate.tags.split(';').forEach(tag => {
+          if (tag.trim()) tags.add(tag.trim());
+        });
+      }
+    });
+    return Array.from(tags).sort();
+  }, [candidates]);
+
+  // Add function to filter candidates by tags
+  const filterCandidatesByTags = (candidates) => {
+    if (!selectedTags.length) return candidates;
+    return candidates.filter(candidate => {
+      if (!candidate.tags) return false;
+      const candidateTags = candidate.tags.split(';').map(tag => tag.trim());
+      return selectedTags.some(tag => candidateTags.includes(tag));
+    });
+  };
+
+  // Add function to handle tag selection
+  const handleTagSelection = (tag) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+
+  // Add function to handle select all shown
+  const handleSelectAllShown = (candidates) => {
+    if (selectAllShown) {
+      // Deselect all shown candidates
+      setNewTestSelectedCandidates(prev => 
+        prev.filter(id => !candidates.some(c => c.id === id))
+      );
+      setManageCandidatesSelection(prev => 
+        prev.filter(id => !candidates.some(c => c.id === id))
+      );
+    } else {
+      // Select all shown candidates
+      const newIds = candidates.map(c => c.id);
+      setNewTestSelectedCandidates(prev => [...new Set([...prev, ...newIds])]);
+      setManageCandidatesSelection(prev => [...new Set([...prev, ...newIds])]);
+    }
+    setSelectAllShown(!selectAllShown);
+  };
+
   // Helper function to get midnight EST for a given date
   const getMidnightEST = (dateStr) => {
     const date = new Date(dateStr);
@@ -1151,8 +1207,47 @@ export default function TestsAdmin() {
 
               <div>
                 <h4 className="font-medium text-lg mb-2">Select Candidates to Assign Test (Optional)</h4>
-                <p className="text-sm text-gray-500 mb-2">Note: Candidates will be assigned to the test, but instances will not be created automatically. Use the "Manage Candidates" button after creating the test to send it to candidates.</p>
+                <p className="text-sm text-gray-500 mb-2">Note: Candidates will be assigned to the test, but the test will not be sent automatically. Use the "Manage Candidates" button after creating the test to set deadlines and send the test to candidates.</p>
+                
+                {/* Tag Filter Section */}
+                <div className="mb-4">
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {getAllTags.map(tag => (
+                      <button
+                        key={tag}
+                        onClick={() => handleTagSelection(tag)}
+                        className={`px-2 py-1 rounded text-sm ${
+                          selectedTags.includes(tag)
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedTags.length > 0 && (
+                    <button
+                      onClick={() => setSelectedTags([])}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      Clear tag filters
+                    </button>
+                  )}
+                </div>
+
                 <div className="border border-gray-300 rounded-md overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 flex justify-between items-center">
+                    <span className="text-sm text-gray-600">
+                      {filterCandidatesByTags(candidates).length} candidates shown
+                    </span>
+                    <button
+                      onClick={() => handleSelectAllShown(filterCandidatesByTags(candidates))}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      {selectAllShown ? 'Deselect All Shown' : 'Select All Shown'}
+                    </button>
+                  </div>
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
@@ -1165,10 +1260,13 @@ export default function TestsAdmin() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Email
                         </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Tags
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {candidates.map((candidate) => (
+                      {filterCandidatesByTags(candidates).map((candidate) => (
                         <tr key={candidate.id}>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <input 
@@ -1190,6 +1288,20 @@ export default function TestsAdmin() {
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             {candidate.email}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {candidate.tags ? (
+                              candidate.tags.split(';').map((tag, index) => (
+                                <span 
+                                  key={index} 
+                                  className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1"
+                                >
+                                  {tag.trim()}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-gray-500">No tags</span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1376,6 +1488,8 @@ export default function TestsAdmin() {
               <h3 className="text-lg font-medium text-gray-900 mb-4">Available Candidates</h3>
               {testCandidates.available.length > 0 ? (
                 <div className="space-y-4">
+
+                  {/* Deadline Section */}
                   <div className="flex items-center space-x-4 mb-4">
                     <div className="flex-1">
                       <label htmlFor="available-deadline-date" className="block text-sm font-medium text-gray-700">
@@ -1394,29 +1508,73 @@ export default function TestsAdmin() {
                       />
                     </div>
                   </div>
+
+                  {/* Tag Filter Section */}
+                  <div className="mb-4">
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {getAllTags.map(tag => (
+                        <button
+                          key={tag}
+                          onClick={() => handleTagSelection(tag)}
+                          className={`px-2 py-1 rounded text-sm ${
+                            selectedTags.includes(tag)
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedTags.length > 0 && (
+                      <button
+                        onClick={() => setSelectedTags([])}
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Clear tag filters
+                      </button>
+                    )}
+                  </div>
+
+
+                  <div className="bg-gray-50 px-4 py-2 flex justify-between items-center rounded-t-md">
+                    <span className="text-sm text-gray-600">
+                      {filterCandidatesByTags(testCandidates.available).length} candidates shown
+                    </span>
+                    <button
+                      onClick={() => handleSelectAllShown(filterCandidatesByTags(testCandidates.available))}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      {selectAllShown ? 'Deselect All Shown' : 'Select All Shown'}
+                    </button>
+                  </div>
+
                   <div className="overflow-x-auto overflow-y-auto max-h-96">
                     <div className="min-w-[1024px]">
                       <table className="w-full bg-white shadow sm:rounded-md">
-                    <thead className="bg-gray-50">
-                      <tr>
+                        <thead className="bg-gray-50">
+                          <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Select
-                        </th>
+                              Select
+                            </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Name
-                        </th>
+                              Name
+                            </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Email
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {testCandidates.available.map((candidate) => (
+                              Email
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Tags
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {filterCandidatesByTags(testCandidates.available).map((candidate) => (
                             <tr key={candidate.id} className="bg-white">
                               <td className="px-6 py-4 whitespace-nowrap">
-                            <input 
-                              type="checkbox" 
-                              checked={manageCandidatesSelection.includes(candidate.id)}
+                                <input 
+                                  type="checkbox" 
+                                  checked={manageCandidatesSelection.includes(candidate.id)}
                                   onChange={(e) => {
                                     if (e.target.checked) {
                                       setManageCandidatesSelection([...manageCandidatesSelection, candidate.id]);
@@ -1425,27 +1583,44 @@ export default function TestsAdmin() {
                                     }
                                   }}
                                   className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                            />
-                          </td>
+                                />
+                              </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="text-sm font-medium text-gray-900">{candidate.name}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="text-sm text-gray-500">{candidate.email}</div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                {candidate.tags ? (
+                                  candidate.tags.split(';').map((tag, index) => (
+                                    <span 
+                                      key={index} 
+                                      className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1"
+                                    >
+                                      {tag.trim()}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-gray-500">No tags</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
+
                   {manageCandidatesSelection.length > 0 && (
                     <div className="mt-4 flex justify-end">
-                <button
-                  onClick={handleSendToSelected}
+                      <button
+                        onClick={handleSendToSelected}
                         className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
+                      >
                         Send Test to Selected Candidates
-                </button>
-              </div>
+                      </button>
+                    </div>
                   )}
                 </div>
               ) : (
