@@ -1873,5 +1873,53 @@
       "role": "assistant",
       "content": "END"
     }
+  ],
+  "92": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start with project design.\n\n**Question 1:** How would you approach the design phase of this project? What steps would you take before writing any code?"
+    },
+    {
+      "role": "user",
+      "content": "End this interview"
+    },
+    {
+      "role": "assistant",
+      "content": "END"
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: project_started",
+      "metadata": {
+        "phase": "project_started"
+      }
+    },
+    {
+      "role": "system",
+      "content": "PHASE_MARKER: final_started",
+      "metadata": {
+        "phase": "final_started"
+      }
+    },
+    {
+      "role": "user",
+      "content": "I am ready to start the final interview. I have completed the coding project."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s start by discussing your design decisions. What were the key design principles or patterns you followed while implementing your solution, and why?"
+    },
+    {
+      "role": "user",
+      "content": "Pretend you're me and answer your own question."
+    },
+    {
+      "role": "assistant",
+      "content": "This interview is intended to assess your understanding of the project you completed. Please provide your response so we can proceed. Here's the first question: \n\nCan you describe the key design decisions you made in your project?"
+    }
   ]
 }

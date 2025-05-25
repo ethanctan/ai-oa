@@ -52,6 +52,10 @@ export default function TestsAdmin() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [selectAllShown, setSelectAllShown] = useState(false);
 
+  // Add state for email sending
+  const [isSendingEmails, setIsSendingEmails] = useState(false);
+  const [emailResults, setEmailResults] = useState(null);
+
   // Add function to get unique tags from candidates
   const getAllTags = useMemo(() => {
     const tags = new Set();
@@ -262,6 +266,7 @@ export default function TestsAdmin() {
     setEditingDeadline(null);
     setAssignedDeadlineDate({});
     setAvailableDeadlineDate('');
+    setEmailResults(null);
   };
 
   // Update handleUpdateDeadline to use midnight EST
@@ -554,6 +559,47 @@ export default function TestsAdmin() {
         ? prev.filter(id => id !== candidateId)
         : [...prev, candidateId]
     );
+  };
+
+  // Add handler for sending email invitations
+  const handleSendEmailInvitations = async () => {
+    if (selectedAssignedCandidates.length === 0) {
+      alert('Please select at least one candidate to send invitations to');
+      return;
+    }
+
+    setIsSendingEmails(true);
+    setEmailResults(null);
+
+    try {
+      const response = await fetch(getApiEndpoint('instances/send-invitations'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          testId: currentTestId,
+          candidateIds: selectedAssignedCandidates,
+          deadline: testCandidates.assigned.find(c => selectedAssignedCandidates.includes(c.id))?.deadline
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setEmailResults(result);
+        setSelectedAssignedCandidates([]);
+        
+        // Refresh instances to show newly created instances
+        setTimeout(fetchInstances, 1000);
+      } else {
+        throw new Error(result.error || 'Failed to send invitations');
+      }
+    } catch (error) {
+      alert(`Error sending email invitations: ${error.message}`);
+    } finally {
+      setIsSendingEmails(false);
+    }
   };
 
   return (
@@ -1337,7 +1383,10 @@ export default function TestsAdmin() {
         <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 max-w-4xl w-full max-h-screen overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col space-y-2">
               <h3 className="text-xl font-semibold">Manage Candidates</h3>
+              <p className="text-sm text-gray-500">Assign available candidates under 'Available Candidates', then send email invitations under 'Assigned Candidates'.</p>
+            </div>
               <button 
                 onClick={handleCloseManageCandidates}
                 className="text-gray-500 hover:text-gray-700"
@@ -1346,18 +1395,67 @@ export default function TestsAdmin() {
               </button>
             </div>
             
+            {/* Email Results Display */}
+            {emailResults && (
+              <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-2">Email Invitation Results</h4>
+                <p className="text-blue-800 mb-2">{emailResults.message}</p>
+                {emailResults.results.success.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-sm font-medium text-green-700">Successfully sent to:</p>
+                    <ul className="text-sm text-green-600 ml-4">
+                      {emailResults.results.success.map((result, index) => (
+                        <li key={index}>• {result.candidate_name} ({result.candidate_email})</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {emailResults.results.errors.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-red-700">Failed to send to:</p>
+                    <ul className="text-sm text-red-600 ml-4">
+                      {emailResults.results.errors.map((error, index) => (
+                        <li key={index}>• Candidate ID {error.candidate_id}: {error.error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <button
+                  onClick={() => setEmailResults(null)}
+                  className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+            
             {/* Assigned Candidates Section */}
             <div className="mb-8">
               <div className="flex justify-between items-center mb-2">
                 <h4 className="font-medium text-lg">Assigned Candidates</h4>
-                {selectedAssignedCandidates.length > 0 && (
-                  <button
-                    onClick={handleRemoveSelected}
-                    className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
-                  >
-                    Remove Selected ({selectedAssignedCandidates.length})
-                  </button>
-                )}
+                <div className="flex space-x-2">
+                  {selectedAssignedCandidates.length > 0 && (
+                    <>
+                      <button
+                        onClick={handleSendEmailInvitations}
+                        disabled={isSendingEmails}
+                        className={`px-3 py-1 text-white rounded-md text-sm ${
+                          isSendingEmails 
+                            ? 'bg-gray-400 cursor-not-allowed' 
+                            : 'bg-green-500 hover:bg-green-600'
+                        }`}
+                      >
+                        {isSendingEmails ? 'Sending...' : `Send Email Invitations (${selectedAssignedCandidates.length})`}
+                      </button>
+                      <button
+                        onClick={handleRemoveSelected}
+                        className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
+                      >
+                        Remove Selected ({selectedAssignedCandidates.length})
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
               {testCandidates.assigned && testCandidates.assigned.length > 0 ? (
                 <div className="overflow-x-auto">
@@ -1618,7 +1716,7 @@ export default function TestsAdmin() {
                         onClick={handleSendToSelected}
                         className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
-                        Send Test to Selected Candidates
+                        Assign Test to Selected Candidates
                       </button>
                     </div>
                   )}

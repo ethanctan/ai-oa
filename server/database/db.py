@@ -76,6 +76,8 @@ def init_database():
         candidates_completed INTEGER DEFAULT 0,
         enable_timer INTEGER DEFAULT 1,
         timer_duration INTEGER DEFAULT 10,
+        enable_project_timer INTEGER DEFAULT 1,
+        project_timer_duration INTEGER DEFAULT 60,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -120,6 +122,19 @@ def init_database():
         content TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (instance_id) REFERENCES test_instances(id)
+    )
+    ''')
+    
+    # Create access_tokens table for secure email invitations
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS access_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        instance_id INTEGER,
+        token TEXT UNIQUE,
+        deadline TIMESTAMP,
+        used BOOLEAN DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (instance_id) REFERENCES test_instances(id)
     )
     ''')

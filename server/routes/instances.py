@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github
 from controllers.reports_controller import get_report
+from controllers.email_controller import send_test_invitation
 
 # Create a Blueprint for instances routes
 instances_bp = Blueprint('instances', __name__)
@@ -77,6 +78,34 @@ def upload_to_github_route(instance_id):
             
     except Exception as e:
         print(f'Error uploading to GitHub: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+# POST /instances/send-invitations - Send test invitations via email
+@instances_bp.route('/send-invitations', methods=['POST'])
+def send_invitations():
+    try:
+        data = request.json
+        test_id = data.get('testId')
+        candidate_ids = data.get('candidateIds', [])
+        deadline = data.get('deadline')
+        
+        if not test_id:
+            return jsonify({'error': 'Test ID is required'}), 400
+        
+        if not candidate_ids:
+            return jsonify({'error': 'At least one candidate ID is required'}), 400
+        
+        # Send invitations
+        results = send_test_invitation(test_id, candidate_ids, deadline)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Sent {len(results["success"])} invitations successfully, {len(results["errors"])} failed',
+            'results': results
+        })
+        
+    except Exception as e:
+        print(f'Error sending invitations: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
 # TODO: Route for uploading to gh. Should be separate from report submission route
