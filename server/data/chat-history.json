@@ -1921,5 +1921,15 @@
       "role": "assistant",
       "content": "This interview is intended to assess your understanding of the project you completed. Please provide your response so we can proceed. Here's the first question: \n\nCan you describe the key design decisions you made in your project?"
     }
+  ],
+  "95": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! To begin, how would you approach the design phase for this project? Could you walk me through your thought process and the steps you would take to create a robust design?"
+    }
   ]
 }

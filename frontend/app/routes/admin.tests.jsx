@@ -835,20 +835,24 @@ export default function TestsAdmin() {
                     <span className={`text-sm ${timerEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
                       {timerEnabled ? 'Enabled' : 'Disabled'}
                     </span>
-                    <div className="relative inline-block w-10 align-middle select-none">
-                      <input 
-                        type="checkbox" 
-                        name="enableTimer" 
-                        id="enableTimer" 
-                        checked={timerEnabled}
-                        onChange={handleTimerToggleChange}
-                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                    <button
+                      type="button"
+                      onClick={() => setTimerEnabled(!timerEnabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        timerEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          timerEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                       />
-                      <label 
-                        htmlFor="enableTimer" 
-                        className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                      ></label>
-                    </div>
+                    </button>
+                    <input 
+                      type="hidden" 
+                      name="enableTimer" 
+                      value={timerEnabled ? 'on' : 'off'}
+                    />
                   </div>
                 </div>
                 <div>
@@ -876,20 +880,24 @@ export default function TestsAdmin() {
                     <span className={`text-sm ${projectTimerEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
                       {projectTimerEnabled ? 'Enabled' : 'Disabled'}
                     </span>
-                    <div className="relative inline-block w-10 align-middle select-none">
-                      <input 
-                        type="checkbox" 
-                        name="enableProjectTimer" 
-                        id="enableProjectTimer" 
-                        checked={projectTimerEnabled}
-                        onChange={handleProjectTimerToggleChange}
-                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                    <button
+                      type="button"
+                      onClick={() => setProjectTimerEnabled(!projectTimerEnabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        projectTimerEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          projectTimerEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                       />
-                      <label 
-                        htmlFor="enableProjectTimer" 
-                        className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                      ></label>
-                    </div>
+                    </button>
+                    <input 
+                      type="hidden" 
+                      name="enableProjectTimer" 
+                      value={projectTimerEnabled ? 'on' : 'off'}
+                    />
                   </div>
                 </div>
                 <div>
@@ -950,19 +958,19 @@ export default function TestsAdmin() {
                     <span className={`text-sm ${targetGithubRepoEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
                       {targetGithubRepoEnabled ? 'Enabled' : 'Disabled'}
                     </span>
-                    <div className="relative inline-block w-10 align-middle select-none">
-                      <input 
-                        type="checkbox" 
-                        id="targetGithubRepoEnabled" 
-                        checked={targetGithubRepoEnabled}
-                        onChange={(e) => setTargetGithubRepoEnabled(e.target.checked)}
-                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                    <button
+                      type="button"
+                      onClick={() => setTargetGithubRepoEnabled(!targetGithubRepoEnabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        targetGithubRepoEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          targetGithubRepoEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                       />
-                      <label 
-                        htmlFor="targetGithubRepoEnabled" 
-                        className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                      ></label>
-                    </div>
+                    </button>
                   </div>
                 </div>
                 <input 
@@ -985,19 +993,19 @@ export default function TestsAdmin() {
                     <span className={`text-sm ${targetGithubTokenEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
                       {targetGithubTokenEnabled ? 'Enabled' : 'Disabled'}
                     </span>
-                    <div className="relative inline-block w-10 align-middle select-none">
-                      <input 
-                        type="checkbox" 
-                        id="targetGithubTokenEnabled" 
-                        checked={targetGithubTokenEnabled}
-                        onChange={(e) => setTargetGithubTokenEnabled(e.target.checked)}
-                        className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                    <button
+                      type="button"
+                      onClick={() => setTargetGithubTokenEnabled(!targetGithubTokenEnabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        targetGithubTokenEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          targetGithubTokenEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
                       />
-                      <label 
-                        htmlFor="targetGithubTokenEnabled" 
-                        className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                      ></label>
-                    </div>
+                    </button>
                   </div>
                 </div>
                 <input 
@@ -1022,19 +1030,19 @@ export default function TestsAdmin() {
                       <span className={`text-sm ${initialPromptEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
                         {initialPromptEnabled ? 'Enabled' : 'Disabled'}
                       </span>
-                      <div className="relative inline-block w-10 align-middle select-none">
-                        <input 
-                          type="checkbox" 
-                          id="initialPromptEnabled" 
-                          checked={initialPromptEnabled}
-                          onChange={(e) => setInitialPromptEnabled(e.target.checked)}
-                          className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                      <button
+                        type="button"
+                        onClick={() => setInitialPromptEnabled(!initialPromptEnabled)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          initialPromptEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            initialPromptEnabled ? 'translate-x-6' : 'translate-x-1'
+                          }`}
                         />
-                        <label 
-                          htmlFor="initialPromptEnabled" 
-                          className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                        ></label>
-                      </div>
+                      </button>
                     </div>
                   </div>
                   <textarea
@@ -1057,19 +1065,19 @@ export default function TestsAdmin() {
                       <span className={`text-sm ${finalPromptEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
                         {finalPromptEnabled ? 'Enabled' : 'Disabled'}
                       </span>
-                      <div className="relative inline-block w-10 align-middle select-none">
-                        <input 
-                          type="checkbox" 
-                          id="finalPromptEnabled" 
-                          checked={finalPromptEnabled}
-                          onChange={(e) => setFinalPromptEnabled(e.target.checked)}
-                          className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                      <button
+                        type="button"
+                        onClick={() => setFinalPromptEnabled(!finalPromptEnabled)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          finalPromptEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            finalPromptEnabled ? 'translate-x-6' : 'translate-x-1'
+                          }`}
                         />
-                        <label 
-                          htmlFor="finalPromptEnabled" 
-                          className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                        ></label>
-                      </div>
+                      </button>
                     </div>
                   </div>
                   <textarea
@@ -1479,9 +1487,6 @@ export default function TestsAdmin() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Deadline
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Actions
-                          </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -1568,9 +1573,6 @@ export default function TestsAdmin() {
                                 </div>
                               )}
                             </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              {/* Add any additional actions here */}
-                          </td>
                         </tr>
                       ))}
                     </tbody>
