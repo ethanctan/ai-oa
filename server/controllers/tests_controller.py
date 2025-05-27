@@ -461,16 +461,20 @@ def update_candidate_deadline(test_id, candidate_id, deadline):
         if not existing:
             raise ValueError("Candidate is not assigned to this test")
         
-        # Convert ISO format to SQLite datetime format
-        try:
-            # Parse the ISO format date
-            dt = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
-            # Convert to SQLite format
-            sqlite_deadline = dt.strftime('%Y-%m-%d %H:%M:%S')
-        except ValueError as e:
-            raise ValueError(f"Invalid deadline format: {str(e)}")
+        # Handle deadline conversion
+        sqlite_deadline = None
+        if deadline:
+            # Convert ISO format to SQLite datetime format
+            try:
+                # Parse the ISO format date
+                dt = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
+                # Convert to SQLite format
+                sqlite_deadline = dt.strftime('%Y-%m-%d %H:%M:%S')
+            except ValueError as e:
+                raise ValueError(f"Invalid deadline format: {str(e)}")
+        # If deadline is None/null, sqlite_deadline remains None (removes deadline)
         
-        # Update the deadline
+        # Update the deadline (can be null to remove deadline)
         cursor.execute(
             'UPDATE test_candidates SET deadline = ? WHERE test_id = ? AND candidate_id = ?',
             (sqlite_deadline, test_id, candidate_id)
@@ -495,6 +499,55 @@ def update_candidate_deadline(test_id, candidate_id, deadline):
             except ValueError as e:
                 print(f"Warning: Could not parse deadline for candidate {candidate_id}: {str(e)}")
                 updated_candidate['deadline'] = None
+        # If deadline is None, leave it as None
+        
+        # Automatically resend email with updated deadline information
+        try:
+            # Get test and candidate details for email
+            cursor.execute('SELECT * FROM tests WHERE id = ?', (test_id,))
+            test = dict(cursor.fetchone())
+            
+            cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+            candidate = dict(cursor.fetchone())
+            
+            # Get the existing access token for this candidate's test instance
+            cursor.execute('''
+                SELECT at.token
+                FROM access_tokens at
+                JOIN test_instances ti ON at.instance_id = ti.id
+                WHERE ti.test_id = ? AND ti.candidate_id = ?
+                ORDER BY at.created_at DESC
+                LIMIT 1
+            ''', (test_id, candidate_id))
+            
+            token_result = cursor.fetchone()
+            if token_result:
+                # Generate the access URL using the existing token
+                access_url = f"http://localhost:3000/instances/access/{token_result['token']}"
+                
+                # Import here to avoid circular imports
+                from controllers.email_controller import send_email
+                
+                # Send email with updated deadline information
+                email_sent = send_email(
+                    to_email=candidate['email'],
+                    candidate_name=candidate['name'],
+                    test_name=test['name'],
+                    access_url=access_url,
+                    deadline=updated_candidate['deadline'],  # Use the formatted deadline
+                    is_deadline_update=True
+                )
+                
+                if email_sent:
+                    print(f"Successfully sent deadline update email to {candidate['name']} ({candidate['email']})")
+                else:
+                    print(f"Failed to send deadline update email to {candidate['name']} ({candidate['email']})")
+            else:
+                print(f"Warning: No access token found for candidate {candidate_id} in test {test_id}")
+                
+        except Exception as email_error:
+            print(f"Error sending deadline update email: {str(email_error)}")
+            # Don't fail the deadline update if email fails
         
         return updated_candidate
     except Exception as e:

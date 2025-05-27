@@ -71,8 +71,8 @@ def send_test_invitation(test_id, candidate_ids, deadline=None):
                 # Generate secure access token
                 access_token = generate_access_token(instance['id'], candidate_id, deadline)
                 
-                # Store the access token in database
-                store_access_token(instance['id'], access_token, deadline)
+                # Store the access token in database (deadline is now stored in test_candidates table)
+                store_access_token(instance['id'], access_token)
                 
                 # Generate the redirect access URL using the instances route
                 access_url = f"http://localhost:3000/instances/access/{access_token}"
@@ -127,23 +127,22 @@ def store_access_token(instance_id, token, deadline=None):
     cursor = conn.cursor()
     
     try:
-        # Create access_tokens table if it doesn't exist
+        # Create access_tokens table if it doesn't exist (without deadline column)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS access_tokens (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 instance_id INTEGER,
                 token TEXT UNIQUE,
-                deadline TIMESTAMP,
                 used BOOLEAN DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (instance_id) REFERENCES test_instances(id)
             )
         ''')
         
-        # Insert the token
+        # Insert the token (without deadline)
         cursor.execute(
-            'INSERT INTO access_tokens (instance_id, token, deadline) VALUES (?, ?, ?)',
-            (instance_id, token, deadline)
+            'INSERT INTO access_tokens (instance_id, token) VALUES (?, ?)',
+            (instance_id, token)
         )
         
         conn.commit()
@@ -198,7 +197,7 @@ def validate_access_token(token):
     finally:
         conn.close()
 
-def send_email(to_email, candidate_name, test_name, access_url, deadline=None):
+def send_email(to_email, candidate_name, test_name, access_url, deadline=None, is_deadline_update=False):
     """
     Send an email invitation to a candidate
     
@@ -207,7 +206,8 @@ def send_email(to_email, candidate_name, test_name, access_url, deadline=None):
         candidate_name: Name of the candidate
         test_name: Name of the test
         access_url: Secure access URL for the test
-        deadline: Test deadline (ISO format)
+        deadline: Test deadline (ISO format) - optional
+        is_deadline_update: Whether this is a deadline update email
     
     Returns:
         bool: True if email sent successfully, False otherwise
@@ -229,26 +229,83 @@ def send_email(to_email, candidate_name, test_name, access_url, deadline=None):
         msg = MIMEMultipart()
         msg['From'] = from_email
         msg['To'] = to_email
-        msg['Subject'] = f"Assessment Invitation: {test_name}"
+        
+        # Set subject based on email type
+        if is_deadline_update:
+            msg['Subject'] = f"Assessment Deadline Update: {test_name}"
+        else:
+            msg['Subject'] = f"Assessment Invitation: {test_name}"
         
         # Format deadline for display
         deadline_text = ""
+        has_deadline = False
         if deadline:
             try:
                 deadline_dt = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
                 deadline_text = deadline_dt.strftime('%B %d, %Y at %I:%M %p EST')
+                has_deadline = True
             except:
                 deadline_text = deadline
+                has_deadline = True
         
-        # Email body
-        body = f"""
+        # Email body - different content based on email type and deadline
+        if is_deadline_update:
+            # Deadline update email
+            if has_deadline:
+                body = f"""
+Dear {candidate_name},
+
+This is an update regarding your technical assessment: {test_name}
+
+DEADLINE UPDATE:
+- Test Name: {test_name}
+- New Deadline: {deadline_text}
+
+Your assessment link remains the same:
+{access_url}
+
+Important Notes:
+- This link is unique to you and will expire on the new deadline
+- You can access the link multiple times before the deadline
+- Please complete the assessment before the new deadline
+- If you encounter any technical issues, please contact the assessment administrator
+
+Best regards,
+Assessment Team
+                """.strip()
+            else:
+                body = f"""
+Dear {candidate_name},
+
+This is an update regarding your technical assessment: {test_name}
+
+DEADLINE UPDATE:
+- Test Name: {test_name}
+- Deadline: REMOVED - No deadline set
+
+Your assessment link remains the same:
+{access_url}
+
+Important Notes:
+- This link is unique to you and will remain valid indefinitely
+- You can access the link multiple times
+- Please complete the assessment when convenient
+- If you encounter any technical issues, please contact the assessment administrator
+
+Best regards,
+Assessment Team
+                """.strip()
+        else:
+            # Original invitation email
+            if has_deadline:
+                body = f"""
 Dear {candidate_name},
 
 You have been invited to complete a technical assessment: {test_name}
 
 Assessment Details:
 - Test Name: {test_name}
-{f"- Deadline: {deadline_text}" if deadline_text else ""}
+- Deadline: {deadline_text}
 
 To begin your assessment, please click the link below:
 {access_url}
@@ -261,7 +318,29 @@ Important Notes:
 
 Best regards,
 Assessment Team
-        """.strip()
+                """.strip()
+            else:
+                body = f"""
+Dear {candidate_name},
+
+You have been invited to complete a technical assessment: {test_name}
+
+Assessment Details:
+- Test Name: {test_name}
+- No deadline set - complete at your convenience
+
+To begin your assessment, please click the link below:
+{access_url}
+
+Important Notes:
+- This link is unique to you and will remain valid indefinitely
+- You can access the link multiple times
+- Please complete the assessment when convenient
+- If you encounter any technical issues, please contact the assessment administrator
+
+Best regards,
+Assessment Team
+                """.strip()
         
         msg.attach(MIMEText(body, 'plain'))
         

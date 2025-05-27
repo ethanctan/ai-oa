@@ -97,7 +97,9 @@ def get_candidates_for_test(test_id):
 @tests_bp.route('/<int:test_id>/candidates/<int:candidate_id>', methods=['POST'])
 def assign_candidate(test_id, candidate_id):
     try:
-        result = assign_candidate_to_test(test_id, candidate_id)
+        data = request.json or {}
+        deadline = data.get('deadline')
+        result = assign_candidate_to_test(test_id, candidate_id, deadline)
         return jsonify(result)
     except Exception as e:
         print(f'Error assigning candidate to test: {str(e)}')
@@ -120,8 +122,8 @@ def update_candidate_deadline_route(test_id, candidate_id):
         data = request.json
         deadline = data.get('deadline')
         
-        if not deadline:
-            return jsonify({'error': 'Deadline is required'}), 400
+        # Allow null deadline to remove the deadline
+        # No validation needed - null is acceptable
             
         result = update_candidate_deadline(test_id, candidate_id, deadline)
         return jsonify(result)

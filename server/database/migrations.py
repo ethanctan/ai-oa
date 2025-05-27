@@ -39,6 +39,9 @@ def run_migrations():
     # Clean up 'nan' tags
     clean_up_nan_tags()
     
+    # Remove deadline column from access_tokens table (no longer needed)
+    remove_deadline_from_access_tokens()
+    
     print("Migrations completed successfully.")
 
 """
@@ -213,6 +216,27 @@ def clean_up_nan_tags():
         print(f"Cleaned up {rows_updated} 'nan' tags in candidates table.")
     except Exception as e:
         print(f"Error cleaning up 'nan' tags: {str(e)}")
+    finally:
+        conn.close()
+
+def remove_deadline_from_access_tokens():
+    """Remove deadline column from access_tokens table"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # First check if the column already exists
+        cursor.execute("PRAGMA table_info(access_tokens)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        # Remove 'deadline' column if it exists
+        if 'deadline' in columns:
+            print("Removing 'deadline' column from access_tokens table...")
+            cursor.execute("ALTER TABLE access_tokens DROP COLUMN deadline")
+        
+        conn.commit()
+    except Exception as e:
+        print(f"Error removing deadline column from access_tokens table: {str(e)}")
     finally:
         conn.close()
 

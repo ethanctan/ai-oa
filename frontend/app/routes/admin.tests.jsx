@@ -61,6 +61,7 @@ export default function TestsAdmin() {
   // Add state for email sending
   const [isSendingEmails, setIsSendingEmails] = useState(false);
   const [emailResults, setEmailResults] = useState(null);
+  const [deadlineUpdateResult, setDeadlineUpdateResult] = useState(null);
 
   // Add function to get unique tags from candidates
   const getAllTags = useMemo(() => {
@@ -354,6 +355,8 @@ export default function TestsAdmin() {
     setAssignedDeadlineDate({});
     setAvailableDeadlineDate('');
     setEmailResults(null);
+    setDeadlineUpdateResult(null);
+    setError(null);
     // Reset tag filter states
     setSelectedAssignedTags([]);
     setSelectedAvailableTags([]);
@@ -361,22 +364,22 @@ export default function TestsAdmin() {
     setSelectAllAvailableShown(false);
   };
 
-  // Update handleUpdateDeadline to use midnight EST
+  // Update handleUpdateDeadline to use midnight EST and allow removing deadlines
   const handleUpdateDeadline = async (candidateId) => {
     try {
       const date = assignedDeadlineDate[candidateId];
+      let deadline = null;
       
-      if (!date) {
-        setError('Please select a date for the deadline');
-        return;
+      // If a date is provided, validate and convert it
+      if (date) {
+        deadline = getMidnightEST(date);
+        
+        if (new Date(deadline) < new Date()) {
+          setError('The midnight EST deadline for the selected date has already passed. Please choose a future date.');
+          return;
+        }
       }
-    
-      const deadline = getMidnightEST(date);
-      
-      if (new Date(deadline) < new Date()) {
-        setError('Deadline must be in the future');
-        return;
-      }
+      // If no date is provided, deadline will be null (removes the deadline)
 
       const endpoint = getApiEndpoint(`tests/${currentTestId}/candidates/${candidateId}/deadline`);
       
@@ -418,6 +421,16 @@ export default function TestsAdmin() {
       setEditingDeadline(null);
       setAssignedDeadlineDate({});
       setError(null);
+      
+      // Show success message using the same pattern as email results
+      const deadlineAction = deadline ? 'updated' : 'removed';
+      const candidateName = testCandidates.assigned.find(c => c.id === candidateId)?.name || 'Unknown';
+      setDeadlineUpdateResult({
+        success: true,
+        action: deadlineAction,
+        candidateName: candidateName,
+        message: `Deadline ${deadlineAction} successfully! An email notification has been sent to the candidate.`
+      });
     } catch (err) {
       console.error('Error updating deadline:', err);
       setError(err.message || 'Failed to update deadline');
@@ -435,19 +448,18 @@ export default function TestsAdmin() {
       }
 
       const date = availableDeadlineDate;
+      let deadline = null;
       
-      if (!date) {
-        setError('Please select a date for the deadline');
-        return;
+      // Only validate deadline if one is provided
+      if (date) {
+        deadline = getMidnightEST(date);
+        if (new Date(deadline) < new Date()) {
+          setError('The midnight EST deadline for the selected date has already passed. Please choose a future date.');
+          return;
+        }
       }
 
-      const deadline = getMidnightEST(date);
-      if (new Date(deadline) < new Date()) {
-        setError('Deadline must be in the future');
-        return;
-      }
-
-      // Assign each selected candidate with the deadline
+      // Assign each selected candidate with the deadline (or null if no deadline)
       const assignments = await Promise.all(
         selectedAvailable.map(candidate =>
           fetch(getApiEndpoint(`tests/${currentTestId}/candidates/${candidate.id}`), {
@@ -1528,6 +1540,51 @@ export default function TestsAdmin() {
                 </button>
               </div>
             )}
+
+            {/* Deadline Update Results Display */}
+            {deadlineUpdateResult && (
+              <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200">
+                <h4 className="font-medium text-green-900 mb-2">Deadline Update Results</h4>
+                <p className="text-green-800 mb-2">{deadlineUpdateResult.message}</p>
+                <div className="mb-2">
+                  <p className="text-sm font-medium text-green-700">
+                    Deadline {deadlineUpdateResult.action} for: {deadlineUpdateResult.candidateName}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setDeadlineUpdateResult(null)}
+                  className="mt-2 px-3 py-1 text-sm font-medium text-green-600 bg-transparent border border-transparent rounded-md hover:text-green-800 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            {/* Error Display */}
+            {error && (
+              <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-red-800">{error}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setError(null)}
+                    className="text-red-400 hover:text-red-600"
+                  >
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
             
             {/* Assigned Candidates Section */}
             <div className="mb-8">
@@ -1669,12 +1726,11 @@ export default function TestsAdmin() {
                                   <div className="flex items-center space-x-2">
                                     <input
                                       type="date"
-                                      value={assignedDeadlineDate[candidate.id]}
+                                      value={assignedDeadlineDate[candidate.id] || ''}
                                       min={getMinDate()}
                                       onChange={(e) => setAssignedDeadlineDate({ ...assignedDeadlineDate, [candidate.id]: e.target.value })}
-                                      className={`px-2 py-1 border border-gray-300 rounded text-sm ${
-                                        !assignedDeadlineDate[candidate.id] ? 'bg-gray-100' : ''
-                                      }`}
+                                      className="px-2 py-1 border border-gray-300 rounded text-sm"
+                                      placeholder="No deadline"
                                     />
                                     <button
                                       onClick={() => handleUpdateDeadline(candidate.id)}
@@ -1682,6 +1738,14 @@ export default function TestsAdmin() {
                                     >
                                       Save
                                     </button>
+                                    {assignedDeadlineDate[candidate.id] && (
+                                      <button
+                                        onClick={() => setAssignedDeadlineDate({ ...assignedDeadlineDate, [candidate.id]: '' })}
+                                        className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-red-600 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                      >
+                                        Clear
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => {
                                         setEditingDeadline(null);
@@ -1713,11 +1777,17 @@ export default function TestsAdmin() {
                                             ...assignedDeadlineDate, 
                                             [candidate.id]: date.toISOString().split('T')[0] 
                                           });
+                                        } else {
+                                          // Initialize with empty string for no deadline
+                                          setAssignedDeadlineDate({ 
+                                            ...assignedDeadlineDate, 
+                                            [candidate.id]: '' 
+                                          });
                                         }
                                       }}
                                       className="inline-flex items-center px-2 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                                     >
-                                      Edit
+                                      {candidate.deadline ? 'Edit' : 'Set Deadline'}
                                     </button>
                                   </div>
                                 )}
@@ -1747,7 +1817,10 @@ export default function TestsAdmin() {
                       : 'bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
                   }`}
                 >
-                  Assign Test to Selected Candidates ({manageCandidatesSelection.length})
+                  {availableDeadlineDate 
+                    ? `Assign Test with Deadline to Selected Candidates (${manageCandidatesSelection.length})`
+                    : `Assign Test to Selected Candidates (${manageCandidatesSelection.length})`
+                  }
                 </button>
               </div>
               {testCandidates.available.length > 0 ? (
@@ -1757,19 +1830,28 @@ export default function TestsAdmin() {
                   <div className="flex items-center space-x-4 mb-4">
                     <div className="flex-1">
                       <label htmlFor="available-deadline-date" className="block text-sm font-medium text-gray-700">
-                        Deadline
+                        Deadline (Optional)
                       </label>
-                      <p className="text-xs text-gray-500 mt-1">Deadline will be set to midnight EST on the selected date</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        If set, deadline will be midnight EST on the selected date. Leave blank for no deadline.
+                      </p>
                       <input
                         type="date"
                         id="available-deadline-date"
                         value={availableDeadlineDate}
                         min={getMinDate()}
                         onChange={(e) => setAvailableDeadlineDate(e.target.value)}
-                        className={`mt-1 block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
-                          !availableDeadlineDate ? 'bg-gray-100' : ''
-                        }`}
+                        className="mt-1 block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                       />
+                      {availableDeadlineDate && (
+                        <button
+                          type="button"
+                          onClick={() => setAvailableDeadlineDate('')}
+                          className="mt-1 text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          Clear deadline
+                        </button>
+                      )}
                     </div>
                   </div>
 

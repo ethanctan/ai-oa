@@ -132,7 +132,6 @@ def init_database():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         instance_id INTEGER,
         token TEXT UNIQUE,
-        deadline TIMESTAMP,
         used BOOLEAN DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (instance_id) REFERENCES test_instances(id)

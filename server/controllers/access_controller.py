@@ -12,13 +12,15 @@ def validate_access_token_for_redirect(token):
     cursor = conn.cursor()
     
     try:
-        # Get token details
+        # Get token details and the CURRENT deadline from test_candidates table
         cursor.execute('''
-            SELECT at.*, ti.port, ti.docker_instance_id, c.name as candidate_name, t.name as test_name
+            SELECT at.*, ti.port, ti.docker_instance_id, c.name as candidate_name, t.name as test_name,
+                   tc.deadline as current_deadline
             FROM access_tokens at
             JOIN test_instances ti ON at.instance_id = ti.id
             JOIN candidates c ON ti.candidate_id = c.id
             JOIN tests t ON ti.test_id = t.id
+            JOIN test_candidates tc ON t.id = tc.test_id AND c.id = tc.candidate_id
             WHERE at.token = ?
         ''', (token,))
         
@@ -27,7 +29,11 @@ def validate_access_token_for_redirect(token):
         if not token_data:
             return None
         
-        return dict(token_data)
+        token_dict = dict(token_data)
+        # Use the current deadline from test_candidates, not the static one from access_tokens
+        token_dict['deadline'] = token_dict['current_deadline']
+        
+        return token_dict
         
     except Exception as e:
         print(f"Error validating access token: {e}")
