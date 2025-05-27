@@ -1,6 +1,11 @@
 from datetime import datetime, timezone
 from database.db import get_connection
 
+"""
+More routes under /instances.
+Placed in a separate file for better organization.
+"""
+
 def validate_access_token_for_redirect(token):
     """Validate an access token for redirect without marking it as used"""
     conn = get_connection()

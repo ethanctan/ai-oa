@@ -8,6 +8,11 @@ import hashlib
 from database.db import get_connection
 from controllers.instances_controller import create_instance
 
+"""
+More routes under /instances.
+Placed in a separate file for better organization.
+"""
+
 def send_test_invitation(test_id, candidate_ids, deadline=None):
     """
     Send test invitations to multiple candidates
