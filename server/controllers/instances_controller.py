@@ -577,10 +577,11 @@ def create_report(instance_id, data):
         
         if existing_report:
             # Update existing report
-            cursor.execute(
-                'UPDATE reports SET content = ? WHERE instance_id = ?',
-                (content, instance_id)
-            )
+            # cursor.execute(
+            #     'UPDATE reports SET content = ? WHERE instance_id = ?',
+            #     (content, instance_id)
+            # )
+            print("Report already exists, ignoring")
         else:
             # Create new report
             fields = {
