@@ -1,5 +1,5 @@
 //app/routes/admin.tests.jsx
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLoaderData, Form, useSubmit, useNavigation } from "@remix-run/react";
 import { loader } from "../loaders/testsLoader.jsx";
 import { action } from "../actions/testsAction.jsx";
@@ -17,6 +17,11 @@ export default function TestsAdmin() {
   const [currentTestId, setCurrentTestId] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [currentReport, setCurrentReport] = useState(null);
+  
+  // Add new state for viewing test details
+  const [showViewTestModal, setShowViewTestModal] = useState(false);
+  const [currentTestDetails, setCurrentTestDetails] = useState(null);
+  
   const [timerEnabled, setTimerEnabled] = useState(true);
   const [projectTimerEnabled, setProjectTimerEnabled] = useState(true);
   
@@ -62,6 +67,14 @@ export default function TestsAdmin() {
   const [isSendingEmails, setIsSendingEmails] = useState(false);
   const [emailResults, setEmailResults] = useState(null);
   const [deadlineUpdateResult, setDeadlineUpdateResult] = useState(null);
+
+  // Use ref to track modal state for polling without causing re-renders
+  const isAnyModalOpenRef = useRef(false);
+
+  // Update ref when any modal state changes
+  useEffect(() => {
+    isAnyModalOpenRef.current = showViewTestModal || showNewTestForm || showManageCandidatesModal || showReportModal;
+  }, [showViewTestModal, showNewTestForm, showManageCandidatesModal, showReportModal]);
 
   // Add function to get unique tags from candidates
   const getAllTags = useMemo(() => {
@@ -540,6 +553,29 @@ export default function TestsAdmin() {
     setCurrentReport(null);
   };
 
+  // Add function to handle viewing test details
+  const handleViewTest = async (testId) => {
+    try {
+      const response = await fetch(getApiEndpoint(`tests/${testId}`));
+      if (response.ok) {
+        const testData = await response.json();
+        setCurrentTestDetails(testData);
+        setShowViewTestModal(true);
+      } else {
+        const error = await response.text();
+        alert(`Failed to fetch test details: ${error}`);
+      }
+    } catch (error) {
+      alert(`Error fetching test details: ${error.message}`);
+    }
+  };
+
+  // Close the view test modal
+  const handleCloseViewTest = () => {
+    setShowViewTestModal(false);
+    setCurrentTestDetails(null);
+  };
+
   // Function to fetch tests
   const fetchTests = async () => {
     try {
@@ -559,15 +595,25 @@ export default function TestsAdmin() {
     fetchInstances();
     
     // Set up polling (every 10 seconds to reduce server load)
-    const testsInterval = setInterval(fetchTests, 10000);
-    const instancesInterval = setInterval(fetchInstances, 10000);
+    // But pause polling when any modal is open to prevent state resets
+    const testsInterval = setInterval(() => {
+      if (!isAnyModalOpenRef.current) {
+        fetchTests();
+      }
+    }, 10000);
+    
+    const instancesInterval = setInterval(() => {
+      if (!isAnyModalOpenRef.current) {
+        fetchInstances();
+      }
+    }, 10000);
     
     // Clean up intervals when component unmounts
     return () => {
       clearInterval(testsInterval);
       clearInterval(instancesInterval);
     };
-  }, []);
+  }, []); // Remove unnecessary dependency
 
   // Handle test deletion
   const handleDeleteTest = async (testId, testName) => {
@@ -706,6 +752,303 @@ export default function TestsAdmin() {
     }
   };
 
+  // TestFormModal component for both creating and viewing tests
+  // TODO: Right now this is just used for viewing test details. Eventually want to use this for test creation to avoid code reuse.
+  const TestFormModal = ({ 
+    isOpen, 
+    onClose, 
+    mode = 'create', // 'create' or 'view'
+    testData = null,
+    candidates = [],
+    selectedCandidates = [],
+    onCandidateToggle = () => {},
+    onSubmit = () => {},
+    // State for form controls
+    timerEnabled,
+    setTimerEnabled,
+    projectTimerEnabled,
+    setProjectTimerEnabled,
+    targetGithubRepoEnabled,
+    setTargetGithubRepoEnabled,
+    targetGithubTokenEnabled,
+    setTargetGithubTokenEnabled,
+    initialPromptEnabled,
+    setInitialPromptEnabled,
+    finalPromptEnabled,
+    setFinalPromptEnabled,
+    assessmentType,
+    setAssessmentType,
+    qualitativeCriteria,
+    setQualitativeCriteria,
+    quantitativeCriteria,
+    setQuantitativeCriteria,
+    // Tag filtering props
+    getAllTags,
+    selectedTags,
+    handleTagSelection,
+    filterCandidatesByTags,
+    selectAllShown,
+    handleSelectAllShown
+  }) => {
+    if (!isOpen) return null;
+
+    const isViewMode = mode === 'view';
+    const modalTitle = isViewMode ? 'Test Details' : 'Create New Test';
+    
+    // Parse assessment criteria for view mode
+    let parsedQualitativeCriteria = [];
+    let parsedQuantitativeCriteria = [];
+    let detectedAssessmentType = 'qualitative';
+    
+    if (isViewMode && testData) {
+      try {
+        if (testData.qualitative_assessment_prompt) {
+          parsedQualitativeCriteria = JSON.parse(testData.qualitative_assessment_prompt);
+        }
+        if (testData.quantitative_assessment_prompt) {
+          parsedQuantitativeCriteria = JSON.parse(testData.quantitative_assessment_prompt);
+        }
+        
+        // Determine assessment type based on what's available
+        const hasQualitative = parsedQualitativeCriteria.length > 0;
+        const hasQuantitative = parsedQuantitativeCriteria.length > 0;
+        
+        if (hasQualitative && hasQuantitative) {
+          detectedAssessmentType = 'both';
+        } else if (hasQuantitative) {
+          detectedAssessmentType = 'quantitative';
+        } else {
+          detectedAssessmentType = 'qualitative';
+        }
+      } catch (e) {
+        console.error('Error parsing assessment criteria:', e);
+      }
+    }
+
+    return (
+      <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-8 max-w-4xl w-full max-h-screen overflow-y-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-semibold">{modalTitle}</h3>
+            <button 
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              &times;
+            </button>
+          </div>
+
+          {isViewMode ? (
+            // View mode - display test details
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Test Name
+                </label>
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
+                  {testData?.name || 'N/A'}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-medium text-lg">Timer Configuration</h4>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">
+                    Initial Waiting Timer
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-sm ${testData?.enable_timer ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {testData?.enable_timer ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <div className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                      testData?.enable_timer ? 'bg-blue-600' : 'bg-gray-200'
+                    }`}>
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        testData?.enable_timer ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Timer Duration (minutes)
+                  </label>
+                  <div className="w-32 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
+                    {testData?.timer_duration || 'N/A'}
+                  </div>
+                </div>
+
+                <h4 className="font-medium text-lg mt-6">Project Work Timer Configuration</h4>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">
+                    Project Work Timer
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-sm ${testData?.enable_project_timer ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {testData?.enable_project_timer ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <div className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                      testData?.enable_project_timer ? 'bg-blue-600' : 'bg-gray-200'
+                    }`}>
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        testData?.enable_project_timer ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Project Work Duration (minutes)
+                  </label>
+                  <div className="w-32 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
+                    {testData?.project_timer_duration || 'N/A'}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  GitHub Repo URL
+                </label>
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
+                  {testData?.github_repo || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  GitHub Token
+                </label>
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
+                  {testData?.github_token ? '••••••••••••••••' : 'Not provided'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Target GitHub Repo URL (for Upload)
+                </label>
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
+                  {testData?.target_github_repo || 'Not provided'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Target GitHub Token (for Upload)
+                </label>
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
+                  {testData?.target_github_token ? '••••••••••••••••' : 'Not provided'}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-medium text-lg mb-2">Interviewer Prompts</h4>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Initial Interview
+                  </label>
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 min-h-[120px]">
+                    {testData?.initial_prompt || 'Not provided'}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Post-completion Interview
+                  </label>
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 min-h-[120px]">
+                    {testData?.final_prompt || 'Not provided'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-medium text-lg mb-2">Assessment Criteria</h4>
+                
+                <div className="flex items-center space-x-4 mb-4">
+                  <label className="block text-sm font-medium text-gray-700">Criteria Type:</label>
+                  <div className="flex items-center space-x-4">
+                    <span className={`px-3 py-1 rounded text-sm ${
+                      detectedAssessmentType === 'qualitative' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      Qualitative {detectedAssessmentType === 'qualitative' ? '✓' : ''}
+                    </span>
+                    <span className={`px-3 py-1 rounded text-sm ${
+                      detectedAssessmentType === 'quantitative' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      Quantitative {detectedAssessmentType === 'quantitative' ? '✓' : ''}
+                    </span>
+                    <span className={`px-3 py-1 rounded text-sm ${
+                      detectedAssessmentType === 'both' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      Both {detectedAssessmentType === 'both' ? '✓' : ''}
+                    </span>
+                  </div>
+                </div>
+
+                {(detectedAssessmentType === 'qualitative' || detectedAssessmentType === 'both') && (
+                  <div className="space-y-3 p-4 border border-gray-200 rounded-md bg-gray-50">
+                    <h5 className="font-medium text-md mb-2">Qualitative Criteria</h5>
+                    {parsedQualitativeCriteria.length > 0 ? (
+                      parsedQualitativeCriteria.map((criterion, index) => (
+                        <div key={index} className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-600">
+                          {criterion || `Criterion ${index + 1} (empty)`}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-500">
+                        No qualitative criteria defined
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(detectedAssessmentType === 'quantitative' || detectedAssessmentType === 'both') && (
+                  <div className="space-y-4 p-4 border border-gray-200 rounded-md bg-gray-50">
+                    <h5 className="font-medium text-md mb-3">Quantitative Criteria (Rubric)</h5>
+                    {parsedQuantitativeCriteria.length > 0 ? (
+                      parsedQuantitativeCriteria.map((row, rowIndex) => (
+                        <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-white">
+                          <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-medium text-gray-700">
+                            {row[0] || `Rubric Item ${rowIndex + 1} (empty)`}
+                          </div>
+                          <p className="text-xs text-gray-500 ml-1">Score Descriptions (Lowest to Highest):</p>
+                          {row.slice(1).map((scoreDesc, scoreIndex) => (
+                            <div key={scoreIndex} className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 ml-4">
+                              {scoreDesc || `Score ${scoreIndex + 1} (empty)`}
+                            </div>
+                          ))}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-500">
+                        No quantitative criteria defined
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-6 border-t border-gray-200">
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          ) : (
+            // Create mode - existing form (will be moved here in next step)
+            <div>Create mode form will be moved here</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -758,7 +1101,7 @@ export default function TestsAdmin() {
                   <td className="py-3 px-4">
                     <button 
                       className="text-blue-600 hover:text-blue-800 mr-3"
-                      onClick={() => alert(`View ${test.name} details`)}
+                      onClick={() => handleViewTest(test.id)}
                     >
                       View
                     </button>
@@ -2054,6 +2397,14 @@ export default function TestsAdmin() {
           </div>
         </div>
       )}
+
+      {/* View Test Details Modal */}
+      <TestFormModal
+        isOpen={showViewTestModal}
+        onClose={handleCloseViewTest}
+        mode="view"
+        testData={currentTestDetails}
+      />
     </div>
   );
 } 

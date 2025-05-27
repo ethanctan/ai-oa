@@ -51,6 +51,7 @@ def get_test(test_id):
                 t.qualitative_assessment_prompt, t.quantitative_assessment_prompt,
                 t.candidates_assigned, t.candidates_completed, 
                 t.enable_timer, t.timer_duration,
+                t.enable_project_timer, t.project_timer_duration,
                 t.created_at, t.updated_at,
                 t.target_github_repo, t.target_github_token,
                 COUNT(DISTINCT tc.candidate_id) as total_candidates
