@@ -1216,5 +1216,48 @@
     "endTimeMs": 1748332884000,
     "timeRemaining": 600,
     "timeRemainingMs": 600000
+  },
+  "98": {
+    "instanceId": "98",
+    "startTime": 1748354852,
+    "endTime": 1748355452,
+    "duration": 600,
+    "active": true,
+    "interviewStarted": false,
+    "timerType": "initial",
+    "currentTimeMs": 1748354852000,
+    "endTimeMs": 1748355452000,
+    "timeRemaining": 600,
+    "timeRemainingMs": 600000
+  },
+  "99": {
+    "instanceId": "99",
+    "startTime": 1748354949,
+    "endTime": 1748358549,
+    "duration": 3600,
+    "active": true,
+    "interviewStarted": false,
+    "timerType": "project",
+    "currentTimeMs": 1748354949000,
+    "endTimeMs": 1748358549000,
+    "timeRemaining": 3600,
+    "timeRemainingMs": 3600000,
+    "projectStarted": true,
+    "finalInterviewStarted": true
+  },
+  "100": {
+    "instanceId": "100",
+    "startTime": 1748355797,
+    "endTime": 1748359397,
+    "duration": 3600,
+    "active": true,
+    "interviewStarted": false,
+    "timerType": "project",
+    "currentTimeMs": 1748355797000,
+    "endTimeMs": 1748359397000,
+    "timeRemaining": 3600,
+    "timeRemainingMs": 3600000,
+    "projectStarted": true,
+    "finalInterviewStarted": true
   }
 }

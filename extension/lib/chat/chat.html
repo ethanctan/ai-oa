@@ -888,6 +888,8 @@
             } else if (detectedPhase === 'final') {
               console.log('Detected end of final interview in history - setting TrulyEnded flag.');
               finalInterviewTrulyEnded = true; // Set the flag when final END is found in history
+              // Submit final report when final interview ends
+              submitFinalReport();
             }
           }
           
@@ -1253,6 +1255,8 @@
                 // In final phase, show completion message and permanently disable input
                 appendMessage('system', 'Final interview complete. Thank you for your participation. You may now safely close this window.', true);
                 finalInterviewTrulyEnded = true;
+                // Submit final report when final interview ends
+                submitFinalReport();
                 updateInputStateBasedOnPhase(); // Immediately disable input
               }
             } else {
@@ -1447,35 +1451,6 @@
           return;
         }
         
-        // First, gather the updated workspace content and submit it to the backend
-        console.log('Gathering workspace content for submission...');
-        
-        // Request fresh workspace content - but don't wait for the response
-        vscode.postMessage({ command: 'getWorkspaceContent' });
-        
-        // Set up a one-time listener for the response with workspace content
-        window.addEventListener('message', function workspaceContentListener(event) {
-          if (event.data.command === 'workspaceContent') {
-            // Remove this one-time listener
-            window.removeEventListener('message', workspaceContentListener);
-            
-            const content = event.data.content;
-            if (event.data.error) {
-              console.error('Error getting workspace content:', event.data.error);
-              return;
-            }
-            
-            console.log(`Got workspace content, size: ${content.length} chars`);
-            
-            // Submit the workspace content to the backend, but don't wait
-            vscode.postMessage({
-              command: 'submitWorkspaceContent',
-              instanceId,
-              content
-            });
-          }
-        });
-        
         // Proceed with starting the final interview immediately
         // Clear existing chat history for display purposes
         messagesContainer.innerHTML = '';
@@ -1639,6 +1614,40 @@
       // Call this function every time a timer status update is received
       // or any event that might change the phase
       setInterval(updateInputStateBasedOnPhase, 2000); // Check every 2 seconds to be safe
+
+      // Function to submit final report when interview ends
+      function submitFinalReport() {
+        console.log('FINAL REPORT API: Starting final report submission process...');
+        
+        // Request fresh workspace content
+        vscode.postMessage({ command: 'getWorkspaceContent' });
+        
+        // Set up a one-time listener for the response with workspace content
+        window.addEventListener('message', function workspaceContentListener(event) {
+          if (event.data.command === 'workspaceContent') {
+            // Remove this one-time listener
+            window.removeEventListener('message', workspaceContentListener);
+            
+            const content = event.data.content;
+            if (event.data.error) {
+              console.error('FINAL REPORT API: Error getting workspace content:', event.data.error);
+              return;
+            }
+            
+            console.log(`FINAL REPORT API: Got workspace content, size: ${content.length} chars`);
+            console.log('FINAL REPORT API: Calling submitWorkspaceContent command...');
+            
+            // Submit the workspace content to the backend for final report generation
+            vscode.postMessage({
+              command: 'submitWorkspaceContent',
+              instanceId,
+              content
+            });
+            
+            console.log('FINAL REPORT API: submitWorkspaceContent command sent successfully');
+          }
+        });
+      }
     }());
   </script>
 </body>
