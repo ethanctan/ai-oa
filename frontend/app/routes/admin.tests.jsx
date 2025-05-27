@@ -1017,7 +1017,7 @@ export default function TestsAdmin() {
                       parsedQuantitativeCriteria.map((criterion, rowIndex) => (
                         <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-white">
                           <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-medium text-gray-700">
-                            {criterion.title || `Rubric Item ${rowIndex + 1} (empty)`}
+                            {criterion.title || `Rubric Item Title ${rowIndex + 1} (empty)`}
                           </div>
                           <p className="text-xs text-gray-500 ml-1">Score Descriptions (Lowest to Highest):</p>
                           {Object.keys(criterion)
@@ -1655,7 +1655,7 @@ export default function TestsAdmin() {
                               newCriteria[rowIndex].title = e.target.value;
                               setQuantitativeCriteria(newCriteria);
                             }}
-                            placeholder={`Rubric Item ${rowIndex + 1} (e.g., Code Quality)`}
+                            placeholder={`Rubric Item Title ${rowIndex + 1} (e.g., Code Quality)`}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-medium"
                           />
                           <button 
