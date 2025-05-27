@@ -52,6 +52,12 @@ export default function TestsAdmin() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [selectAllShown, setSelectAllShown] = useState(false);
 
+  // Add separate state for assigned vs available candidates tag filtering
+  const [selectedAssignedTags, setSelectedAssignedTags] = useState([]);
+  const [selectedAvailableTags, setSelectedAvailableTags] = useState([]);
+  const [selectAllAssignedShown, setSelectAllAssignedShown] = useState(false);
+  const [selectAllAvailableShown, setSelectAllAvailableShown] = useState(false);
+
   // Add state for email sending
   const [isSendingEmails, setIsSendingEmails] = useState(false);
   const [emailResults, setEmailResults] = useState(null);
@@ -69,7 +75,20 @@ export default function TestsAdmin() {
     return Array.from(tags).sort();
   }, [candidates]);
 
-  // Add function to filter candidates by tags
+  // Add function to get unique tags from test candidates (for manage candidates modal)
+  const getAllTestCandidatesTags = useMemo(() => {
+    const tags = new Set();
+    [...(testCandidates.assigned || []), ...(testCandidates.available || [])].forEach(candidate => {
+      if (candidate.tags) {
+        candidate.tags.split(';').forEach(tag => {
+          if (tag.trim()) tags.add(tag.trim());
+        });
+      }
+    });
+    return Array.from(tags).sort();
+  }, [testCandidates]);
+
+  // Add function to filter candidates by tags (for new test form)
   const filterCandidatesByTags = (candidates) => {
     if (!selectedTags.length) return candidates;
     return candidates.filter(candidate => {
@@ -79,7 +98,27 @@ export default function TestsAdmin() {
     });
   };
 
-  // Add function to handle tag selection
+  // Add function to filter assigned candidates by tags
+  const filterAssignedCandidatesByTags = (candidates) => {
+    if (!selectedAssignedTags.length) return candidates;
+    return candidates.filter(candidate => {
+      if (!candidate.tags) return false;
+      const candidateTags = candidate.tags.split(';').map(tag => tag.trim());
+      return selectedAssignedTags.some(tag => candidateTags.includes(tag));
+    });
+  };
+
+  // Add function to filter available candidates by tags
+  const filterAvailableCandidatesByTags = (candidates) => {
+    if (!selectedAvailableTags.length) return candidates;
+    return candidates.filter(candidate => {
+      if (!candidate.tags) return false;
+      const candidateTags = candidate.tags.split(';').map(tag => tag.trim());
+      return selectedAvailableTags.some(tag => candidateTags.includes(tag));
+    });
+  };
+
+  // Add function to handle tag selection (for new test form)
   const handleTagSelection = (tag) => {
     setSelectedTags(prev => 
       prev.includes(tag) 
@@ -88,7 +127,25 @@ export default function TestsAdmin() {
     );
   };
 
-  // Add function to handle select all shown
+  // Add function to handle assigned candidates tag selection
+  const handleAssignedTagSelection = (tag) => {
+    setSelectedAssignedTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+
+  // Add function to handle available candidates tag selection
+  const handleAvailableTagSelection = (tag) => {
+    setSelectedAvailableTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+
+  // Add function to handle select all shown (for new test form)
   const handleSelectAllShown = (candidates) => {
     if (selectAllShown) {
       // Deselect all shown candidates
@@ -105,6 +162,36 @@ export default function TestsAdmin() {
       setManageCandidatesSelection(prev => [...new Set([...prev, ...newIds])]);
     }
     setSelectAllShown(!selectAllShown);
+  };
+
+  // Add function to handle select all assigned shown
+  const handleSelectAllAssignedShown = (candidates) => {
+    if (selectAllAssignedShown) {
+      // Deselect all shown assigned candidates
+      setSelectedAssignedCandidates(prev => 
+        prev.filter(id => !candidates.some(c => c.id === id))
+      );
+    } else {
+      // Select all shown assigned candidates
+      const newIds = candidates.map(c => c.id);
+      setSelectedAssignedCandidates(prev => [...new Set([...prev, ...newIds])]);
+    }
+    setSelectAllAssignedShown(!selectAllAssignedShown);
+  };
+
+  // Add function to handle select all available shown
+  const handleSelectAllAvailableShown = (candidates) => {
+    if (selectAllAvailableShown) {
+      // Deselect all shown available candidates
+      setManageCandidatesSelection(prev => 
+        prev.filter(id => !candidates.some(c => c.id === id))
+      );
+    } else {
+      // Select all shown available candidates
+      const newIds = candidates.map(c => c.id);
+      setManageCandidatesSelection(prev => [...new Set([...prev, ...newIds])]);
+    }
+    setSelectAllAvailableShown(!selectAllAvailableShown);
   };
 
   // Helper function to get midnight EST for a given date
@@ -267,6 +354,11 @@ export default function TestsAdmin() {
     setAssignedDeadlineDate({});
     setAvailableDeadlineDate('');
     setEmailResults(null);
+    // Reset tag filter states
+    setSelectedAssignedTags([]);
+    setSelectedAvailableTags([]);
+    setSelectAllAssignedShown(false);
+    setSelectAllAvailableShown(false);
   };
 
   // Update handleUpdateDeadline to use midnight EST
@@ -1467,116 +1559,174 @@ export default function TestsAdmin() {
                 </div>
               </div>
               {testCandidates.assigned && testCandidates.assigned.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <div className="min-w-[1024px]">
-                    <table className="w-full border border-gray-300 rounded-md overflow-hidden">
-                    <thead className="bg-gray-50">
-                      <tr>
+                <div className="space-y-4">
+                  {/* Tag Filter Section for Assigned Candidates */}
+                  <div className="mb-4">
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {getAllTestCandidatesTags.map(tag => (
+                        <button
+                          key={tag}
+                          onClick={() => handleAssignedTagSelection(tag)}
+                          className={`inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md ${
+                            selectedAssignedTags.includes(tag)
+                              ? 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedAssignedTags.length > 0 && (
+                      <button
+                        onClick={() => setSelectedAssignedTags([])}
+                        className="inline-flex items-center px-3 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        Clear tag filters
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="bg-gray-50 px-4 py-2 flex justify-between items-center rounded-t-md">
+                    <span className="text-sm text-gray-600">
+                      {filterAssignedCandidatesByTags(testCandidates.assigned).length} candidates shown
+                    </span>
+                    <button
+                      onClick={() => handleSelectAllAssignedShown(filterAssignedCandidatesByTags(testCandidates.assigned))}
+                      className="inline-flex items-center px-3 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      {selectAllAssignedShown ? 'Deselect All Shown' : 'Select All Shown'}
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[1024px]">
+                      <table className="w-full border border-gray-300 rounded-md overflow-hidden">
+                      <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Select
+                            </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Select
+                            Name
                           </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Name
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Email
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Deadline
+                            Email
                           </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {testCandidates.assigned.map((candidate) => (
-                        <tr key={candidate.id}>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tags
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Deadline
+                            </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {filterAssignedCandidatesByTags(testCandidates.assigned).map((candidate) => (
+                          <tr key={candidate.id}>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <input 
+                                  type="checkbox" 
+                                  checked={selectedAssignedCandidates.includes(candidate.id)}
+                                  onChange={() => toggleAssignedCandidateSelection(candidate.id)}
+                                  className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                                />
+                              </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              <input 
-                                type="checkbox" 
-                                checked={selectedAssignedCandidates.includes(candidate.id)}
-                                onChange={() => toggleAssignedCandidateSelection(candidate.id)}
-                                className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
-                              />
-                            </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {candidate.name}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {candidate.email}
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                candidate.test_completed 
-                                  ? "bg-green-100 text-green-800" 
-                                  : "bg-yellow-100 text-yellow-800"
-                              }`}>
-                                {candidate.test_completed ? "Completed" : "Pending"}
-                              </span>
+                              {candidate.name}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
-                              {editingDeadline === candidate.id ? (
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="date"
-                                    value={assignedDeadlineDate[candidate.id]}
-                                    min={getMinDate()}
-                                    onChange={(e) => setAssignedDeadlineDate({ ...assignedDeadlineDate, [candidate.id]: e.target.value })}
-                                    className={`px-2 py-1 border border-gray-300 rounded text-sm ${
-                                      !assignedDeadlineDate[candidate.id] ? 'bg-gray-100' : ''
-                                    }`}
-                                  />
-                                  <button
-                                    onClick={() => handleUpdateDeadline(candidate.id)}
-                                    className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                              {candidate.email}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {candidate.tags ? (
+                                candidate.tags.split(';').map((tag, index) => (
+                                  <span 
+                                    key={index} 
+                                    className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1"
                                   >
-                                    Save
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setEditingDeadline(null);
-                                      setAssignedDeadlineDate({});
-                                    }}
-                                    className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-sm">
-                                    {candidate.deadline 
-                                      ? new Date(candidate.deadline).toLocaleDateString('en-US', { 
-                                          timeZone: 'America/New_York',
-                                          year: 'numeric',
-                                          month: 'short',
-                                          day: 'numeric'
-                                        })
-                                      : 'No deadline set'}
+                                    {tag.trim()}
                                   </span>
-                                  <button
-                                    onClick={() => {
-                                      setEditingDeadline(candidate.id);
-                                      if (candidate.deadline) {
-                                        const date = new Date(candidate.deadline);
-                                        setAssignedDeadlineDate({ 
-                                          ...assignedDeadlineDate, 
-                                          [candidate.id]: date.toISOString().split('T')[0] 
-                                        });
-                                      }
-                                    }}
-                                    className="inline-flex items-center px-2 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                  >
-                                    Edit
-                                  </button>
-                                </div>
+                                ))
+                              ) : (
+                                <span className="text-gray-500">No tags</span>
                               )}
                             </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`px-2 py-1 rounded text-xs ${
+                                  candidate.test_completed 
+                                    ? "bg-green-100 text-green-800" 
+                                    : "bg-yellow-100 text-yellow-800"
+                                }`}>
+                                  {candidate.test_completed ? "Completed" : "Pending"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {editingDeadline === candidate.id ? (
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      type="date"
+                                      value={assignedDeadlineDate[candidate.id]}
+                                      min={getMinDate()}
+                                      onChange={(e) => setAssignedDeadlineDate({ ...assignedDeadlineDate, [candidate.id]: e.target.value })}
+                                      className={`px-2 py-1 border border-gray-300 rounded text-sm ${
+                                        !assignedDeadlineDate[candidate.id] ? 'bg-gray-100' : ''
+                                      }`}
+                                    />
+                                    <button
+                                      onClick={() => handleUpdateDeadline(candidate.id)}
+                                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingDeadline(null);
+                                        setAssignedDeadlineDate({});
+                                      }}
+                                      className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-sm">
+                                      {candidate.deadline 
+                                        ? new Date(candidate.deadline).toLocaleDateString('en-US', { 
+                                            timeZone: 'America/New_York',
+                                            year: 'numeric',
+                                            month: 'short',
+                                            day: 'numeric'
+                                          })
+                                        : 'No deadline set'}
+                                    </span>
+                                    <button
+                                      onClick={() => {
+                                        setEditingDeadline(candidate.id);
+                                        if (candidate.deadline) {
+                                          const date = new Date(candidate.deadline);
+                                          setAssignedDeadlineDate({ 
+                                            ...assignedDeadlineDate, 
+                                            [candidate.id]: date.toISOString().split('T')[0] 
+                                          });
+                                        }
+                                      }}
+                                      className="inline-flex items-center px-2 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    >
+                                      Edit
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -1626,12 +1776,12 @@ export default function TestsAdmin() {
                   {/* Tag Filter Section */}
                   <div className="mb-4">
                     <div className="flex flex-wrap gap-2 mb-2">
-                      {getAllTags.map(tag => (
+                      {getAllTestCandidatesTags.map(tag => (
                         <button
                           key={tag}
-                          onClick={() => handleTagSelection(tag)}
+                          onClick={() => handleAvailableTagSelection(tag)}
                           className={`inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md ${
-                            selectedTags.includes(tag)
+                            selectedAvailableTags.includes(tag)
                               ? 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500'
                           }`}
@@ -1640,9 +1790,9 @@ export default function TestsAdmin() {
                         </button>
                       ))}
                     </div>
-                    {selectedTags.length > 0 && (
+                    {selectedAvailableTags.length > 0 && (
                       <button
-                        onClick={() => setSelectedTags([])}
+                        onClick={() => setSelectedAvailableTags([])}
                         className="inline-flex items-center px-3 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       >
                         Clear tag filters
@@ -1653,13 +1803,13 @@ export default function TestsAdmin() {
 
                   <div className="bg-gray-50 px-4 py-2 flex justify-between items-center rounded-t-md">
                     <span className="text-sm text-gray-600">
-                      {filterCandidatesByTags(testCandidates.available).length} candidates shown
+                      {filterAvailableCandidatesByTags(testCandidates.available).length} candidates shown
                     </span>
                     <button
-                      onClick={() => handleSelectAllShown(filterCandidatesByTags(testCandidates.available))}
+                      onClick={() => handleSelectAllAvailableShown(filterAvailableCandidatesByTags(testCandidates.available))}
                       className="inline-flex items-center px-3 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
-                      {selectAllShown ? 'Deselect All Shown' : 'Select All Shown'}
+                      {selectAllAvailableShown ? 'Deselect All Shown' : 'Select All Shown'}
                     </button>
                   </div>
 
@@ -1683,7 +1833,7 @@ export default function TestsAdmin() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {filterCandidatesByTags(testCandidates.available).map((candidate) => (
+                          {filterAvailableCandidatesByTags(testCandidates.available).map((candidate) => (
                             <tr key={candidate.id} className="bg-white">
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <input 

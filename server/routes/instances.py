@@ -1,10 +1,101 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, redirect, render_template_string
 from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github
 from controllers.reports_controller import get_report
 from controllers.email_controller import send_test_invitation
+from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url
 
 # Create a Blueprint for instances routes
 instances_bp = Blueprint('instances', __name__)
+
+# GET /instances/access/<token> - Access test instance via token with deadline validation
+@instances_bp.route('/access/<token>')
+def access_test_instance(token):
+    """
+    Handle access token redirect - validate deadline and redirect to test instance
+    """
+    try:
+        # Validate the access token and get instance details
+        token_data = validate_access_token_for_redirect(token)
+        
+        if not token_data:
+            return render_error_page("Invalid or expired access link", 
+                                   "This link is not valid. Please contact the administrator for a new link.")
+        
+        # Check if deadline has passed
+        is_expired, deadline_formatted = check_deadline_expired(token_data['deadline'])
+        if is_expired:
+            if deadline_formatted:
+                message = f"The deadline for this assessment was {deadline_formatted}. You can no longer access this test."
+            else:
+                message = "There was an issue with the deadline configuration. Please contact the administrator."
+            return render_error_page("Assessment Deadline Passed", message)
+        
+        # Redirect to the test instance
+        instance_url = get_instance_url(token_data['port'])
+        return redirect(instance_url)
+        
+    except Exception as e:
+        print(f"Error in access_test_instance: {str(e)}")
+        return render_error_page("Access Error", 
+                               "There was an error accessing your test. Please contact the administrator.")
+
+def render_error_page(title, message):
+    """Render a simple error page"""
+    html_template = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{{ title }}</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background-color: #f9fafb;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+            }
+            .container {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                padding: 2rem;
+                max-width: 500px;
+                text-align: center;
+            }
+            .title {
+                color: #dc2626;
+                font-size: 1.5rem;
+                font-weight: 600;
+                margin-bottom: 1rem;
+            }
+            .message {
+                color: #374151;
+                line-height: 1.6;
+                margin-bottom: 1.5rem;
+            }
+            .contact {
+                color: #6b7280;
+                font-size: 0.875rem;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="title">{{ title }}</div>
+            <div class="message">{{ message }}</div>
+            <div class="contact">
+                If you believe this is an error, please contact your assessment administrator.
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return render_template_string(html_template, title=title, message=message), 400
 
 # GET /instances - Get all instances
 @instances_bp.route('/', methods=['GET'])

@@ -1931,5 +1931,15 @@
       "role": "assistant",
       "content": "Great! To begin, how would you approach the design phase for this project? Could you walk me through your thought process and the steps you would take to create a robust design?"
     }
+  ],
+  "96": [
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let\u2019s start with design. How would you begin by designing the solution for this project? Specifically, what steps would you take to break down the problem and create a high-level plan?"
+    }
   ]
 }

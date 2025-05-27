@@ -69,8 +69,8 @@ def send_test_invitation(test_id, candidate_ids, deadline=None):
                 # Store the access token in database
                 store_access_token(instance['id'], access_token, deadline)
                 
-                # Generate the secure access URL
-                access_url = f"http://localhost:{instance['port']}?token={access_token}"
+                # Generate the redirect access URL using the instances route
+                access_url = f"http://localhost:3000/instances/access/{access_token}"
                 
                 # Send email
                 email_sent = send_email(
@@ -150,7 +150,7 @@ def store_access_token(instance_id, token, deadline=None):
         conn.close()
 
 def validate_access_token(token):
-    """Validate an access token and return instance details if valid"""
+    """Validate an access token and return instance details if valid (legacy function - marks as used)"""
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -250,6 +250,7 @@ To begin your assessment, please click the link below:
 
 Important Notes:
 - This link is unique to you and will expire on the deadline
+- You can access the link multiple times before the deadline
 - Please complete the assessment before the deadline
 - If you encounter any technical issues, please contact the assessment administrator
 
