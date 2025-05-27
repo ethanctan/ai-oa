@@ -9,8 +9,10 @@ import zipfile # For handling zip files
 from pathlib import Path
 from database.db import get_connection
 from controllers.timer_controller import start_instance_timer
-from pydantic import Field, BaseModel
+from pydantic import Field, BaseModel, create_model, validator 
 from pydantic.json_schema import GenerateJsonSchema
+from typing import Dict, Union, List, Any, Optional
+from typing_extensions import Literal
 
 # Base directory for project repositories
 BASE_PROJECTS_DIR = Path(__file__).parent.parent / 'projects'
@@ -584,17 +586,112 @@ def create_report(instance_id, data):
             print("Report already exists, ignoring")
         else:
             # Create new report
-            fields = {
-                'code_summary': (str, Field(title='Code Summary', description='A short summary of the code, including the key choices made by the candidate in implementing the solution'))
-            }
-            
+           
+ 
+            # Step 1: Build QuantitativeCriterionModel
+            class QuantitativeCriterionModel(BaseModel):
+                score: int = Field(title="Score", description="Numerical score for this criterion")
+                explanation: str = Field(title="Explanation", description="Justification for the given score")
+
+            # Step 2: Build field definitions based on flags
+            field_definitions = {}
+
+            field_definitions['code_summary'] = (
+                str,
+                Field(title="Code Summary", description="Concise summary of the code architecture and implementation.")
+            )
+
             if test_data['initial_prompt']:
-                fields['initial_interview_summary'] = (str, Field(title='Initial Interview Summary', description='A summary of the initial interview with the candidate, including the key insights and areas of concern'))
-            
+                field_definitions['initial_interview_summary'] = (
+                    str,
+                    Field(title="Initial Interview Summary", description="Summary of candidate's understanding and early design ideas in the initial interview chat logs.")
+                )
+
             if test_data['final_prompt']:
-                fields['final_interview_summary'] = (str, Field(title='Final Interview Summary', description='A summary of the final interview with the candidate, including the key insights and areas of concern'))
-            
-            ReportSchema = type('ReportSchema', (BaseModel,), fields)
+                field_definitions['final_interview_summary'] = (
+                    str,
+                    Field(title="Final Interview Summary", description="Summary of final design and implementation discussion in the final interview chat logs.")
+                )
+
+            if test_data['qualitative_assessment_prompt']:
+                # Build qualitative description
+                qualitative_criteria_list = json.loads(test_data['qualitative_assessment_prompt'])
+                qualitative_desc = "Qualitative criteria performance assessments:\n"
+                for qc in qualitative_criteria_list:
+                    qualitative_desc += f"- {qc['title']}: {qc['description']}\n"
+                field_definitions['qualitative_criteria'] = (
+                    Dict[str, str],
+                    Field(title="Qualitative Criteria", description=qualitative_desc)
+                )
+
+            if test_data['quantitative_assessment_prompt']:
+                # Process quantitative criteria for validation
+                quantitative_criteria_list = json.loads(test_data['quantitative_assessment_prompt'])
+                quantitative_metadata = {}
+                for qc in quantitative_criteria_list:
+                    title = qc["title"]
+                    descriptors = {k: v for k, v in qc.items() if isinstance(k, (int, float))}
+                    min_score = min(descriptors)
+                    max_score = max(descriptors)
+                    quantitative_metadata[title] = {
+                        "min_score": min_score,
+                        "max_score": max_score,
+                        "descriptors": descriptors
+                    }
+                
+                # Build quantitative description
+                quantitative_desc = "Quantitative criteria scores and explanations:\n"
+                for qc in quantitative_criteria_list:
+                    title = qc["title"]
+                    descriptors = quantitative_metadata[title]["descriptors"]
+                    quantitative_desc += f"- {title} (score range: {min(descriptors.keys())}-{max(descriptors.keys())}):\n"
+                    for k, v in sorted(descriptors.items()):
+                        quantitative_desc += f"  - {k}: {v}\n"
+                field_definitions['quantitative_criteria'] = (
+                    Dict[str, QuantitativeCriterionModel],
+                    Field(title="Quantitative Criteria", description=quantitative_desc)
+                )
+
+            # Step 3: Create the base model dynamically
+            DynamicModel = create_model('DynamicModel', **field_definitions)
+
+            # Step 4: Define the model with validators (conditional)
+            class ReportSchema(DynamicModel):
+                class Config:
+                    extra = 'forbid'
+
+                # Conditional validator for qualitative_criteria
+                if test_data['qualitative_assessment_prompt']:
+                    @validator('qualitative_criteria')
+                    def validate_qualitative_keys(cls, v):
+                        expected_keys = {qc['title'] for qc in qualitative_criteria_list}
+                        v_keys = set(v.keys())
+                        if v_keys != expected_keys:
+                            missing = expected_keys - v_keys
+                            extra = v_keys - expected_keys
+                            error_parts = []
+                            if missing:
+                                error_parts.append(f"Missing keys: {missing}")
+                            if extra:
+                                error_parts.append(f"Extra keys: {extra}")
+                            raise ValueError(", ".join(error_parts))
+                        return v
+
+                # Conditional validator for quantitative_criteria
+                if test_data['quantitative_assessment_prompt']:
+                    @validator('quantitative_criteria')
+                    def validate_quantitative_scores(cls, v):
+                        for key, value in v.items():
+                            if key not in quantitative_metadata:
+                                raise ValueError(f"Unexpected criterion: {key}")
+                            meta = quantitative_metadata[key]
+                            score = value.score
+                            if not (meta["min_score"] <= score <= meta["max_score"]):
+                                raise ValueError(
+                                    f"Score for '{key}' must be between {meta['min_score']} and {meta['max_score']}"
+                                )
+                        return v
+
             
             cursor.execute(
                 'INSERT INTO reports (instance_id, content) VALUES (?, ?)',
