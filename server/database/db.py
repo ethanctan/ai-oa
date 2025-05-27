@@ -38,7 +38,7 @@ def init_database():
         # Insert dummy data
         candidates_data = [
             ('Jane Smith', 'jane.smith@example.com', 1),
-            ('John Doe', 'john.doe@example.com', 1),
+            ('John Doe', 'john.doe@mail.com', 0),
             ('Alex Johnson', 'alex.johnson@example.com', 1),
             ('Sam Wilson', 'sam.wilson@example.com', 1)
         ]
@@ -46,7 +46,18 @@ def init_database():
             'INSERT INTO candidates (name, email, completed) VALUES (?, ?, ?)',
             candidates_data
         )
-        print('Created candidates table with dummy data')
+        print('Created candidates table with dummy data, including admin test user.')
+    else:
+        # Ensure the admin test user exists even if table is not empty
+        cursor.execute("SELECT id FROM candidates WHERE email = ?", ('john.doe@mail.com',))
+        admin_user = cursor.fetchone()
+        if not admin_user:
+            cursor.execute(
+                'INSERT INTO candidates (name, email, completed) VALUES (?, ?, ?)',
+                ('John Doe', 'john.doe@mail.com', 0)
+            )
+            print('Added admin test user (john.doe@mail.com) as it was missing.')
+        conn.commit() # Commit here in case admin user was added
     
     # Create tests table
     cursor.execute('''
@@ -55,11 +66,18 @@ def init_database():
         name TEXT NOT NULL,
         github_repo TEXT,
         github_token TEXT,
+        target_github_repo TEXT,
+        target_github_token TEXT,
         initial_prompt TEXT,
         final_prompt TEXT,
-        assessment_prompt TEXT,
+        qualitative_assessment_prompt TEXT,
+        quantitative_assessment_prompt TEXT,
         candidates_assigned INTEGER DEFAULT 0,
         candidates_completed INTEGER DEFAULT 0,
+        enable_timer INTEGER DEFAULT 1,
+        timer_duration INTEGER DEFAULT 10,
+        enable_project_timer INTEGER DEFAULT 1,
+        project_timer_duration INTEGER DEFAULT 60,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -87,6 +105,7 @@ def init_database():
         test_id INTEGER,
         candidate_id INTEGER,
         completed BOOLEAN DEFAULT 0,
+        deadline TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(test_id, candidate_id),
@@ -103,6 +122,18 @@ def init_database():
         content TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (instance_id) REFERENCES test_instances(id)
+    )
+    ''')
+    
+    # Create access_tokens table for secure email invitations
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS access_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        instance_id INTEGER,
+        token TEXT UNIQUE,
+        used BOOLEAN DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (instance_id) REFERENCES test_instances(id)
     )
     ''')

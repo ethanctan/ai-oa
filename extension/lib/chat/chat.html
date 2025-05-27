@@ -228,6 +228,16 @@
       font-size: 12px;
       border-bottom: 1px solid var(--vscode-panel-border);
     }
+    
+    /* Make timer info more prominent when timer is disabled */
+    .timer-info.no-timer {
+      font-size: 14px;
+      padding: 12px 16px;
+      background-color: var(--vscode-notificationsInfoIcon-background, rgba(0,127,255,0.2));
+      border-radius: 4px;
+      margin: 10px 20px;
+      font-weight: bold;
+    }
     /* Hidden class */
     .hidden {
       display: none !important;
@@ -278,6 +288,76 @@
       background-color: var(--vscode-editorWarning-background, rgba(255,127,0,0.1));
       color: var(--vscode-editorWarning-foreground, #a05000);
     }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(14, 112, 192, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(14, 112, 192, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(14, 112, 192, 0); }
+    }
+    
+    /* Style for the Start Interview button when timer is disabled */
+    .timer-container #start-interview {
+      background-color: var(--vscode-button-prominentBackground, #0e70c0);
+      color: var(--vscode-button-prominentForeground, white);
+      font-weight: bold;
+    }
+    
+    /* Special styling when timer is hidden */
+    #timer.hidden + .action-button {
+      background-color: var(--vscode-button-prominentBackground, #0e70c0);
+      color: var(--vscode-button-prominentForeground, white);
+      font-weight: bold;
+      font-size: 16px;
+      padding: 10px 16px;
+      margin: 10px auto;
+      animation: pulse 2s infinite;
+    }
+    
+    /* Adjust timer container layout when timer is hidden */
+    #timer-section {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Project timer container */
+    #project-timer-container {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      margin: 10px 0;
+      padding: 12px;
+      border-top: 1px solid var(--vscode-panel-border);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      background-color: var(--vscode-editorMarkerNavigationInfo-background, rgba(0, 100, 200, 0.1));
+      text-align: center;
+      width: 100%;
+    }
+
+    #project-timer-container.visible {
+      display: flex !important;
+    }
+
+    #project-timer {
+      font-size: 16px;
+      font-weight: bold;
+      padding: 5px 10px;
+      background-color: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+
+    #project-timer.expired {
+      background-color: var(--vscode-errorForeground, red);
+      color: white;
+    }
+
+    /* Project phase label */
+    .phase-label.project {
+      background-color: var(--vscode-gitDecoration-addedResourceForeground, rgba(0,255,127,0.1));
+      color: var(--vscode-gitDecoration-addedResourceForeground, #00a050);
+    }
   </style>
 </head>
 <body>
@@ -292,6 +372,15 @@
     
     <div class="timer-info" id="timer-info">
       The timer starts automatically. You can start the interview at any time, or it will start automatically when the timer reaches zero.
+    </div>
+    
+    <!-- Project timer container -->
+    <div id="project-timer-container">
+      <div style="display: flex; flex-direction: column; align-items: center;">
+        <div style="font-weight: bold; margin-bottom: 4px;">Project Work Timer</div>
+        <div id="project-timer" style="font-size: 24px; margin: 5px 0;">60:00</div>
+        <div>Complete your implementation before the timer ends</div>
+      </div>
     </div>
     
     <div class="messages" id="messages"></div>
@@ -320,6 +409,8 @@
       const timerInfo = document.getElementById('timer-info');
       const finalInterviewContainer = document.getElementById('final-interview-container');
       const startFinalInterviewBtn = document.getElementById('start-final-interview');
+      const projectTimerContainer = document.getElementById('project-timer-container');
+      const projectTimerElement = document.getElementById('project-timer');
 
       // Global variables to store chat history, workspace context, and prompts
       let chatHistory = [];
@@ -330,11 +421,15 @@
       let initialInterviewStarted = false;
       let finalInterviewStarted = false;
       let initialInterviewEnded = false;
+      let projectWorkStarted = false;
       let timerStarted = false;
       let timerEndTime = null;
       let timerInterval = null;
+      let projectTimerEndTime = null;
+      let projectTimerInterval = null;
       let instanceId = null;
-      let currentInterviewPhase = 'initial'; // 'initial' or 'final'
+      let currentInterviewPhase = 'initial'; // 'initial', 'project', or 'final'
+      let finalInterviewTrulyEnded = false; // Flag for permanent disable after final END
 
       // Immediately request environment prompts
       vscode.postMessage({ command: 'getEnvironmentPrompts' });
@@ -477,7 +572,7 @@
       setInterval(requestWorkspaceContext, 30000);
 
       // Function to check if timer already exists and get status upon initial load
-      function checkExistingTimer() {
+      function checkTimerStatus() {
         if (!instanceId) {
           console.log('Cannot check timer: No instance ID available');
           return;
@@ -485,6 +580,37 @@
         
         console.log(`Checking if timer exists for instance ${instanceId}`);
         vscode.postMessage({ command: 'getTimerStatus', instanceId });
+      }
+      
+      // Function to get timer status as a promise
+      function getTimerStatus() {
+        return new Promise((resolve, reject) => {
+          if (!instanceId) {
+            reject(new Error('No instance ID available'));
+            return;
+          }
+          
+          // Create a one-time event listener for the timer status response
+          const listener = (event) => {
+            if (event.data.command === 'timerStatus') {
+              // Remove the event listener
+              window.removeEventListener('message', listener);
+              resolve(event.data.data);
+            }
+          };
+          
+          // Add the event listener
+          window.addEventListener('message', listener);
+          
+          // Request the timer status
+          vscode.postMessage({ command: 'getTimerStatus', instanceId });
+          
+          // Set a timeout to reject the promise if no response is received
+          setTimeout(() => {
+            window.removeEventListener('message', listener);
+            reject(new Error('Timer status request timed out'));
+          }, 5000);
+        });
       }
 
       // Function to handle timer status updates from the server
@@ -494,6 +620,12 @@
         if (data.error) {
           console.error('Timer error:', data.error);
           timerElement.textContent = 'Timer error';
+          return;
+        }
+        
+        // Check if this is a project timer
+        if (data.timerType === 'project') {
+          handleProjectTimerStatus(data);
           return;
         }
         
@@ -515,6 +647,30 @@
           // Enable chat input
           chatInput.disabled = false;
           chatSubmit.disabled = false;
+          
+          // Update input state based on phase
+          updateInputStateBasedOnPhase();
+          
+          return; // Exit early if interview already started
+        }
+        
+        // Check if timer is active or disabled
+        if (data.hasOwnProperty('active') && !data.active) {
+          console.log('Timer is disabled - waiting for user to start interview manually');
+          
+          // Hide the timer element completely
+          timerElement.classList.add('hidden');
+          
+          // Update timer info message
+          timerInfo.textContent = 'Familiarize yourself with the workspace, then click "Start Interview" to begin when you are ready.';
+          timerInfo.classList.add('no-timer');
+          
+          // Make sure start interview button is visible
+          startInterviewBtn.classList.remove('hidden');
+          
+          // Mark timer as started but not running
+          timerStarted = true;
+          return; // Exit early since no timer is running
         }
         
         // Set up timer display updates
@@ -532,34 +688,165 @@
         timerStarted = true;
       }
 
-      // Update timer display
-      function updateTimerDisplay() {
-        if (!timerEndTime) {
-          console.log('No timer end time available');
+      // Function to handle project timer status updates
+      function handleProjectTimerStatus(data) {
+        console.log('Received project timer status:', data);
+        
+        if (data.error) {
+          console.error('Project timer error:', data.error);
+          projectTimerElement.textContent = 'Timer error';
+          return;
+        }
+        
+        // Debug info - log all data received
+        console.log('PROJECT TIMER DEBUG - Full data:', JSON.stringify(data));
+        
+        // Update the global project timer end time
+        if (data.endTimeMs) {
+          projectTimerEndTime = data.endTimeMs;
+          console.log(`Project timer end time set to: ${new Date(projectTimerEndTime).toISOString()}`);
+        }
+        
+        // Show project timer container - ensure it's visible
+        projectTimerContainer.classList.add('visible');
+        console.log('Project timer container visibility:', 
+          projectTimerContainer.classList.contains('visible'), 
+          'Display style:', window.getComputedStyle(projectTimerContainer).display);
+        
+        // Force visibility after a delay (helps with rendering issues)
+        setTimeout(() => {
+          projectTimerContainer.style.display = 'flex';
+          console.log('Forced project timer display style to flex');
+        }, 100);
+        
+        // Mark the current phase as project
+        currentInterviewPhase = 'project';
+        projectWorkStarted = true;
+        initialInterviewEnded = true; // Ensure initial interview is marked as ended
+        
+        // IMPORTANT: Always disable chat input during project phase
+        console.log('DISABLING CHAT INPUT: Project timer detected');
+        chatInput.disabled = true;
+        chatSubmit.disabled = true;
+        
+        // Ensure UI state is consistent with project phase
+        updateInputStateBasedOnPhase();
+        
+        // Show final interview container to allow early submission
+        finalInterviewContainer.classList.add('visible');
+        
+        // Check if the final interview has already started
+        if (data.finalInterviewStarted) {
+          console.log('Final interview already started according to server, not starting project timer interval.');
+          // State already handled by updateInputStateBasedOnPhase
+          return;
+        }
+        
+        // Set up project timer display updates
+        updateProjectTimerDisplay(); // Call once immediately
+
+        // Clear any existing interval to prevent duplicates
+        if (projectTimerInterval) {
+          clearInterval(projectTimerInterval);
+        }
+
+        // Start a new interval for project timer updates
+        console.log('Starting project timer interval...');
+        projectTimerInterval = setInterval(updateProjectTimerDisplay, 1000);
+      }
+
+      // Update project timer display
+      function updateProjectTimerDisplay() {
+        if (!projectTimerEndTime) {
+          console.log('No project timer end time available');
           return;
         }
         
         const now = Date.now();
-        const timeLeft = Math.max(0, timerEndTime - now);
+        const timeLeft = Math.max(0, projectTimerEndTime - now);
                 
         // Format the time remaining
         const minutes = Math.floor(timeLeft / 60000);
         const seconds = Math.floor((timeLeft % 60000) / 1000);
         const display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        timerElement.textContent = display;
+        projectTimerElement.textContent = display;
         
         // Check if timer expired
         if (timeLeft <= 0) {
-          clearInterval(timerInterval);
-          timerElement.textContent = '0:00';
-          timerElement.classList.add('expired');
-          console.log('Timer expired');
+          clearInterval(projectTimerInterval);
+          projectTimerElement.textContent = '0:00';
+          projectTimerElement.classList.add('expired');
+          console.log('Project timer expired');
           
-          // Auto-start interview if timer expires and interview not started
-          if (!initialInterviewStarted) {
-            startInitialInterview();
+          // Auto-start final interview if timer expires
+          if (!finalInterviewStarted) {
+            startFinalInterview();
           }
         }
+      }
+
+      // Start the project work phase
+      function startProjectWork() {
+        if (projectWorkStarted) {
+          console.log('Project work already started');
+          return;
+        }
+        
+        console.log('Starting project work phase');
+        
+        // Stop the initial timer interval if it's running
+        if (timerInterval) {
+          console.log('Clearing initial timer interval');
+          clearInterval(timerInterval);
+          timerInterval = null; // Reset interval variable
+        }
+        
+        // Mark initial interview as ended
+        initialInterviewEnded = true;
+        projectWorkStarted = true;
+        currentInterviewPhase = 'project';
+        
+        // Immediately make project timer container visible
+        projectTimerContainer.classList.add('visible');
+        projectTimerContainer.style.display = 'flex';
+        console.log('Forcing project timer container visibility:', 
+          projectTimerContainer.classList.contains('visible'), 
+          'Style:', projectTimerContainer.style.display);
+        
+        // Add a direct manual fix to ensure the container is displayed
+        document.querySelectorAll('#project-timer-container').forEach(el => {
+          el.style.display = 'flex';
+          console.log('Applied direct style on project-timer-container:', el);
+        });
+        
+        // Add system message indicating start of project work phase
+        appendMessage('system', 'Initial interview completed. Please implement your solution now. You can submit your work and start the final interview at any time.', true);
+        
+        // Notify server to start project timer
+        vscode.postMessage({
+          command: 'startProjectTimer',
+          instanceId
+        });
+        
+        // Save the project phase to the server
+        vscode.postMessage({
+          command: 'saveInterviewPhase',
+          instanceId,
+          phase: 'project_started'
+        });
+        
+        // Disable chat input during project work
+        chatInput.disabled = true;
+        chatSubmit.disabled = true;
+        
+        // Show final interview container to allow early submission
+        finalInterviewContainer.classList.add('visible');
+        
+        // Send a debug log to ensure communication is working
+        setTimeout(() => {
+          console.log('DEBUG: Checking if project timer container is visible after delay', 
+            window.getComputedStyle(projectTimerContainer).display);
+        }, 500);
       }
 
       // Function to handle chat history
@@ -582,6 +869,7 @@
         // Detect interview phases from history
         let foundInitialEnd = false;
         let foundFinalStart = false;
+        let foundProjectPhase = false;
         let detectedPhase = 'initial';
         
         // First pass - check for phase markers and END messages
@@ -598,7 +886,10 @@
               detectedPhase = 'between'; // Between initial and final
               console.log('Detected end of initial interview in history');
             } else if (detectedPhase === 'final') {
-              console.log('Detected end of final interview in history');
+              console.log('Detected end of final interview in history - setting TrulyEnded flag.');
+              finalInterviewTrulyEnded = true; // Set the flag when final END is found in history
+              // Submit final report when final interview ends
+              submitFinalReport();
             }
           }
           
@@ -612,6 +903,10 @@
             } else if (phase === 'final' || phase === 'final_started') {
               detectedPhase = 'final';
               foundFinalStart = true;
+            } else if (phase === 'project' || phase === 'project_started') {
+              detectedPhase = 'project';
+              foundProjectPhase = true;
+              console.log('Detected project phase from history');
             }
           }
           
@@ -621,23 +916,45 @@
             if (message.metadata.phase === 'final') {
               detectedPhase = 'final';
               foundFinalStart = true;
+            } else if (message.metadata.phase === 'project') {
+              detectedPhase = 'project';
+              foundProjectPhase = true;
             }
+          }
+          
+          // Check for project phase message content
+          if (message.role === 'system' && 
+              (message.content.includes('Beginning project work phase') || 
+               message.content.includes('Initial interview completed. Please implement your solution'))) {
+            console.log('Detected project phase from system message content');
+            detectedPhase = 'project';
+            foundProjectPhase = true;
+            foundInitialEnd = true;
           }
         }
         
         // Set global state based on detected phases
         initialInterviewStarted = true; // If we have chat history, initial must have started
         
-        if (foundInitialEnd) {
+        if (foundInitialEnd || foundProjectPhase) {
           initialInterviewEnded = true;
+          console.log('Setting initialInterviewEnded=true based on history');
+        }
+        
+        if (foundProjectPhase) {
+          projectWorkStarted = true;
+          currentInterviewPhase = 'project';
+          console.log('Setting projectWorkStarted=true based on history');
         }
         
         if (foundFinalStart) {
           finalInterviewStarted = true;
+          console.log('Setting finalInterviewStarted=true based on history');
         }
         
         // Second pass - add messages to UI
         let addedInitialPhaseLabel = false;
+        let addedProjectPhaseLabel = false;
         let addedFinalPhaseLabel = false;
         let currentPhase = 'initial';
         let messagesAdded = 0;
@@ -658,6 +975,8 @@
               const phase = message.content.replace('PHASE_MARKER:', '').trim();
               if (phase === 'final' || phase === 'final_started') {
                 currentPhase = 'final';
+              } else if (phase === 'project' || phase === 'project_started') {
+                currentPhase = 'project';
               }
               
               return;
@@ -673,12 +992,12 @@
                 messagesContainer.appendChild(systemElem);
                 
                 // This marks the transition to final phase
-                currentPhase = 'between';
+                currentPhase = 'project';
               } else if (currentPhase === 'final') {
                 // Add system message for final END
                 const systemElem = document.createElement('div');
                 systemElem.className = 'system-message';
-                systemElem.textContent = 'The final interview has concluded. Thank you for your participation!';
+                systemElem.textContent = 'Final interview complete. Thank you for your participation. You may now safely close this window.';
                 messagesContainer.appendChild(systemElem);
               }
               
@@ -700,6 +1019,12 @@
               phaseLabel.textContent = 'Initial Interview';
               messagesContainer.appendChild(phaseLabel);
               addedInitialPhaseLabel = true;
+            } else if (currentPhase === 'project' && !addedProjectPhaseLabel) {
+              const phaseLabel = document.createElement('div');
+              phaseLabel.className = 'phase-label project';
+              phaseLabel.textContent = 'Project Implementation';
+              messagesContainer.appendChild(phaseLabel);
+              addedProjectPhaseLabel = true;
             } else if (currentPhase === 'final' && !addedFinalPhaseLabel) {
               const phaseLabel = document.createElement('div');
               phaseLabel.className = 'phase-label final';
@@ -740,121 +1065,121 @@
         });
         
         console.log(`Successfully restored ${messagesAdded} messages from history`);
-        console.log(`Interview phases - Initial: ${initialInterviewStarted}, Initial ended: ${initialInterviewEnded}, Final: ${finalInterviewStarted}`);
+        console.log(`Interview phases - Initial: ${initialInterviewStarted}, Initial ended: ${initialInterviewEnded}, Project: ${projectWorkStarted}, Final: ${finalInterviewStarted}`);
         
         // Update UI based on detected state
-        if (initialInterviewEnded && !finalInterviewStarted) {
-          // Show the final interview button
+        if (projectWorkStarted && !finalInterviewStarted) {
+          // We're in the project phase
+          console.log('UI update: Project phase detected from history');
           finalInterviewContainer.classList.add('visible');
-          // Disable chat
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+          
+          // Make sure project timer container is visible
+          projectTimerContainer.classList.add('visible');
+          projectTimerContainer.style.display = 'flex';
+        } else if (initialInterviewEnded && !finalInterviewStarted) {
+          // Initial interview ended but not in project phase yet
+          console.log('UI update: Initial interview ended, waiting for project phase');
+          finalInterviewContainer.classList.add('visible');
           chatInput.disabled = true;
           chatSubmit.disabled = true;
         } else if (finalInterviewStarted) {
           // Final interview is ongoing
+          console.log('UI update: Final interview phase');
           chatInput.disabled = false;
           chatSubmit.disabled = false;
+          
+          // Hide project UI if still visible
+          projectTimerContainer.classList.remove('visible');
+          finalInterviewContainer.classList.remove('visible');
         } else if (initialInterviewStarted) {
           // Initial interview is ongoing
+          console.log('UI update: Initial interview phase');
           chatInput.disabled = false;
           chatSubmit.disabled = false;
         }
         
         // Scroll to the bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Make sure UI state is consistent after loading history
+        setTimeout(updateInputStateBasedOnPhase, 500);
       }
 
-      // Handle messages from the extension
-      window.addEventListener('message', event => {
+      // Listen for messages from the extension
+      window.addEventListener('message', (event) => {
         const message = event.data;
-        
         console.log(`Received message from extension: ${message.command}`);
         
-        // If we get a GPT response
-        if (message.command === 'chatResponse') {
+        // Handle workspace content received
+        if (message.command === 'workspaceContent') {
           if (message.error) {
-            appendMessage('system', `Error: ${message.error}`, true);
-          } else {
-            const reply = message.reply || 'No reply';
-            
-            // Check if the reply is "END" to handle interview ending
-            if (reply.trim() === 'END') {
-              // Display a system message instead of the "END" message
-              if (!finalInterviewStarted) {
-                // This is the end of the initial interview
-                if (!initialInterviewEnded) {
-                  appendMessage('system', 'The interviewer has concluded the initial interview. Thank you for your responses!', true);
-                  console.log('Initial interview ended by AI with END message');
-                  
-                  initialInterviewEnded = true;
-                  
-                  // Show the final interview button and disable chat input
-                  finalInterviewContainer.classList.add('visible');
-                  chatInput.disabled = true;
-                  chatSubmit.disabled = true;
-                  
-                  // Save initial interview flag to backend
-                  vscode.postMessage({
-                    command: 'saveInterviewPhase',
-                    phase: 'initial',
-                    instanceId
-                  });
-                }
-              } else {
-                // This is the end of the final interview
-                if (!document.querySelector('.system-message:last-child')) {
-                  appendMessage('system', 'The final interview has concluded. Thank you for your participation!', true);
-                  console.log('Final interview ended by AI with END message');
-                  
-                  chatInput.disabled = true;
-                  chatSubmit.disabled = true;
-                  
-                  // Save final interview flag to backend
-                  vscode.postMessage({
-                    command: 'saveInterviewPhase',
-                    phase: 'final',
-                    instanceId
-                  });
-                }
-              }
-            } else {
-              // Normal reply
-              appendMessage('assistant', reply);
-            }
-          }
-          
-          // Enable input after response unless initial interview has ended and final not started
-          if (!initialInterviewEnded || finalInterviewStarted) {
-            chatInput.disabled = false;
-            chatSubmit.disabled = false;
-          }
-        } 
-        // If we get the contents of this workspace
-        else if (message.command === 'workspaceContent') { 
-          if (message.error) {
-            console.error('Error retrieving workspace content:', message.error);
+            console.error('Error getting workspace content:', message.error);
           } else {
             workspaceContext = message.content;
+            console.log(`Received workspace content, length: ${workspaceContext.length}`);
           }
         }
-        // If we get the environment prompts
+        // Handle environment prompts received
         else if (message.command === 'environmentPrompts') {
           if (message.error) {
-            console.error('Error retrieving environment prompts:', message.error);
-          }
-          
-          initialPrompt = message.initialPrompt;
-          finalPrompt = message.finalPrompt;
-          assessmentPrompt = message.assessmentPrompt;
-          
-          // Store the instance ID if provided
-          if (message.instanceId) {
+            console.error('Error getting environment prompts:', message.error);
+          } else {
+            initialPrompt = message.initialPrompt || '';
+            finalPrompt = message.finalPrompt || '';
+            assessmentPrompt = message.assessmentPrompt || '';
             instanceId = message.instanceId;
-            console.log(`Instance ID set: ${instanceId}`);
+            
+            console.log(`Received environment prompts. Initial prompt length: ${initialPrompt.length}`);
+            console.log(`Instance ID: ${instanceId}`);
+            
+            // Check timer status if instance ID is available
+            if (instanceId) {
+              checkTimerStatus();
+              
+              // Also fetch chat history if available
+              vscode.postMessage({ command: 'getChatHistory', instanceId });
+              
+              // Force update of input state
+              setTimeout(updateInputStateBasedOnPhase, 1000);
+            }
           }
         }
         // If we get timer status from server
         else if (message.command === 'timerStatus') {
           handleTimerStatus(message.data);
+        }
+        // Handle project timer status received
+        else if (message.command === 'projectTimerStatus') {
+          console.log('Received projectTimerStatus message from extension');
+          handleProjectTimerStatus(message.data);
+        }
+        // Handle project work started event
+        else if (message.command === 'projectWorkStarted') {
+          console.log('Received projectWorkStarted message from extension');
+          
+          // Update state
+          projectWorkStarted = true;
+          initialInterviewEnded = true;
+          currentInterviewPhase = 'project';
+          
+          // Force display of project timer container
+          projectTimerContainer.classList.add('visible');
+          setTimeout(() => {
+            projectTimerContainer.style.display = 'flex';
+            console.log('Forced project timer container display to flex after projectWorkStarted');
+          }, 100);
+          
+          // Disable chat input during project work
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+          
+          // Show final interview container to allow submission when ready
+          finalInterviewContainer.classList.add('visible');
+          
+          // Ensure UI state is consistent with project phase
+          updateInputStateBasedOnPhase();
         }
         // Handle chat message received
         else if (message.command === 'chatMessage') {
@@ -864,11 +1189,99 @@
             loadingMessage.remove();
           }
           
-          appendMessage('assistant', message.text);
+          const messageText = message.text;
           
-          // Enable input after response
-          chatInput.disabled = false;
-          chatSubmit.disabled = false;
+          // Check if the AI is ending the interview with "END"
+          if (messageText.trim() === 'END') {
+            console.log('AI has decided to end the initial interview');
+            appendMessage('system', 'Initial interview complete. Beginning project phase...', true);
+            
+            // Start the project phase
+            startProjectWork();
+          } else {
+            // Normal AI message
+            appendMessage('assistant', messageText);
+          }
+          
+          // Enable input based on current phase
+          if (finalInterviewStarted) {
+            // Always enable input during final interview
+            console.log('Enabling chat input for final interview phase (via chatMessage)');
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+          } else if (projectWorkStarted) {
+            // Always disable in project phase
+            console.log('Disabling chat input for project phase (via chatMessage)');
+            chatInput.disabled = true;
+            chatSubmit.disabled = true;
+          } else if (initialInterviewStarted && !initialInterviewEnded) {
+            // Enable in initial interview phase
+            console.log('Enabling chat input for initial interview phase (via chatMessage)');
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+          }
+        }
+        // Handle chatResponse command - used for direct AI responses
+        else if (message.command === 'chatResponse') {
+          console.log('Received chatResponse:', message);
+          
+          // Remove loading message if it exists
+          const loadingMessage = document.getElementById('loading-message');
+          if (loadingMessage) {
+            loadingMessage.remove();
+          }
+          
+          if (message.error) {
+            // Show error as system message
+            console.error('Chat response error:', message.error);
+            appendMessage('system', `Error: ${message.error}`, true);
+          } else if (message.reply) {
+            // Check if the AI is ending the interview with "END"
+            if (message.reply.trim() === 'END') {
+              console.log('AI has decided to end the interview with "END" message');
+              
+              // If in initial phase, start project work
+              if (!finalInterviewStarted && !initialInterviewEnded) {
+                appendMessage('system', 'Interview complete. Moving to next phase...', true);
+
+                // Stop the initial timer interval before starting project work
+                if (timerInterval) {
+                  console.log('Clearing initial timer interval before starting project work');
+                  clearInterval(timerInterval);
+                  timerInterval = null;
+                }
+                startProjectWork();
+              } else {
+                // In final phase, show completion message and permanently disable input
+                appendMessage('system', 'Final interview complete. Thank you for your participation. You may now safely close this window.', true);
+                finalInterviewTrulyEnded = true;
+                // Submit final report when final interview ends
+                submitFinalReport();
+                updateInputStateBasedOnPhase(); // Immediately disable input
+              }
+            } else {
+              // Normal AI message
+              appendMessage('assistant', message.reply);
+            }
+          }
+          
+          // Enable input based on current phase
+          if (finalInterviewStarted) {
+            // Always enable input during final interview
+            console.log('Enabling chat input for final interview phase');
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+          } else if (projectWorkStarted) {
+            // Always disable in project phase
+            console.log('Disabling chat input for project phase');
+            chatInput.disabled = true;
+            chatSubmit.disabled = true;
+          } else if (initialInterviewStarted && !initialInterviewEnded) {
+            // Enable in initial interview phase
+            console.log('Enabling chat input for initial interview phase');
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+          }
         }
         // Handle chat history received
         else if (message.command === 'chatHistory') {
@@ -916,7 +1329,10 @@
         else if (message.command === 'finalInterviewStarted') {
           console.log('Final interview started status confirmed by server');
           finalInterviewStarted = true;
-          initialInterviewEnded = true;
+          currentInterviewPhase = 'final';
+          
+          // Hide project timer if visible
+          projectTimerContainer.classList.remove('visible');
           
           // Enable chat input for final interview
           chatInput.disabled = false;
@@ -1010,41 +1426,30 @@
         startInitialInterview();
       });
 
+      // Final interview button handler
+      startFinalInterviewBtn.addEventListener('click', () => {
+        console.log('Start final interview button clicked');
+        
+        // If we're in the project phase, make sure to handle the transition properly
+        if (currentInterviewPhase === 'project') {
+          // Stop the project timer if it's running
+          if (projectTimerInterval) {
+            clearInterval(projectTimerInterval);
+          }
+          
+          // Hide the project timer
+          projectTimerContainer.classList.remove('visible');
+        }
+        
+        startFinalInterview();
+      });
+
       // Start the final interview
       function startFinalInterview() {
         if (finalInterviewStarted) {
           console.log('Final interview already started');
           return;
         }
-        
-        // First, gather the updated workspace content and submit it to the backend
-        console.log('Gathering workspace content for submission...');
-        
-        // Request fresh workspace content - but don't wait for the response
-        vscode.postMessage({ command: 'getWorkspaceContent' });
-        
-        // Set up a one-time listener for the response with workspace content
-        window.addEventListener('message', function workspaceContentListener(event) {
-          if (event.data.command === 'workspaceContent') {
-            // Remove this one-time listener
-            window.removeEventListener('message', workspaceContentListener);
-            
-            const content = event.data.content;
-            if (event.data.error) {
-              console.error('Error getting workspace content:', event.data.error);
-              return;
-            }
-            
-            console.log(`Got workspace content, size: ${content.length} chars`);
-            
-            // Submit the workspace content to the backend, but don't wait
-            vscode.postMessage({
-              command: 'submitWorkspaceContent',
-              instanceId,
-              content
-            });
-          }
-        });
         
         // Proceed with starting the final interview immediately
         // Clear existing chat history for display purposes
@@ -1053,6 +1458,7 @@
         
         // Mark final interview as started
         finalInterviewStarted = true;
+        currentInterviewPhase = 'final';
         
         // Hide the final interview button container
         finalInterviewContainer.classList.remove('visible');
@@ -1122,12 +1528,126 @@
           });
         }, 500); // Short delay to ensure everything is processed first
       }
+
+      // Update timer display
+      function updateTimerDisplay() {
+        if (!timerEndTime) {
+          console.log('No timer end time available');
+          return;
+        }
+        
+        const now = Date.now();
+        const timeLeft = Math.max(0, timerEndTime - now);
+                
+        // Format the time remaining
+        const minutes = Math.floor(timeLeft / 60000);
+        const seconds = Math.floor((timeLeft % 60000) / 1000);
+        const display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        timerElement.textContent = display;
+        
+        // Check if timer expired
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          timerElement.textContent = '0:00';
+          timerElement.classList.add('expired');
+          console.log('Timer expired');
+          
+          // Get the latest timer status to check if timer is active before auto-starting
+          getTimerStatus().then(timerData => {
+            if (timerData && timerData.active && !initialInterviewStarted) {
+              // Auto-start interview if timer expires, is active, and interview not started
+              startInitialInterview();
+            }
+          }).catch(err => {
+            console.error('Error checking timer status before auto-starting interview:', err);
+          });
+        }
+      }
+
+      // Function to update UI based on current phase
+      function updateInputStateBasedOnPhase() {
+        console.log(`Updating input state based on current phase: ${currentInterviewPhase}`);
+        console.log(`Phase flags - Initial: ${initialInterviewStarted}, Initial ended: ${initialInterviewEnded}, Project: ${projectWorkStarted}, Final: ${finalInterviewStarted}, TrulyEnded: ${finalInterviewTrulyEnded}`);
+        
+        // Check if final interview has permanently ended first
+        if (finalInterviewTrulyEnded) {
+          console.log('DISABLING CHAT INPUT: Final interview has ended permanently.');
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+          return; // Don't proceed with other phase checks
+        }
+        
+        if (projectWorkStarted && !finalInterviewStarted) {
+          // We're in the project phase - always disable chat
+          console.log('DISABLING CHAT INPUT: In project phase');
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+          
+          // Show final interview button
+          finalInterviewContainer.classList.add('visible');
+          
+          // Make sure project timer is visible
+          projectTimerContainer.classList.add('visible');
+          projectTimerContainer.style.display = 'flex';
+        } else if (finalInterviewStarted) {
+          // Final interview - always enable chat
+          console.log('ENABLING CHAT INPUT: In final interview phase');
+          chatInput.disabled = false;
+          chatSubmit.disabled = false;
+          
+          // Hide project UI elements
+          projectTimerContainer.classList.remove('visible');
+          finalInterviewContainer.classList.remove('visible');
+        } else if (initialInterviewStarted && !initialInterviewEnded) {
+          // Initial interview - enable chat
+          console.log('ENABLING CHAT INPUT: In initial interview phase');
+          chatInput.disabled = false;
+          chatSubmit.disabled = false;
+        } else {
+          // Not in any interview phase yet
+          console.log('DISABLING CHAT INPUT: No interview active');
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+        }
+      }
       
-      // Start final interview button handler
-      startFinalInterviewBtn.addEventListener('click', () => {
-        console.log('Start final interview button clicked');
-        startFinalInterview();
-      });
+      // Call this function every time a timer status update is received
+      // or any event that might change the phase
+      setInterval(updateInputStateBasedOnPhase, 2000); // Check every 2 seconds to be safe
+
+      // Function to submit final report when interview ends
+      function submitFinalReport() {
+        console.log('FINAL REPORT API: Starting final report submission process...');
+        
+        // Request fresh workspace content
+        vscode.postMessage({ command: 'getWorkspaceContent' });
+        
+        // Set up a one-time listener for the response with workspace content
+        window.addEventListener('message', function workspaceContentListener(event) {
+          if (event.data.command === 'workspaceContent') {
+            // Remove this one-time listener
+            window.removeEventListener('message', workspaceContentListener);
+            
+            const content = event.data.content;
+            if (event.data.error) {
+              console.error('FINAL REPORT API: Error getting workspace content:', event.data.error);
+              return;
+            }
+            
+            console.log(`FINAL REPORT API: Got workspace content, size: ${content.length} chars`);
+            console.log('FINAL REPORT API: Calling submitWorkspaceContent command...');
+            
+            // Submit the workspace content to the backend for final report generation
+            vscode.postMessage({
+              command: 'submitWorkspaceContent',
+              instanceId,
+              content
+            });
+            
+            console.log('FINAL REPORT API: submitWorkspaceContent command sent successfully');
+          }
+        });
+      }
     }());
   </script>
 </body>

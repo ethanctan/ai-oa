@@ -1,4 +1,5 @@
 from database.db import get_connection
+from datetime import datetime, timezone
 
 def get_all_tests():
     """Get all tests from the database"""
@@ -6,8 +7,32 @@ def get_all_tests():
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT * FROM tests')
-        tests = [dict(row) for row in cursor.fetchall()]
+        cursor.execute(
+            '''
+            SELECT 
+                t.id, t.name, t.github_repo, 
+                t.candidates_assigned, t.candidates_completed,
+                t.enable_timer, t.timer_duration,
+                t.created_at, t.updated_at,
+                t.target_github_repo, t.target_github_token,
+                COUNT(DISTINCT tc.candidate_id) as total_candidates
+            FROM tests t
+            LEFT JOIN test_candidates tc ON t.id = tc.test_id
+            GROUP BY t.id
+            ORDER BY t.created_at DESC
+            '''
+        )
+        
+        tests = []
+        for row in cursor.fetchall():
+            test_dict = dict(row)
+
+            # Convert created_at and updated_at to UTC ISO 8601
+            test_dict["created_at"] = _convert_to_utc(test_dict["created_at"])
+            test_dict["updated_at"] = _convert_to_utc(test_dict["updated_at"])
+
+            tests.append(test_dict)
+        
         return tests
     finally:
         conn.close()
@@ -18,13 +43,57 @@ def get_test(test_id):
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT * FROM tests WHERE id = ?', (test_id,))
+        cursor.execute(
+            '''
+            SELECT 
+                t.id, t.name, t.github_repo, t.github_token, 
+                t.initial_prompt, t.final_prompt, 
+                t.qualitative_assessment_prompt, t.quantitative_assessment_prompt,
+                t.candidates_assigned, t.candidates_completed, 
+                t.enable_timer, t.timer_duration,
+                t.enable_project_timer, t.project_timer_duration,
+                t.created_at, t.updated_at,
+                t.target_github_repo, t.target_github_token,
+                COUNT(DISTINCT tc.candidate_id) as total_candidates
+            FROM tests t
+            LEFT JOIN test_candidates tc ON t.id = tc.test_id
+            WHERE t.id = ?
+            GROUP BY t.id
+            ''',
+            (test_id,)
+        )
+        
         test = cursor.fetchone()
         
         if not test:
             return None
         
-        return dict(test)
+        # Convert to dictionary for easier manipulation
+        test_dict = dict(test)
+
+        # Convert created_at and updated_at to UTC ISO 8601
+        test_dict["created_at"] = _convert_to_utc(test_dict["created_at"])
+        test_dict["updated_at"] = _convert_to_utc(test_dict["updated_at"])
+        
+        # Get candidates assigned to this test
+        cursor.execute(
+            '''
+            SELECT c.id, c.name, c.email, tc.completed
+            FROM candidates c
+            JOIN test_candidates tc ON c.id = tc.candidate_id
+            WHERE tc.test_id = ?
+            ''',
+            (test_id,)
+        )
+        
+        candidates = []
+        for row in cursor.fetchall():
+            candidates.append(dict(row))
+        
+        test_dict['candidates'] = candidates
+        
+        return test_dict
+    
     finally:
         conn.close()
 
@@ -33,6 +102,14 @@ def create_test(data):
     # Check for both 'name' and 'instanceName' to handle frontend form field naming
     name = data.get('name') or data.get('instanceName')
     candidate_ids = data.get('candidateIds', [])
+    
+    # Extract timer configuration
+    enable_timer = data.get('enableTimer', True)
+    timer_duration = data.get('timerDuration', 10)  # Default: 10 minutes
+    
+    # Extract project timer configuration
+    enable_project_timer = data.get('enableProjectTimer', True)
+    project_timer_duration = data.get('projectTimerDuration', 60)  # Default: 60 minutes
     
     if not name:
         raise ValueError('Test name is required')
@@ -46,19 +123,30 @@ def create_test(data):
             '''
             INSERT INTO tests (
                 name, github_repo, github_token, 
-                initial_prompt, final_prompt, assessment_prompt,
-                candidates_assigned, candidates_completed
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                initial_prompt, final_prompt, 
+                qualitative_assessment_prompt, quantitative_assessment_prompt,
+                candidates_assigned, candidates_completed,
+                enable_timer, timer_duration,
+                enable_project_timer, project_timer_duration,
+                target_github_repo, target_github_token
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 name,
-                data.get('githubRepo'),
-                data.get('githubToken'),
-                data.get('initialPrompt'),
-                data.get('finalPrompt'),
-                data.get('assessmentPrompt'),
+                data.get('githubRepo', None),
+                data.get('githubToken', None),
+                data.get('initialPrompt', None),
+                data.get('finalPrompt', None),
+                data.get('qualitativeAssessmentPrompt', None),
+                data.get('quantitativeAssessmentPrompt', None),
                 0,  # candidates_assigned (will be updated if candidates are assigned)
-                0   # candidates_completed
+                0,  # candidates_completed
+                1 if enable_timer else 0,  # Store as integer for SQLite compatibility
+                timer_duration,
+                1 if enable_project_timer else 0,  # Store as integer for SQLite compatibility
+                project_timer_duration,
+                data.get('targetGithubRepo', None),
+                data.get('targetGithubToken', None)
             )
         )
         conn.commit()
@@ -151,7 +239,8 @@ def update_test(test_id, data):
             'githubToken': 'github_token',
             'initialPrompt': 'initial_prompt',
             'finalPrompt': 'final_prompt',
-            'assessmentPrompt': 'assessment_prompt',
+            'qualitativeAssessmentPrompt': 'qualitative_assessment_prompt',
+            'quantitativeAssessmentPrompt': 'quantitative_assessment_prompt',
             'candidatesAssigned': 'candidates_assigned',
             'candidatesCompleted': 'candidates_completed'
         }
@@ -244,7 +333,7 @@ def delete_test(test_id):
         conn.close()
 
 def get_test_candidates(test_id):
-    """Get all candidates assigned to a test"""
+    """Get all candidates assigned to a test and available candidates"""
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -258,19 +347,49 @@ def get_test_candidates(test_id):
         
         # Get candidates assigned to test
         cursor.execute('''
-            SELECT c.*, tc.completed as test_completed
+            SELECT c.*, tc.completed as test_completed, tc.deadline
             FROM candidates c
             JOIN test_candidates tc ON c.id = tc.candidate_id
             WHERE tc.test_id = ?
         ''', (test_id,))
         
-        candidates = [dict(row) for row in cursor.fetchall()]
-        return candidates
+        assigned_candidates = []
+        for row in cursor.fetchall():
+            candidate = dict(row)
+            # Convert deadline to ISO format if it exists
+            if candidate['deadline']:
+                try:
+                    # Parse SQLite datetime and convert to UTC ISO
+                    dt = datetime.strptime(candidate['deadline'], '%Y-%m-%d %H:%M:%S')
+                    dt = dt.replace(tzinfo=timezone.utc)
+                    candidate['deadline'] = dt.isoformat()
+                except ValueError as e:
+                    print(f"Warning: Could not parse deadline for candidate {candidate['id']}: {str(e)}")
+                    candidate['deadline'] = None
+            assigned_candidates.append(candidate)
+        
+        # Get all candidates not assigned to this test
+        cursor.execute('''
+            SELECT c.*
+            FROM candidates c
+            WHERE c.id NOT IN (
+                SELECT tc.candidate_id 
+                FROM test_candidates tc 
+                WHERE tc.test_id = ?
+            )
+        ''', (test_id,))
+        
+        available_candidates = [dict(row) for row in cursor.fetchall()]
+        
+        return {
+            "assigned": assigned_candidates,
+            "available": available_candidates
+        }
     finally:
         conn.close()
 
-def assign_candidate_to_test(test_id, candidate_id):
-    """Assign a candidate to a test"""
+def assign_candidate_to_test(test_id, candidate_id, deadline=None):
+    """Assign a candidate to a test with an optional deadline"""
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -297,12 +416,19 @@ def assign_candidate_to_test(test_id, candidate_id):
         existing = cursor.fetchone()
         
         if existing:
+            # Update deadline if provided
+            if deadline:
+                cursor.execute(
+                    'UPDATE test_candidates SET deadline = ? WHERE test_id = ? AND candidate_id = ?',
+                    (deadline, test_id, candidate_id)
+                )
+                conn.commit()
             return {"success": True, "message": "Candidate already assigned to this test"}
         
-        # Create the relationship
+        # Create the relationship with deadline if provided
         cursor.execute(
-            'INSERT INTO test_candidates (test_id, candidate_id, completed) VALUES (?, ?, ?)',
-            (test_id, candidate_id, 0)
+            'INSERT INTO test_candidates (test_id, candidate_id, completed, deadline) VALUES (?, ?, ?, ?)',
+            (test_id, candidate_id, 0, deadline)
         )
         
         # Update test's candidates_assigned count
@@ -319,3 +445,171 @@ def assign_candidate_to_test(test_id, candidate_id):
         raise e
     finally:
         conn.close() 
+
+def update_candidate_deadline(test_id, candidate_id, deadline):
+    """Update the deadline for a candidate's test assignment"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if test-candidate relationship exists
+        cursor.execute(
+            'SELECT id FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+            (test_id, candidate_id)
+        )
+        existing = cursor.fetchone()
+        
+        if not existing:
+            raise ValueError("Candidate is not assigned to this test")
+        
+        # Handle deadline conversion
+        sqlite_deadline = None
+        if deadline:
+            # Convert ISO format to SQLite datetime format
+            try:
+                # Parse the ISO format date
+                dt = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
+                # Convert to SQLite format
+                sqlite_deadline = dt.strftime('%Y-%m-%d %H:%M:%S')
+            except ValueError as e:
+                raise ValueError(f"Invalid deadline format: {str(e)}")
+        # If deadline is None/null, sqlite_deadline remains None (removes deadline)
+        
+        # Update the deadline (can be null to remove deadline)
+        cursor.execute(
+            'UPDATE test_candidates SET deadline = ? WHERE test_id = ? AND candidate_id = ?',
+            (sqlite_deadline, test_id, candidate_id)
+        )
+        conn.commit()
+        
+        # Get the updated candidate data to return
+        cursor.execute('''
+            SELECT c.*, tc.completed as test_completed, tc.deadline
+            FROM candidates c
+            JOIN test_candidates tc ON c.id = tc.candidate_id
+            WHERE tc.test_id = ? AND tc.candidate_id = ?
+        ''', (test_id, candidate_id))
+        
+        updated_candidate = dict(cursor.fetchone())
+        if updated_candidate['deadline']:
+            try:
+                # Parse SQLite datetime and convert to UTC ISO
+                dt = datetime.strptime(updated_candidate['deadline'], '%Y-%m-%d %H:%M:%S')
+                dt = dt.replace(tzinfo=timezone.utc)
+                updated_candidate['deadline'] = dt.isoformat()
+            except ValueError as e:
+                print(f"Warning: Could not parse deadline for candidate {candidate_id}: {str(e)}")
+                updated_candidate['deadline'] = None
+        # If deadline is None, leave it as None
+        
+        # Automatically resend email with updated deadline information
+        try:
+            # Get test and candidate details for email
+            cursor.execute('SELECT * FROM tests WHERE id = ?', (test_id,))
+            test = dict(cursor.fetchone())
+            
+            cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+            candidate = dict(cursor.fetchone())
+            
+            # Get the existing access token for this candidate's test instance
+            cursor.execute('''
+                SELECT at.token
+                FROM access_tokens at
+                JOIN test_instances ti ON at.instance_id = ti.id
+                WHERE ti.test_id = ? AND ti.candidate_id = ?
+                ORDER BY at.created_at DESC
+                LIMIT 1
+            ''', (test_id, candidate_id))
+            
+            token_result = cursor.fetchone()
+            if token_result:
+                # Generate the access URL using the existing token
+                access_url = f"http://localhost:3000/instances/access/{token_result['token']}"
+                
+                # Import here to avoid circular imports
+                from controllers.email_controller import send_email
+                
+                # Send email with updated deadline information
+                email_sent = send_email(
+                    to_email=candidate['email'],
+                    candidate_name=candidate['name'],
+                    test_name=test['name'],
+                    access_url=access_url,
+                    deadline=updated_candidate['deadline'],  # Use the formatted deadline
+                    is_deadline_update=True
+                )
+                
+                if email_sent:
+                    print(f"Successfully sent deadline update email to {candidate['name']} ({candidate['email']})")
+                else:
+                    print(f"Failed to send deadline update email to {candidate['name']} ({candidate['email']})")
+            else:
+                print(f"Warning: No access token found for candidate {candidate_id} in test {test_id}")
+                
+        except Exception as email_error:
+            print(f"Error sending deadline update email: {str(email_error)}")
+            # Don't fail the deadline update if email fails
+        
+        return updated_candidate
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
+def remove_candidate_from_test(test_id, candidate_id):
+    """Remove a candidate from a test"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if test exists
+        cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        test = cursor.fetchone()
+        
+        if not test:
+            raise ValueError(f"Test with ID {test_id} not found")
+        
+        # Check if candidate exists
+        cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        candidate = cursor.fetchone()
+        
+        if not candidate:
+            raise ValueError(f"Candidate with ID {candidate_id} not found")
+        
+        # Check if relationship exists
+        cursor.execute(
+            'SELECT id FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+            (test_id, candidate_id)
+        )
+        existing = cursor.fetchone()
+        
+        if not existing:
+            return {"success": True, "message": "Candidate is not assigned to this test"}
+        
+        # Delete the relationship
+        cursor.execute(
+            'DELETE FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+            (test_id, candidate_id)
+        )
+        
+        # Update test's candidates_assigned count
+        cursor.execute(
+            'UPDATE tests SET candidates_assigned = candidates_assigned - 1 WHERE id = ?',
+            (test_id,)
+        )
+        
+        conn.commit()
+        
+        return {"success": True, "message": f"Candidate {candidate_id} removed from test {test_id}"}
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
+def _convert_to_utc(raw_ts):
+    """Convert SQLite string to UTC ISO 8601"""
+    dt = datetime.strptime(raw_ts, "%Y-%m-%d %H:%M:%S")
+    dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat() 

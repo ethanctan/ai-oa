@@ -8,6 +8,7 @@ from routes.tests import tests_bp
 from routes.instances import instances_bp
 from routes.timer import timer_bp
 from database.db import init_database
+from database.migrations import run_migrations
 
 # Load environment variables
 load_dotenv('../server/.env')  # Load from existing .env file
@@ -29,6 +30,8 @@ app.register_blueprint(timer_bp, url_prefix='/timer')
 try:
     init_database()
     print("Database initialized successfully")
+    # Run migrations to update schema
+    run_migrations()
 except Exception as e:
     print(f"Database initialization failed: {str(e)}")
     exit(1)

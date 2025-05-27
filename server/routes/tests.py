@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from controllers.tests_controller import get_all_tests, get_test, create_test, update_test, delete_test, get_test_candidates, assign_candidate_to_test
+from controllers.tests_controller import get_all_tests, get_test, create_test, update_test, delete_test, get_test_candidates, assign_candidate_to_test, remove_candidate_from_test, update_candidate_deadline
 
 # Create a Blueprint for tests routes
 tests_bp = Blueprint('tests', __name__)
@@ -97,10 +97,38 @@ def get_candidates_for_test(test_id):
 @tests_bp.route('/<int:test_id>/candidates/<int:candidate_id>', methods=['POST'])
 def assign_candidate(test_id, candidate_id):
     try:
-        result = assign_candidate_to_test(test_id, candidate_id)
+        data = request.json or {}
+        deadline = data.get('deadline')
+        result = assign_candidate_to_test(test_id, candidate_id, deadline)
         return jsonify(result)
     except Exception as e:
         print(f'Error assigning candidate to test: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+# DELETE /tests/:id/candidates/:candidateId - Remove candidate from test
+@tests_bp.route('/<int:test_id>/candidates/<int:candidate_id>', methods=['DELETE'])
+def remove_candidate(test_id, candidate_id):
+    try:
+        result = remove_candidate_from_test(test_id, candidate_id)
+        return jsonify(result)
+    except Exception as e:
+        print(f'Error removing candidate from test: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+# PUT /tests/:id/candidates/:candidateId/deadline - Update candidate deadline
+@tests_bp.route('/<int:test_id>/candidates/<int:candidate_id>/deadline', methods=['PUT'])
+def update_candidate_deadline_route(test_id, candidate_id):
+    try:
+        data = request.json
+        deadline = data.get('deadline')
+        
+        # Allow null deadline to remove the deadline
+        # No validation needed - null is acceptable
+            
+        result = update_candidate_deadline(test_id, candidate_id, deadline)
+        return jsonify(result)
+    except Exception as e:
+        print(f'Error updating candidate deadline: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
 # POST /tests/:id/try - Try a test (for admins)

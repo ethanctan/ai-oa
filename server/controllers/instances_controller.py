@@ -4,6 +4,8 @@ import docker
 import subprocess
 import shutil
 import json
+import tempfile # For temporary directories and files
+import zipfile # For handling zip files
 from pathlib import Path
 from database.db import get_connection
 from controllers.timer_controller import start_instance_timer
@@ -154,6 +156,8 @@ def create_instance(data):
     github_token = data.get('githubToken')
     admin_user = data.get('adminUser')
     
+    effective_candidate_id = candidate_id
+
     if not test_id:
         raise ValueError('Test ID is required')
     
@@ -161,6 +165,28 @@ def create_instance(data):
     cursor = conn.cursor()
     
     try:
+        # If adminUser is present (from "Try Test"), use/create the dummy admin candidate
+        if admin_user:
+            admin_candidate_email = "john.doe@mail.com"
+            admin_candidate_name = "John Doe (Admin Test User)"
+            cursor.execute("SELECT id FROM candidates WHERE email = ?", (admin_candidate_email,))
+            admin_cand_record = cursor.fetchone()
+            if admin_cand_record:
+                effective_candidate_id = admin_cand_record['id']
+                print(f"Found existing admin test candidate ID: {effective_candidate_id}")
+            else:
+                cursor.execute(
+                    'INSERT INTO candidates (name, email, completed) VALUES (?, ?, ?)',
+                    (admin_candidate_name, admin_candidate_email, 0)
+                )
+                conn.commit() # Commit candidate creation
+                effective_candidate_id = cursor.lastrowid
+                print(f"Created new admin test candidate ID: {effective_candidate_id}")
+        elif not candidate_id:
+             # If not admin and no candidateId, this is an issue unless it's a general test link scenario (not yet handled)
+            print("Warning: No candidateId provided and not an admin test. Instance will not be tied to a specific candidate.")
+            effective_candidate_id = None # Explicitly set to None
+
         # Get the test details
         cursor.execute('SELECT * FROM tests WHERE id = ?', (test_id,))
         test = cursor.fetchone()
@@ -200,7 +226,7 @@ def create_instance(data):
         # First create the instance record to get an ID
         cursor.execute(
             'INSERT INTO test_instances (test_id, candidate_id, docker_instance_id, port) VALUES (?, ?, ?, ?)',
-            (test_id, candidate_id, 'pending', 0)
+            (test_id, effective_candidate_id, 'pending', 0)
         )
         conn.commit()
         
@@ -218,7 +244,15 @@ def create_instance(data):
             f"INITIAL_PROMPT={test.get('initial_prompt', '')}",
             f"FINAL_PROMPT={test.get('final_prompt', '')}",
             f"ASSESSMENT_PROMPT={test.get('assessment_prompt', '')}",
-            f"INSTANCE_ID={instance_id}"
+            f"INSTANCE_ID={instance_id}",
+            # Add target repo details if available
+            f"TARGET_GITHUB_REPO={test.get('target_github_repo', '')}", 
+            f"TARGET_GITHUB_TOKEN={test.get('target_github_token', '')}", 
+            # Add project timer settings from the test definition
+            f"ENABLE_INITIAL_TIMER={test.get('enable_timer', 1)}",
+            f"INITIAL_DURATION_MINUTES={test.get('timer_duration', 10)}",
+            f"ENABLE_PROJECT_TIMER={test.get('enable_project_timer', 1)}",
+            f"PROJECT_DURATION_MINUTES={test.get('project_timer_duration', 60)}"
         ]
         
         # Define volumes if we have a project path
@@ -306,19 +340,19 @@ def create_instance(data):
             conn.commit()
             
             # If this is for a candidate, make sure the test_candidates relationship exists
-            if candidate_id:
+            if effective_candidate_id:
                 # Check if the test-candidate relationship exists
                 cursor.execute(
                     'SELECT * FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
-                    (test_id, candidate_id)
+                    (test_id, effective_candidate_id)
                 )
-                existing = cursor.fetchone()
+                existing_relation = cursor.fetchone()
                 
-                if not existing:
+                if not existing_relation:
                     # Create a new test-candidate relationship
                     cursor.execute(
                         'INSERT INTO test_candidates (test_id, candidate_id, completed) VALUES (?, ?, ?)',
-                        (test_id, candidate_id, 0)
+                        (test_id, effective_candidate_id, 0)
                     )
                     
                     # Increment the candidates_assigned count for the test
@@ -329,7 +363,13 @@ def create_instance(data):
                     conn.commit()
             
             # Start a timer for this instance
-            start_instance_timer(instance_id)
+            # Get the timer configuration from the test
+            enable_timer = test.get('enable_timer', 1)
+            timer_duration = test.get('timer_duration', 10)
+            
+            # Convert minutes to seconds and pass to timer
+            duration_seconds = timer_duration * 60 if enable_timer else 0
+            start_instance_timer(instance_id, duration_seconds)
             
             # Get the complete instance info
             cursor.execute(
@@ -575,4 +615,150 @@ def create_report(instance_id, data):
         raise e
     
     finally:
-        conn.close() 
+        conn.close()
+
+def upload_project_to_github(instance_id, file_storage):
+    """Uploads the candidate's project files to the specified target GitHub repository."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Get instance details to find candidate_id and test_id
+        cursor.execute('''
+            SELECT ti.candidate_id, ti.test_id, c.name as candidate_name, c.email as candidate_email
+            FROM test_instances ti
+            LEFT JOIN candidates c ON ti.candidate_id = c.id
+            WHERE ti.id = ?
+        ''', (instance_id,))
+        instance_details = cursor.fetchone()
+
+        if not instance_details:
+            raise ValueError(f"Instance with ID {instance_id} not found.")
+
+        candidate_id = instance_details['candidate_id']
+        test_id = instance_details['test_id']
+        candidate_name = instance_details['candidate_name'] or f"candidate_{candidate_id}"
+
+        if not candidate_id:
+            # This case should ideally not happen if an instance is properly associated
+            raise ValueError(f"Instance {instance_id} is not associated with a candidate.")
+
+        # Get test details to find target_github_repo and target_github_token
+        cursor.execute('''
+            SELECT target_github_repo, target_github_token 
+            FROM tests 
+            WHERE id = ?
+        ''', (test_id,))
+        test_details = cursor.fetchone()
+
+        if not test_details:
+            raise ValueError(f"Test with ID {test_id} not found for instance {instance_id}.")
+
+        target_repo_url = test_details['target_github_repo']
+        target_repo_token = test_details['target_github_token']
+
+        if not target_repo_url:
+            return {"success": False, "message": "No target GitHub repository configured for this test."}
+
+        # Proceed with file handling and Git operations
+        # Create a temporary directory to store the uploaded zip and its extracted contents
+        with tempfile.TemporaryDirectory() as temp_dir_base_path:
+            temp_dir_path = Path(temp_dir_base_path)
+            zip_file_path = temp_dir_path / file_storage.filename
+            file_storage.save(str(zip_file_path))
+
+            extracted_files_path = temp_dir_path / 'extracted_project'
+            os.makedirs(extracted_files_path, exist_ok=True)
+            with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+                zip_ref.extractall(extracted_files_path)
+            
+            print(f"Files extracted to: {extracted_files_path}")
+
+            # Create another temporary directory for cloning the target repository
+            with tempfile.TemporaryDirectory() as clone_dir_base_path:
+                clone_dir_path = Path(clone_dir_base_path)
+                
+                # Clone the target repository
+                repo_url_for_clone = target_repo_url
+                if target_repo_token:
+                    if repo_url_for_clone.startswith('https://'):
+                        repo_url_for_clone = f"https://{target_repo_token}@{repo_url_for_clone[8:]}"
+                    else:
+                        # Fallback or handle other protocols if necessary, for now assume https
+                        repo_url_for_clone = f"https://{target_repo_token}@{repo_url_for_clone}"
+                
+                try:
+                    exec_command(f"git clone --depth 1 {repo_url_for_clone} {str(clone_dir_path)}")
+                    print(f"Cloned target repo {target_repo_url} to {clone_dir_path}")
+                except Exception as e:
+                    raise Exception(f"Failed to clone target repository {target_repo_url}: {str(e)}")
+
+                # Define the subdirectory for the candidate's submission
+                submission_dir_name = f"submission_candidate_{candidate_id}_instance_{instance_id}"
+                submission_path = clone_dir_path / submission_dir_name
+
+                # If directory exists, remove it to ensure a clean state (or decide on update strategy)
+                if submission_path.exists():
+                    shutil.rmtree(submission_path)
+                os.makedirs(submission_path, exist_ok=True)
+
+                # Copy extracted files into the submission subdirectory
+                for item in extracted_files_path.iterdir():
+                    if item.is_dir():
+                        shutil.copytree(item, submission_path / item.name)
+                    else:
+                        shutil.copy2(item, submission_path / item.name)
+                
+                print(f"Copied project files to {submission_path}")
+
+                # Git operations: add, commit, push
+                original_cwd = os.getcwd()
+                os.chdir(clone_dir_path)
+                try:
+                    exec_command("git config user.name \"Automated Uploader\"")
+                    exec_command("git config user.email \"uploader@example.com\"") # Placeholder because git requires an uploader email
+                    exec_command("git add .")
+                    commit_message = f"feat: Upload project submission for candidate {candidate_name} (ID: {candidate_id}), Instance: {instance_id}"
+                    exec_command(f'git commit -m "{commit_message}"' )
+                    
+                    # Determine current branch
+                    current_branch = exec_command("git rev-parse --abbrev-ref HEAD").strip()
+                    
+                    # Construct the push URL with token if available
+                    push_url = target_repo_url
+                    if target_repo_token:
+                        if push_url.startswith('https://'):
+                            push_url = f"https://{target_repo_token}@{push_url[8:]}"
+                        else:
+                            # Assuming https, adjust if other protocols are used for target_repo_url
+                            push_url = f"https://{target_repo_token}@{push_url}" 
+                    
+                    push_command = f"git push {push_url} {current_branch}"
+                    exec_command(push_command)
+                    print(f"Successfully pushed changes to {target_repo_url} on branch {current_branch}")
+                except Exception as e:
+                    # Attempt to reset if commit/push fails to avoid leaving repo in bad state
+                    # Check if there are any commits to reset before attempting
+                    try:
+                        # Check if HEAD^ exists. If `git rev-parse HEAD^` fails, there is no parent commit.
+                        exec_command("git rev-parse --verify HEAD^") 
+                        exec_command("git reset --hard HEAD^") # Revert last commit if push failed and parent exists
+                        print("Git state reset to HEAD^ after push failure.")
+                    except Exception as reset_e:
+                        print(f"Could not reset git state after push failure (or no parent commit to reset to): {reset_e}")
+                    raise Exception(f"Git operations failed: {str(e)}")
+                finally:
+                    os.chdir(original_cwd) # Important to change back CWD
+
+        return {"success": True, "message": f"Project for candidate {candidate_id} uploaded successfully to {target_repo_url}/{submission_dir_name}"}
+
+    except ValueError as ve:
+        print(f'ValueError in upload_project_to_github: {str(ve)}')
+        return {"success": False, "message": str(ve)}
+    except Exception as e:
+        conn.rollback() # Rollback if any DB operations were pending, though none here currently.
+        print(f'Error in upload_project_to_github: {str(e)}')
+        return {"success": False, "message": f"An unexpected error occurred: {str(e)}"}
+    finally:
+        if conn:
+            conn.close() 

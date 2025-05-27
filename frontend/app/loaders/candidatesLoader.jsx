@@ -1,7 +1,9 @@
+import { getApiEndpoint } from "../utils/api";
+
 export async function loader() {
   try {
     console.log("Loading candidates...");
-    const res = await fetch("http://127.0.0.1:3000/candidates/");
+    const res = await fetch(getApiEndpoint("candidates/"));
     if (!res.ok) {
       throw new Error("Failed to fetch candidates");
     }
