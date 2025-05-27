@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from database.db import get_connection
 from controllers.timer_controller import start_instance_timer
+from pydantic import Field, BaseModel
+from pydantic.json_schema import GenerateJsonSchema
 
 # Base directory for project repositories
 BASE_PROJECTS_DIR = Path(__file__).parent.parent / 'projects'
@@ -514,9 +516,16 @@ def create_report(instance_id, data):
     cursor = conn.cursor()
     
     try:
-        # Check if instance exists
-        cursor.execute('SELECT id FROM test_instances WHERE id = ?', (instance_id,))
-        if not cursor.fetchone():
+        # Check if instance exists and get test data
+        cursor.execute('''
+            SELECT t.initial_prompt, t.final_prompt 
+            FROM test_instances ti
+            JOIN tests t ON ti.test_id = t.id
+            WHERE ti.id = ?
+        ''', (instance_id,))
+        test_data = cursor.fetchone()
+        
+        if not test_data:
             return {"message": f"Instance with ID {instance_id} not found"}
         
         # Convert data to JSON string
@@ -534,6 +543,18 @@ def create_report(instance_id, data):
             )
         else:
             # Create new report
+            fields = {
+                'code_summary': (str, Field(title='Code Summary', description='A short summary of the code, including the key choices made by the candidate in implementing the solution'))
+            }
+            
+            if test_data['initial_prompt']:
+                fields['initial_interview_summary'] = (str, Field(title='Initial Interview Summary', description='A summary of the initial interview with the candidate, including the key insights and areas of concern'))
+            
+            if test_data['final_prompt']:
+                fields['final_interview_summary'] = (str, Field(title='Final Interview Summary', description='A summary of the final interview with the candidate, including the key insights and areas of concern'))
+            
+            ReportSchema = type('ReportSchema', (BaseModel,), fields)
+            
             cursor.execute(
                 'INSERT INTO reports (instance_id, content) VALUES (?, ?)',
                 (instance_id, content)
