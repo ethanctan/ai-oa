@@ -32,7 +32,7 @@ export default function TestsAdmin() {
   const [finalPromptEnabled, setFinalPromptEnabled] = useState(true);
   const [assessmentType, setAssessmentType] = useState('qualitative');
   const [qualitativeCriteria, setQualitativeCriteria] = useState([{ title: '', description: '' }]);
-  const [quantitativeCriteria, setQuantitativeCriteria] = useState([['', '']]);
+  const [quantitativeCriteria, setQuantitativeCriteria] = useState([{ title: '', '1': '', '2': '', '3': '' }]);
   
   // Separate state for candidates in different contexts
   const [newTestSelectedCandidates, setNewTestSelectedCandidates] = useState([]);
@@ -1014,17 +1014,20 @@ export default function TestsAdmin() {
                   <div className="space-y-4 p-4 border border-gray-200 rounded-md bg-gray-50">
                     <h5 className="font-medium text-md mb-3">Quantitative Criteria (Rubric)</h5>
                     {parsedQuantitativeCriteria.length > 0 ? (
-                      parsedQuantitativeCriteria.map((row, rowIndex) => (
+                      parsedQuantitativeCriteria.map((criterion, rowIndex) => (
                         <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-white">
                           <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-medium text-gray-700">
-                            {row[0] || `Rubric Item ${rowIndex + 1} (empty)`}
+                            {criterion.title || `Rubric Item ${rowIndex + 1} (empty)`}
                           </div>
                           <p className="text-xs text-gray-500 ml-1">Score Descriptions (Lowest to Highest):</p>
-                          {row.slice(1).map((scoreDesc, scoreIndex) => (
-                            <div key={scoreIndex} className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 ml-4">
-                              {scoreDesc || `Score ${scoreIndex + 1} (empty)`}
-                            </div>
-                          ))}
+                          {Object.keys(criterion)
+                            .filter(key => key !== 'title')
+                            .sort((a, b) => parseInt(a) - parseInt(b))
+                            .map((scoreKey) => (
+                              <div key={scoreKey} className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 ml-4">
+                                {criterion[scoreKey] || `Score ${scoreKey} (empty)`}
+                              </div>
+                            ))}
                         </div>
                       ))
                     ) : (
@@ -1225,23 +1228,18 @@ export default function TestsAdmin() {
 
                 if (assessmentType === 'quantitative' || assessmentType === 'both') {
                   // Filter out incomplete quantitative criteria before stringifying
-                  const activeQuantitativeCriteria = quantitativeCriteria.filter(row => {
-                    // A row is active if its description (row[0]) is not empty 
-                    // AND it has at least one non-empty score description (row[1] onwards)
-                    const descriptionNotEmpty = row[0] && row[0].trim() !== '';
-                    const scoreDescriptions = row.slice(1).filter(desc => desc && desc.trim() !== '');
-                    return descriptionNotEmpty && scoreDescriptions.length > 0;
-                  }).map(row => {
-                    // For active rows, also filter out empty score descriptions within that row
-                    const description = row[0];
-                    const filteredScores = row.slice(1).filter(desc => desc && desc.trim() !== '');
-                    return [description, ...filteredScores];
+                  const activeQuantitativeCriteria = quantitativeCriteria.filter(criterion => {
+                    // A criterion is active if it has a title AND at least one non-empty score description
+                    const hasTitle = criterion.title && criterion.title.trim() !== '';
+                    const hasScores = Object.keys(criterion)
+                      .filter(key => key !== 'title')
+                      .some(key => criterion[key] && criterion[key].trim() !== '');
+                    return hasTitle && hasScores;
                   });
 
                   if (activeQuantitativeCriteria.length > 0) {
                     finalFormData.append('quantitativeAssessmentPrompt', JSON.stringify(activeQuantitativeCriteria));
-                  }
-                  else {
+                  } else {
                     finalFormData.append('quantitativeAssessmentPrompt', JSON.stringify([])); // Send empty array if all are empty/incomplete
                   }
                 } else {
@@ -1646,15 +1644,15 @@ export default function TestsAdmin() {
                 {(assessmentType === 'quantitative' || assessmentType === 'both') && (
                   <div className="space-y-4 p-4 border border-gray-200 rounded-md bg-gray-50">
                     <h5 className="font-medium text-md mb-3">Quantitative Criteria (Rubric)</h5>
-                    {quantitativeCriteria.map((row, rowIndex) => (
-                      <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-gray-50">
+                    {quantitativeCriteria.map((criterion, rowIndex) => (
+                      <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-white">
                         <div className="flex items-center space-x-2 mb-2">
                           <input
                             type="text"
-                            value={row[0]} // First element is the rubric item description
+                            value={criterion.title}
                             onChange={(e) => {
                               const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
-                              newCriteria[rowIndex][0] = e.target.value;
+                              newCriteria[rowIndex].title = e.target.value;
                               setQuantitativeCriteria(newCriteria);
                             }}
                             placeholder={`Rubric Item ${rowIndex + 1} (e.g., Code Quality)`}
@@ -1664,7 +1662,7 @@ export default function TestsAdmin() {
                             type="button" 
                             onClick={() => {
                               const newCriteria = quantitativeCriteria.filter((_, i) => i !== rowIndex);
-                              setQuantitativeCriteria(newCriteria.length > 0 ? newCriteria : [['', '']]);
+                              setQuantitativeCriteria(newCriteria.length > 0 ? newCriteria : [{ title: '', '1': '', '2': '', '3': '' }]);
                             }}
                             className="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
                           >
@@ -1672,41 +1670,52 @@ export default function TestsAdmin() {
                           </button>
                         </div>
                         <p className="text-xs text-gray-500 ml-1">Score Descriptions (Lowest to Highest):</p>
-                        {row.slice(1).map((scoreDesc, scoreIndex) => ( // Iterate from the second element for score descriptions
-                          <div key={scoreIndex} className="flex items-center space-x-2 pl-4">
-                            <input
-                              type="text"
-                              value={scoreDesc}
-                              onChange={(e) => {
-                                const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
-                                newCriteria[rowIndex][scoreIndex + 1] = e.target.value;
-                                setQuantitativeCriteria(newCriteria);
-                              }}
-                              placeholder={`Score ${scoreIndex + 1} Description`}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                            />
-                            <button 
-                              type="button" 
-                              onClick={() => {
-                                const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
-                                newCriteria[rowIndex].splice(scoreIndex + 1, 1);
-                                // Ensure at least one score description input remains if the item itself is not empty
-                                if (newCriteria[rowIndex].length < 2 && newCriteria[rowIndex][0] !== '') {
-                                   newCriteria[rowIndex].push(''); 
-                                }
-                                setQuantitativeCriteria(newCriteria);
-                              }}
-                              className="px-2 py-1 bg-red-400 text-white rounded-md hover:bg-red-500 text-xs"
-                            >
-                              -
-                            </button>
-                          </div>
-                        ))}
+                        {Object.keys(criterion)
+                          .filter(key => key !== 'title')
+                          .sort((a, b) => parseInt(a) - parseInt(b))
+                          .map((scoreKey) => (
+                            <div key={scoreKey} className="flex items-center space-x-2 pl-4">
+                              <input
+                                type="text"
+                                value={criterion[scoreKey]}
+                                onChange={(e) => {
+                                  const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
+                                  newCriteria[rowIndex][scoreKey] = e.target.value;
+                                  setQuantitativeCriteria(newCriteria);
+                                }}
+                                placeholder={`Score ${scoreKey} Description`}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
+                                  delete newCriteria[rowIndex][scoreKey];
+                                  // Ensure at least one score description remains if the item itself is not empty
+                                  if (Object.keys(newCriteria[rowIndex]).length <= 1 && newCriteria[rowIndex].title !== '') {
+                                    const nextScore = Object.keys(newCriteria[rowIndex])
+                                      .filter(key => key !== 'title')
+                                      .map(Number)
+                                      .reduce((max, num) => Math.max(max, num), 0) + 1;
+                                    newCriteria[rowIndex][nextScore.toString()] = '';
+                                  }
+                                  setQuantitativeCriteria(newCriteria);
+                                }}
+                                className="px-2 py-1 bg-red-400 text-white rounded-md hover:bg-red-500 text-xs"
+                              >
+                                -
+                              </button>
+                            </div>
+                          ))}
                         <button 
                           type="button" 
                           onClick={() => {
                             const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
-                            newCriteria[rowIndex].push('');
+                            const nextScore = Object.keys(newCriteria[rowIndex])
+                              .filter(key => key !== 'title')
+                              .map(Number)
+                              .reduce((max, num) => Math.max(max, num), 0) + 1;
+                            newCriteria[rowIndex][nextScore.toString()] = '';
                             setQuantitativeCriteria(newCriteria);
                           }}
                           className="px-3 py-1 bg-green-400 text-white rounded-md hover:bg-green-500 text-xs mt-1 ml-4"
@@ -1717,7 +1726,7 @@ export default function TestsAdmin() {
                     ))}
                     <button 
                       type="button" 
-                      onClick={() => setQuantitativeCriteria([...quantitativeCriteria, ['', '']])} // New row with item description and one score point
+                      onClick={() => setQuantitativeCriteria([...quantitativeCriteria, { title: '', '1': '', '2': '', '3': '' }])}
                       className="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm mt-2"
                     >
                       + Add Rubric Item
