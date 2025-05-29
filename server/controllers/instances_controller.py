@@ -9,6 +9,7 @@ import zipfile # For handling zip files
 from pathlib import Path
 from database.db import get_connection
 from controllers.timer_controller import start_instance_timer
+from controllers.chat_controller import create_report_completion, get_chat_history
 from pydantic import Field, BaseModel, create_model, validator 
 from pydantic.json_schema import GenerateJsonSchema
 from typing import Dict, Union, List, Any, Optional
@@ -543,7 +544,7 @@ def get_report(instance_id):
     finally:
         conn.close()
 
-def create_report(instance_id, data):
+def create_report(instance_id, workspace_content):
     """
     Create a new report for a test instance
     
@@ -554,24 +555,32 @@ def create_report(instance_id, data):
     Returns:
         dict: The created report data
     """
+
+    # Prompts
+    developer_prompt = """You are a technical interviewer analyzing a software engineering candidate's coding project.
+    Generate a structured evaluation report in the exact JSON format described in the schema.
+    Use the provided input data (which may include initial and final interview chat logs, candidate's codebase, and grading criteria) to generate all required sections.
+    Do not include any extra text, explanations, or formatting beyond the JSON object."""
+    user_instructions = ""
+    input_data = "\n"
+
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
         # Check if instance exists and get test data
         cursor.execute('''
-            SELECT t.initial_prompt, t.final_prompt 
+            SELECT t.initial_prompt, t.final_prompt, t.qualitative_assessment_prompt, t.quantitative_assessment_prompt   
             FROM test_instances ti
             JOIN tests t ON ti.test_id = t.id
             WHERE ti.id = ?
         ''', (instance_id,))
-        test_data = cursor.fetchone()
-        
+        test_data = dict(cursor.fetchone())
+        # {'initial_prompt': "You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have not started yet. Instructions for the project have been provided in the README.md file. Interview the candidate about how they'll go about the project's design, implementation, and testing, in that order. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.", 'final_prompt': 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have completed. Interview them about their design decisions, implementation, and testing, in that order. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.', 'qualitative_assessment_prompt': '[{"title":"Code Clarity","description":"Does the candidate clearly document their code with comments and meaningful variable names?"}]', 'quantitative_assessment_prompt': '[]'}
+        print("test data:", test_data)
         if not test_data:
             return {"message": f"Instance with ID {instance_id} not found"}
         
-        # Convert data to JSON string
-        content = json.dumps(data)
         
         # Check if a report already exists
         cursor.execute('SELECT * FROM reports WHERE instance_id = ?', (instance_id,))
@@ -601,6 +610,11 @@ def create_report(instance_id, data):
                 Field(title="Code Summary", description="Concise summary of the code architecture and implementation.")
             )
 
+            if test_data['initial_prompt'] or test_data['final_prompt']:
+                chat_history = get_chat_history(instance_id)
+                print("chat_history:")
+                print(chat_history)
+
             if test_data['initial_prompt']:
                 field_definitions['initial_interview_summary'] = (
                     str,
@@ -613,7 +627,7 @@ def create_report(instance_id, data):
                     Field(title="Final Interview Summary", description="Summary of final design and implementation discussion in the final interview chat logs.")
                 )
 
-            if test_data['qualitative_assessment_prompt']:
+            if test_data['qualitative_assessment_prompt'] != "[]":
                 # Build qualitative description
                 qualitative_criteria_list = json.loads(test_data['qualitative_assessment_prompt'])
                 qualitative_desc = "Qualitative criteria performance assessments:\n"
@@ -624,7 +638,7 @@ def create_report(instance_id, data):
                     Field(title="Qualitative Criteria", description=qualitative_desc)
                 )
 
-            if test_data['quantitative_assessment_prompt']:
+            if test_data['quantitative_assessment_prompt'] != "[]":
                 # Process quantitative criteria for validation
                 quantitative_criteria_list = json.loads(test_data['quantitative_assessment_prompt'])
                 quantitative_metadata = {}
@@ -651,17 +665,17 @@ def create_report(instance_id, data):
                     Dict[str, QuantitativeCriterionModel],
                     Field(title="Quantitative Criteria", description=quantitative_desc)
                 )
-
+            print("added all fields")
             # Step 3: Create the base model dynamically
             DynamicModel = create_model('DynamicModel', **field_definitions)
-
+            print("dynamic model created")
             # Step 4: Define the model with validators (conditional)
             class ReportSchema(DynamicModel):
                 class Config:
                     extra = 'forbid'
 
                 # Conditional validator for qualitative_criteria
-                if test_data['qualitative_assessment_prompt']:
+                if test_data['qualitative_assessment_prompt'] != "[]":
                     @validator('qualitative_criteria')
                     def validate_qualitative_keys(cls, v):
                         expected_keys = {qc['title'] for qc in qualitative_criteria_list}
@@ -678,7 +692,7 @@ def create_report(instance_id, data):
                         return v
 
                 # Conditional validator for quantitative_criteria
-                if test_data['quantitative_assessment_prompt']:
+                if test_data['quantitative_assessment_prompt'] != "[]":
                     @validator('quantitative_criteria')
                     def validate_quantitative_scores(cls, v):
                         for key, value in v.items():
@@ -692,10 +706,19 @@ def create_report(instance_id, data):
                                 )
                         return v
 
-            
+            print("schema created")
+            # Prompt
+            user_prompt = user_instructions + input_data
+            messages = []
+            messages.append({"role": "developer",
+                             "content": developer_prompt})
+            messages.append({"role": "user",
+                             "content": user_prompt})
+            report = create_report_completion(messages, ReportSchema)
+            print("api returned")
             cursor.execute(
                 'INSERT INTO reports (instance_id, content) VALUES (?, ?)',
-                (instance_id, content)
+                (instance_id, report)
             )
         
         conn.commit()
