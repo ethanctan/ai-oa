@@ -148,9 +148,11 @@ def instance_report(instance_id):
             return jsonify(report)
         else:  # POST
             data = request.json
+            print(f'Received report create request: {data}')
             if not data:
                 return jsonify({'error': 'Instance content is required to generate a report'}), 400
-            report = create_report(instance_id, data)
+            workspace_content = data['workspaceContent']
+            report = create_report(instance_id, workspace_content)
             return jsonify(report)
     except Exception as e:
         print(f'Error getting report: {str(e)}')
