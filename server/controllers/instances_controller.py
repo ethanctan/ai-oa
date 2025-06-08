@@ -598,6 +598,10 @@ def create_report(instance_id, workspace_content):
            
  
             # Step 1: Build QuantitativeCriterionModel
+            class QualitativeCriterionModel(BaseModel):
+                title: str = Field(title="Title", description="Title of the criterion")
+                description: str = Field(title="Description", description="Description of the candidate's performance on this criterion")
+
             class QuantitativeCriterionModel(BaseModel):
                 score: int = Field(title="Score", description="Numerical score for this criterion")
                 explanation: str = Field(title="Explanation", description="Justification for the given score")
@@ -630,11 +634,13 @@ def create_report(instance_id, workspace_content):
             if test_data['qualitative_assessment_prompt'] != "[]":
                 # Build qualitative description
                 qualitative_criteria_list = json.loads(test_data['qualitative_assessment_prompt'])
+                criteria_count = len(qualitative_criteria_list)
                 qualitative_desc = "Qualitative criteria performance assessments:\n"
+                qualitative_desc += f"The following {criteria_count} criteria are used to assess the candidate's performance on the project:\n"
                 for qc in qualitative_criteria_list:
                     qualitative_desc += f"- {qc['title']}: {qc['description']}\n"
                 field_definitions['qualitative_criteria'] = (
-                    Dict[str, str],
+                    list[QualitativeCriterionModel],
                     Field(title="Qualitative Criteria", description=qualitative_desc)
                 )
 
@@ -679,7 +685,7 @@ def create_report(instance_id, workspace_content):
                     @validator('qualitative_criteria')
                     def validate_qualitative_keys(cls, v):
                         expected_keys = {qc['title'] for qc in qualitative_criteria_list}
-                        v_keys = set(v.keys())
+                        v_keys = set([qc.title for qc in v])
                         if v_keys != expected_keys:
                             missing = expected_keys - v_keys
                             extra = v_keys - expected_keys

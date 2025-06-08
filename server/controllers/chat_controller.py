@@ -248,6 +248,7 @@ def create_report_completion(messages, report_schema):
             response_format=report_schema,
             # Pass additional parameters such as temperature, top_p, max_tokens if needed
         )
+        print(result.model_dump_json(indent=2))
 
         report = result.choices[0].message.parsed 
         return report
