@@ -1259,5 +1259,18 @@
     "timeRemainingMs": 3600000,
     "projectStarted": true,
     "finalInterviewStarted": true
+  },
+  "1": {
+    "instanceId": "1",
+    "startTime": 1749428599,
+    "endTime": 1749429199,
+    "duration": 600,
+    "active": true,
+    "interviewStarted": false,
+    "timerType": "initial",
+    "currentTimeMs": 1749428599000,
+    "endTimeMs": 1749429199000,
+    "timeRemaining": 600,
+    "timeRemainingMs": 600000
   }
 }

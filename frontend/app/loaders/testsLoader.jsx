@@ -2,26 +2,20 @@
 
 import { getApiEndpoint } from "../utils/api";
 
-// Fetch the list of tests and active instances
+// Fetch only instances since tests require authentication
 export async function loader() {
   try {
-    // Fetch tests from the new endpoint
-    const testsRes = await fetch(getApiEndpoint("tests/"));
-    if (!testsRes.ok) {
-      throw new Error("Failed to fetch tests");
-    }
-    const tests = await testsRes.json();
-    
-    // Also fetch the active instances
+    // Only fetch instances - tests will be fetched client-side with authentication
     const instancesRes = await fetch(getApiEndpoint("instances/"));
     if (!instancesRes.ok) {
       throw new Error("Failed to fetch instances");
     }
     const instances = await instancesRes.json();
     
-    return { tests, instances };
+    // Return empty tests array since we'll fetch it client-side
+    return { tests: [], instances };
   } catch (error) {
-    console.error("Error loading tests:", error);
+    console.error("Error loading data:", error);
     return { tests: [], instances: [] };
   }
 } 

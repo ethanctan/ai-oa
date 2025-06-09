@@ -2,15 +2,20 @@ from database.db import get_connection
 import pandas as pd
 from werkzeug.utils import secure_filename
 import os
+import numpy as np
 
-def get_all_candidates():
-    """Get all candidates from the database with their assigned tests"""
+def get_all_candidates(company_id=None):
+    """Get all candidates from the database with their assigned tests, filtered by company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Get all candidates
-        cursor.execute('SELECT * FROM candidates')
+        # Get candidates filtered by company if provided
+        if company_id:
+            cursor.execute('SELECT * FROM candidates WHERE company_id = ?', (company_id,))
+        else:
+            cursor.execute('SELECT * FROM candidates')
+        
         candidates = [dict(row) for row in cursor.fetchall()]
         
         # For each candidate, get their assigned tests
@@ -29,13 +34,17 @@ def get_all_candidates():
     finally:
         conn.close()
 
-def get_candidate(candidate_id):
-    """Get a specific candidate by ID"""
+def get_candidate(candidate_id, company_id=None):
+    """Get a specific candidate by ID, optionally filtered by company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+        if company_id:
+            cursor.execute('SELECT * FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+        else:
+            cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+        
         candidate = cursor.fetchone()
         
         if not candidate:
@@ -45,29 +54,33 @@ def get_candidate(candidate_id):
     finally:
         conn.close()
 
-def create_candidate(data):
+def create_candidate(data, company_id=None):
     """Create a new candidate"""
     name = data.get('name')
     email = data.get('email')
+    tags = data.get('tags', '')
     
     if not name or not email:
         raise ValueError('Name and email are required')
+    
+    if not company_id:
+        raise ValueError('Company ID is required for multi-tenant support')
     
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Check if email already exists
-        cursor.execute('SELECT id FROM candidates WHERE email = ?', (email,))
+        # Check if email already exists in the same company
+        cursor.execute('SELECT id FROM candidates WHERE email = ? AND company_id = ?', (email, company_id))
         existing = cursor.fetchone()
         
         if existing:
-            raise ValueError(f"Candidate with email {email} already exists")
+            raise ValueError(f"Candidate with email {email} already exists in your organization")
         
-        # Insert new candidate
+        # Insert new candidate with company_id
         cursor.execute(
-            'INSERT INTO candidates (name, email, completed) VALUES (?, ?, ?)',
-            (name, email, 0)
+            'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (?, ?, ?, ?, ?)',
+            (name, email, tags, company_id, 0)
         )
         conn.commit()
         
@@ -82,18 +95,22 @@ def create_candidate(data):
     finally:
         conn.close()
 
-def update_candidate(candidate_id, data):
-    """Update a candidate"""
+def update_candidate(candidate_id, data, company_id=None):
+    """Update a candidate, ensuring it belongs to the user's company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Check if candidate exists
-        cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        # Check if candidate exists and belongs to the company
+        if company_id:
+            cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+        else:
+            cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        
         existing = cursor.fetchone()
         
         if not existing:
-            raise ValueError(f"Candidate with ID {candidate_id} not found")
+            raise ValueError(f"Candidate with ID {candidate_id} not found in your organization")
         
         # Build update statement
         update_fields = []
@@ -104,6 +121,13 @@ def update_candidate(candidate_id, data):
             update_values.append(data['name'])
         
         if 'email' in data:
+            # Check for email conflicts within the same company
+            cursor.execute('SELECT id FROM candidates WHERE email = ? AND company_id = ? AND id != ?', 
+                         (data['email'], company_id or 1, candidate_id))
+            email_conflict = cursor.fetchone()
+            if email_conflict:
+                raise ValueError(f"Email {data['email']} is already used by another candidate in your organization")
+            
             update_fields.append('email = ?')
             update_values.append(data['email'])
         
@@ -111,9 +135,13 @@ def update_candidate(candidate_id, data):
             update_fields.append('completed = ?')
             update_values.append(1 if data['completed'] else 0)
         
+        if 'tags' in data:
+            update_fields.append('tags = ?')
+            update_values.append(data['tags'])
+        
         if not update_fields:
             # Nothing to update
-            return get_candidate(candidate_id)
+            return get_candidate(candidate_id, company_id)
         
         # Update the candidate
         query = f"UPDATE candidates SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
@@ -123,25 +151,29 @@ def update_candidate(candidate_id, data):
         conn.commit()
         
         # Return updated candidate
-        return get_candidate(candidate_id)
+        return get_candidate(candidate_id, company_id)
     except Exception as e:
         conn.rollback()
         raise e
     finally:
         conn.close()
 
-def delete_candidate(candidate_id):
-    """Delete a candidate"""
+def delete_candidate(candidate_id, company_id=None):
+    """Delete a candidate, ensuring it belongs to the user's company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Check if candidate exists
-        cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        # Check if candidate exists and belongs to the company
+        if company_id:
+            cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+        else:
+            cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        
         existing = cursor.fetchone()
         
         if not existing:
-            raise ValueError(f"Candidate with ID {candidate_id} not found")
+            raise ValueError(f"Candidate with ID {candidate_id} not found in your organization")
         
         # Delete the candidate
         cursor.execute('DELETE FROM candidates WHERE id = ?', (candidate_id,))
@@ -154,18 +186,22 @@ def delete_candidate(candidate_id):
     finally:
         conn.close()
 
-def get_candidate_tests(candidate_id):
-    """Get all tests assigned to a candidate"""
+def get_candidate_tests(candidate_id, company_id=None):
+    """Get all tests assigned to a candidate, ensuring candidate belongs to user's company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Check if candidate exists
-        cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        # Check if candidate exists and belongs to the company
+        if company_id:
+            cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+        else:
+            cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        
         existing = cursor.fetchone()
         
         if not existing:
-            raise ValueError(f"Candidate with ID {candidate_id} not found")
+            raise ValueError(f"Candidate with ID {candidate_id} not found in your organization")
         
         # Get tests assigned to candidate
         cursor.execute('''
@@ -180,8 +216,11 @@ def get_candidate_tests(candidate_id):
     finally:
         conn.close()
 
-def create_candidates_from_file(df):
+def create_candidates_from_file(df, company_id=None):
     """Create multiple candidates from a pandas DataFrame"""
+    if not company_id:
+        raise ValueError('Company ID is required for multi-tenant support')
+    
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -197,8 +236,13 @@ def create_candidates_from_file(df):
             try:
                 name = str(row['Name']).strip()
                 email = str(row['Email']).strip()
-                # Handle tags - ensure they're semicolon-separated and clean up any extra spaces
-                tags = ';'.join(tag.strip() for tag in str(row.get('Tags', '')).split(';') if tag.strip()) if 'Tags' in row else ''
+                # Handle tags - properly handle NaN values and ensure they're semicolon-separated
+                tags_value = row.get('Tags', '')
+                if pd.isna(tags_value) or tags_value == '' or str(tags_value).lower() == 'nan':
+                    tags = ''
+                else:
+                    # Clean up tags and join with semicolons
+                    tags = ';'.join(tag.strip() for tag in str(tags_value).split(';') if tag.strip())
                 
                 if not name or not email:
                     results['errors'].append({
@@ -207,12 +251,12 @@ def create_candidates_from_file(df):
                     })
                     continue
                 
-                # Check for existing candidates with same email or name
+                # Check for existing candidates with same email or name within the same company
                 cursor.execute('''
                     SELECT id, name, email, tags 
                     FROM candidates 
-                    WHERE email = ? OR name = ?
-                ''', (email, name))
+                    WHERE (email = ? OR name = ?) AND company_id = ?
+                ''', (email, name, company_id))
                 existing = cursor.fetchall()
                 
                 if existing:
@@ -227,10 +271,10 @@ def create_candidates_from_file(df):
                     })
                     continue
                 
-                # Insert new candidate
+                # Insert new candidate with company_id
                 cursor.execute(
-                    'INSERT INTO candidates (name, email, tags, completed) VALUES (?, ?, ?, ?)',
-                    (name, email, tags, 0)
+                    'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (?, ?, ?, ?, ?)',
+                    (name, email, tags, company_id, 0)
                 )
                 
                 # Get the inserted candidate
@@ -255,7 +299,7 @@ def create_candidates_from_file(df):
     finally:
         conn.close()
 
-def handle_file_upload(file):
+def handle_file_upload(file, company_id=None):
     """Handle file upload and validation"""
     if not file:
         raise ValueError('No file provided')
@@ -265,6 +309,9 @@ def handle_file_upload(file):
         
     if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
         raise ValueError('File must be CSV or Excel format')
+    
+    if not company_id:
+        raise ValueError('Company ID is required for multi-tenant support')
         
     # Read the file based on its extension
     try:
@@ -278,7 +325,7 @@ def handle_file_upload(file):
         if not all(col in df.columns for col in required_columns):
             raise ValueError('File must contain Email and Name columns')
             
-        return create_candidates_from_file(df)
+        return create_candidates_from_file(df, company_id)
     except pd.errors.EmptyDataError:
         raise ValueError('The file is empty')
     except pd.errors.ParserError:
@@ -286,8 +333,11 @@ def handle_file_upload(file):
     except Exception as e:
         raise ValueError(f'Error processing file: {str(e)}')
 
-def handle_duplicate_resolution(decisions):
+def handle_duplicate_resolution(decisions, company_id=None):
     """Handle the resolution of duplicate candidates based on user decisions"""
+    if not company_id:
+        raise ValueError('Company ID is required for multi-tenant support')
+    
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -304,23 +354,30 @@ def handle_duplicate_resolution(decisions):
                 existing_id = decision.get('existing_id')  # Only present for 'update' action
                 
                 if action == 'create_new':
-                    # Insert as new candidate
+                    # Insert as new candidate with company_id
                     cursor.execute(
-                        'INSERT INTO candidates (name, email, tags, completed) VALUES (?, ?, ?, ?)',
-                        (new_data['name'], new_data['email'], new_data['tags'], 0)
+                        'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (?, ?, ?, ?, ?)',
+                        (new_data['name'], new_data['email'], new_data['tags'], company_id, 0)
                     )
                     candidate_id = cursor.lastrowid
                     cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
                     results['success'].append(dict(cursor.fetchone()))
                     
                 elif action == 'update' and existing_id:
-                    # Update existing candidate
+                    # Update existing candidate, but verify it belongs to the same company
                     cursor.execute(
-                        'UPDATE candidates SET name = ?, email = ?, tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                        (new_data['name'], new_data['email'], new_data['tags'], existing_id)
+                        'UPDATE candidates SET name = ?, email = ?, tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?',
+                        (new_data['name'], new_data['email'], new_data['tags'], existing_id, company_id)
                     )
-                    cursor.execute('SELECT * FROM candidates WHERE id = ?', (existing_id,))
-                    results['success'].append(dict(cursor.fetchone()))
+                    cursor.execute('SELECT * FROM candidates WHERE id = ? AND company_id = ?', (existing_id, company_id))
+                    updated_candidate = cursor.fetchone()
+                    if updated_candidate:
+                        results['success'].append(dict(updated_candidate))
+                    else:
+                        results['errors'].append({
+                            'data': new_data,
+                            'error': 'Candidate not found or access denied'
+                        })
                     
                 elif action == 'skip':
                     # Do nothing, just skip this entry

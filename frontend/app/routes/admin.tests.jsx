@@ -4,13 +4,15 @@ import { useLoaderData, Form, useSubmit, useNavigation } from "@remix-run/react"
 import { loader } from "../loaders/testsLoader.jsx";
 import { action } from "../actions/testsAction.jsx";
 import { getApiEndpoint } from "../utils/api";
+import { useAuthenticatedApi } from "../hooks/useAuthenticatedApi";
 
 // Re-export the loader and action so Remix can pick them up
 export { loader, action };
 
 export default function TestsAdmin() {
   const initialData = useLoaderData();
-  const [tests, setTests] = useState(initialData.tests || []);
+  // Don't use loader data for tests since it's not authenticated - start with empty array
+  const [tests, setTests] = useState([]);
   const [instances, setInstances] = useState(initialData.instances || []);
   const [showNewTestForm, setShowNewTestForm] = useState(false);
   const [showManageCandidatesModal, setShowManageCandidatesModal] = useState(false);
@@ -42,6 +44,7 @@ export default function TestsAdmin() {
   const [testCandidates, setTestCandidates] = useState({ assigned: [], available: [] });
   const submit = useSubmit();
   const navigation = useNavigation();
+  const api = useAuthenticatedApi();
   
   // Add new state for selected assigned candidates to remove
   const [selectedAssignedCandidates, setSelectedAssignedCandidates] = useState([]);
@@ -236,29 +239,26 @@ export default function TestsAdmin() {
   
   // Close modals when navigation state changes
   useEffect(() => {
-    // Only check for idle state and POST method
-    if (navigation.state === "idle" && navigation.formMethod === "POST") {
-      console.log("Navigation state changed, checking if we should close modals");
+    // Improved navigation detection for test creation success
+    if (navigation.state === "idle" && navigation.formMethod === "POST" && navigation.formAction === "/admin/tests") {
+      console.log("Test creation completed, refreshing data");
       setShowNewTestForm(false);
       setNewTestSelectedCandidates([]);
       
-      // Show success message if a new test was created (could check for specific action if needed)
-      if (navigation.formAction === "/admin/tests") {
-        // Display a success message
-        setTimeout(() => {
-          alert("Test created successfully! Use 'Try Test' to test it or 'Manage Candidates' to send it to candidates.");
-          
-          // Refresh the tests list
-          fetchTests();
-        }, 500);
-      }
+      // Immediately refresh the tests list
+      fetchTests();
+      
+      // Show success message
+      setTimeout(() => {
+        alert("Test created successfully! Use 'Try Test' to test it or 'Manage Candidates' to send it to candidates.");
+      }, 100);
     }
-  }, [navigation.state, navigation.formMethod]);
+  }, [navigation.state, navigation.formMethod, navigation.formAction]);
   
   // Fetch candidates when opening the new test form
   const handleCreateTestClick = async () => {
     try {
-      const response = await fetch(getApiEndpoint('candidates/'));
+      const response = await api.get('/candidates/');
       const data = await response.json();
       setCandidates(data);
     } catch (error) {
@@ -346,7 +346,7 @@ export default function TestsAdmin() {
     setManageCandidatesSelection([]);
     
     try {
-      const response = await fetch(getApiEndpoint(`tests/${testId}/candidates/`));
+      const response = await api.get(`/tests/${testId}/candidates/`);
       if (response.ok) {
         const data = await response.json();
         setTestCandidates(data);
@@ -396,16 +396,7 @@ export default function TestsAdmin() {
 
       const endpoint = getApiEndpoint(`tests/${currentTestId}/candidates/${candidateId}/deadline`);
       
-      const response = await fetch(
-        endpoint,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ deadline }),
-        }
-      );
+      const response = await api.put(`/tests/${currentTestId}/candidates/${candidateId}/deadline`, { deadline });
 
       const responseData = await response.json();
 
@@ -414,7 +405,7 @@ export default function TestsAdmin() {
       }
 
       // Refresh the candidates list to ensure we have the latest data
-      const candidatesResponse = await fetch(getApiEndpoint(`tests/${currentTestId}/candidates/`));
+      const candidatesResponse = await api.get(`/tests/${currentTestId}/candidates/`);
       if (candidatesResponse.ok) {
         const candidatesData = await candidatesResponse.json();
         setTestCandidates(candidatesData);
@@ -442,7 +433,7 @@ export default function TestsAdmin() {
         success: true,
         action: deadlineAction,
         candidateName: candidateName,
-        message: `Deadline ${deadlineAction} successfully! An email notification has been sent to the candidate.`
+        message: `Deadline ${deadlineAction} successfully! If they were previously informed of a different deadline, an email notification has been sent to the candidate.`
       });
     } catch (err) {
       console.error('Error updating deadline:', err);
@@ -474,25 +465,18 @@ export default function TestsAdmin() {
 
       // Assign each selected candidate with the deadline (or null if no deadline)
       const assignments = await Promise.all(
-        selectedAvailable.map(candidate =>
-          fetch(getApiEndpoint(`tests/${currentTestId}/candidates/${candidate.id}`), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ deadline }),
-          }).then(async res => {
-            if (!res.ok) {
-              throw new Error(`Failed to assign test to ${candidate.name}`);
-            }
-            const result = await res.json();
-            return {
-              ...candidate,
-              deadline,
-              test_completed: false
-            };
-          })
-        )
+        selectedAvailable.map(async candidate => {
+          const response = await api.post(`/tests/${currentTestId}/candidates/${candidate.id}`, { deadline });
+          if (!response.ok) {
+            throw new Error(`Failed to assign test to ${candidate.name}`);
+          }
+          const result = await response.json();
+          return {
+            ...candidate,
+            deadline,
+            test_completed: false
+          };
+        })
       );
 
       // Update the testCandidates state with the new assignments
@@ -533,7 +517,7 @@ export default function TestsAdmin() {
   const handleViewReport = async (instanceId) => {
     try {
       console.log(`Fetching report for instance ID: ${instanceId}`);
-      const response = await fetch(getApiEndpoint(`reports/${instanceId}`));
+      const response = await api.get(`/reports/${instanceId}`);
       if (response.ok) {
         const data = await response.json();
         setCurrentReport(data);
@@ -556,7 +540,7 @@ export default function TestsAdmin() {
   // Add function to handle viewing test details
   const handleViewTest = async (testId) => {
     try {
-      const response = await fetch(getApiEndpoint(`tests/${testId}`));
+      const response = await api.get(`/tests/${testId}`);
       if (response.ok) {
         const testData = await response.json();
         setCurrentTestDetails(testData);
@@ -579,7 +563,7 @@ export default function TestsAdmin() {
   // Function to fetch tests
   const fetchTests = async () => {
     try {
-      const response = await fetch(getApiEndpoint('tests/'));
+      const response = await api.get('/tests/');
       const testsData = await response.json();
       console.log('Fetched tests:', testsData);
       setTests(testsData);
@@ -623,12 +607,7 @@ export default function TestsAdmin() {
     
     try {
       console.log(`Deleting test with ID: ${testId}`);
-      const response = await fetch(getApiEndpoint(`tests/${testId}`), {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await api.delete(`/tests/${testId}`);
       
       if (response.ok) {
         console.log('Test deleted successfully, updating UI');
@@ -669,14 +648,10 @@ export default function TestsAdmin() {
     
     try {
       const results = await Promise.all(
-        selectedAssignedCandidates.map(candidateId =>
-          fetch(getApiEndpoint(`tests/${currentTestId}/candidates/${candidateId}`), {
-            method: 'DELETE',
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          }).then(res => res.json())
-        )
+        selectedAssignedCandidates.map(async candidateId => {
+          const response = await api.delete(`/tests/${currentTestId}/candidates/${candidateId}`);
+          return await response.json();
+        })
       );
       
       // Check if all removals were successful
@@ -685,7 +660,7 @@ export default function TestsAdmin() {
       if (allSuccessful) {
         alert(`Successfully removed ${selectedAssignedCandidates.length} candidate(s) from the test`);
         // Refresh the candidates list
-        const response = await fetch(getApiEndpoint(`tests/${currentTestId}/candidates/`));
+        const response = await api.get(`/tests/${currentTestId}/candidates/`);
         if (response.ok) {
           const data = await response.json();
           setTestCandidates(data);
@@ -722,16 +697,10 @@ export default function TestsAdmin() {
     setEmailResults(null);
 
     try {
-      const response = await fetch(getApiEndpoint('instances/send-invitations'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          testId: currentTestId,
-          candidateIds: selectedAssignedCandidates,
-          deadline: testCandidates.assigned.find(c => selectedAssignedCandidates.includes(c.id))?.deadline
-        })
+      const response = await api.post('/instances/send-invitations', {
+        testId: currentTestId,
+        candidateIds: selectedAssignedCandidates,
+        deadline: testCandidates.assigned.find(c => selectedAssignedCandidates.includes(c.id))?.deadline
       });
 
       const result = await response.json();
@@ -1155,109 +1124,92 @@ export default function TestsAdmin() {
             <Form 
               method="post" 
               className="space-y-6"
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault(); // Prevent default browser submission
-                // Get the form data to extract timer configuration
-                const formData = new FormData(event.target);
-                const enableTimer = formData.get('enableTimer') === 'on';
-                const timerDuration = parseInt(formData.get('timerDuration'), 10) || 10;
                 
-                // Get project timer configuration
-                const enableProjectTimer = formData.get('enableProjectTimer') === 'on';
-                const projectTimerDuration = parseInt(formData.get('projectTimerDuration'), 10) || 60;
-                
-                // Create the timer configuration JSON
-                const timerConfig = {
-                  enableTimer: enableTimer,
-                  duration: timerDuration,
-                  enableProjectTimer: enableProjectTimer,
-                  projectDuration: projectTimerDuration
-                };
-                
-                // Create a new FormData object for submission
-                const finalFormData = new FormData();
+                try {
+                  // Get the form data to extract timer configuration
+                  const formData = new FormData(event.target);
+                  const enableTimer = formData.get('enableTimer') === 'on';
+                  const timerDuration = parseInt(formData.get('timerDuration'), 10) || 10;
+                  
+                  // Get project timer configuration
+                  const enableProjectTimer = formData.get('enableProjectTimer') === 'on';
+                  const projectTimerDuration = parseInt(formData.get('projectTimerDuration'), 10) || 60;
+                  
+                  // Create the payload object for the API
+                  const payload = {
+                    instanceName: formData.get('instanceName'),
+                    enableTimer: enableTimer,
+                    timerDuration: timerDuration,
+                    enableProjectTimer: enableProjectTimer,
+                    projectTimerDuration: projectTimerDuration,
+                    githubRepo: formData.get('githubRepo') || '',
+                    githubToken: formData.get('githubToken') || '',
+                    candidateIds: newTestSelectedCandidates
+                  };
 
-                // Always include test name and timer config
-                finalFormData.append('instanceName', formData.get('instanceName'));
-                finalFormData.append('timerConfigJson', JSON.stringify(timerConfig));
-                finalFormData.append('enableTimer', enableTimer ? 'on' : 'off');
-                finalFormData.append('timerDuration', timerDuration.toString());
-                finalFormData.append('enableProjectTimer', enableProjectTimer ? 'on' : 'off');
-                finalFormData.append('projectTimerDuration', projectTimerDuration.toString());
+                  // Add optional fields based on toggles
+                  if (targetGithubRepoEnabled) {
+                    payload.targetGithubRepo = formData.get('targetGithubRepo');
+                  }
+                  if (targetGithubTokenEnabled) {
+                    payload.targetGithubToken = formData.get('targetGithubToken');
+                  }
+                  if (initialPromptEnabled) {
+                    payload.initialPrompt = formData.get('initialPrompt');
+                  }
+                  if (finalPromptEnabled) {
+                    payload.finalPrompt = formData.get('finalPrompt');
+                  }
 
-                // Add required GitHub fields (Get values directly from formData)
-                finalFormData.append('githubRepo', formData.get('githubRepo') || '');
-                finalFormData.append('githubToken', formData.get('githubToken') || '');
-
-                // Add optional fields based on toggles
-                if (targetGithubRepoEnabled) {
-                  finalFormData.append('targetGithubRepo', formData.get('targetGithubRepo'));
-                }
-                if (targetGithubTokenEnabled) {
-                  finalFormData.append('targetGithubToken', formData.get('targetGithubToken'));
-                }
-                if (initialPromptEnabled) {
-                  finalFormData.append('initialPrompt', formData.get('initialPrompt'));
-                }
-                if (finalPromptEnabled) {
-                  finalFormData.append('finalPrompt', formData.get('finalPrompt'));
-                }
-
-                // Add assessment criteria based on type
-                if (assessmentType === 'qualitative' || assessmentType === 'both') {
-                  // Filter out empty strings from qualitativeCriteria before stringifying
-                  const activeQualitativeCriteria = qualitativeCriteria.filter(criterion => criterion.trim() !== '');
-                  if (activeQualitativeCriteria.length > 0) {
-                    finalFormData.append('qualitativeAssessmentPrompt', JSON.stringify(activeQualitativeCriteria));
+                  // Add assessment criteria based on type
+                  if (assessmentType === 'qualitative' || assessmentType === 'both') {
+                    const activeQualitativeCriteria = qualitativeCriteria.filter(criterion => criterion.trim() !== '');
+                    payload.qualitativeAssessmentPrompt = JSON.stringify(activeQualitativeCriteria.length > 0 ? activeQualitativeCriteria : []);
                   } else {
-                    finalFormData.append('qualitativeAssessmentPrompt', JSON.stringify([])); // Send empty array if all are empty
+                    payload.qualitativeAssessmentPrompt = JSON.stringify([]);
                   }
-                } else {
-                  finalFormData.append('qualitativeAssessmentPrompt', JSON.stringify([])); // Send empty if not selected
-                }
 
-                if (assessmentType === 'quantitative' || assessmentType === 'both') {
-                  // Filter out incomplete quantitative criteria before stringifying
-                  const activeQuantitativeCriteria = quantitativeCriteria.filter(row => {
-                    // A row is active if its description (row[0]) is not empty 
-                    // AND it has at least one non-empty score description (row[1] onwards)
-                    const descriptionNotEmpty = row[0] && row[0].trim() !== '';
-                    const scoreDescriptions = row.slice(1).filter(desc => desc && desc.trim() !== '');
-                    return descriptionNotEmpty && scoreDescriptions.length > 0;
-                  }).map(row => {
-                    // For active rows, also filter out empty score descriptions within that row
-                    const description = row[0];
-                    const filteredScores = row.slice(1).filter(desc => desc && desc.trim() !== '');
-                    return [description, ...filteredScores];
-                  });
+                  if (assessmentType === 'quantitative' || assessmentType === 'both') {
+                    const activeQuantitativeCriteria = quantitativeCriteria.filter(row => {
+                      const descriptionNotEmpty = row[0] && row[0].trim() !== '';
+                      const scoreDescriptions = row.slice(1).filter(desc => desc && desc.trim() !== '');
+                      return descriptionNotEmpty && scoreDescriptions.length > 0;
+                    }).map(row => {
+                      const description = row[0];
+                      const filteredScores = row.slice(1).filter(desc => desc && desc.trim() !== '');
+                      return [description, ...filteredScores];
+                    });
 
-                  if (activeQuantitativeCriteria.length > 0) {
-                    finalFormData.append('quantitativeAssessmentPrompt', JSON.stringify(activeQuantitativeCriteria));
+                    payload.quantitativeAssessmentPrompt = JSON.stringify(activeQuantitativeCriteria.length > 0 ? activeQuantitativeCriteria : []);
+                  } else {
+                    payload.quantitativeAssessmentPrompt = JSON.stringify([]);
                   }
-                  else {
-                    finalFormData.append('quantitativeAssessmentPrompt', JSON.stringify([])); // Send empty array if all are empty/incomplete
+
+                  console.log('🚀 Creating test with payload:', payload);
+
+                  // Use the authenticated API to create the test
+                  const response = await api.post('/tests', payload);
+                  const result = await response.json();
+
+                  if (!response.ok) {
+                    throw new Error(result.error || 'Failed to create test');
                   }
-                } else {
-                  finalFormData.append('quantitativeAssessmentPrompt', JSON.stringify([])); // Send empty if not selected
-                }
 
-                // Add selected candidate IDs
-                newTestSelectedCandidates.forEach(id => {
-                  finalFormData.append('candidateIds', id.toString());
-                });
+                  console.log('✅ Test created successfully:', result);
 
-                // Use useSubmit hook to submit the processed data
-                submit(finalFormData, { method: 'post' });
-
-                // Form will be submitted normally via Remix
-                // Add a slight delay before closing the modal to ensure the form is submitted
-                setTimeout(() => {
+                  // Close the modal and refresh
                   setShowNewTestForm(false);
                   setNewTestSelectedCandidates([]);
                   
-                  // Refresh the tests list after submission
-                  setTimeout(fetchTests, 1000);
-                }, 300);
+                  // Refresh the tests list
+                  await fetchTests();
+                  
+                } catch (error) {
+                  console.error('❌ Error creating test:', error);
+                  alert(`Failed to create test: ${error.message}`);
+                }
               }}
             >
               <div>

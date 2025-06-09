@@ -42,6 +42,18 @@ def run_migrations():
     # Remove deadline column from access_tokens table (no longer needed)
     remove_deadline_from_access_tokens()
     
+    # Add companies table for multi-tenant support
+    add_companies_table()
+    
+    # Add users table for Auth0 integration
+    add_users_table()
+    
+    # Add company_id to existing tables for multi-tenancy
+    add_company_id_to_existing_tables()
+    
+    # Add approved domains support
+    add_approved_domains_support()
+    
     print("Migrations completed successfully.")
 
 """
@@ -237,6 +249,146 @@ def remove_deadline_from_access_tokens():
         conn.commit()
     except Exception as e:
         print(f"Error removing deadline column from access_tokens table: {str(e)}")
+    finally:
+        conn.close()
+
+def add_companies_table():
+    """Add companies table for multi-tenant support"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Create companies table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS companies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            domain TEXT UNIQUE,
+            auth0_organization_id TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # Check if companies table is empty, and insert default company
+        cursor.execute('SELECT COUNT(*) FROM companies')
+        count = cursor.fetchone()[0]
+        if count == 0:
+            print("Adding default company...")
+            cursor.execute(
+                'INSERT INTO companies (name, domain) VALUES (?, ?)',
+                ('Default Company', 'example.com')
+            )
+        
+        conn.commit()
+        print("Companies table created successfully.")
+    except Exception as e:
+        print(f"Error creating companies table: {str(e)}")
+    finally:
+        conn.close()
+
+def add_users_table():
+    """Add users table for Auth0 integration"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Create users table
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            auth0_user_id TEXT UNIQUE NOT NULL,
+            email TEXT NOT NULL,
+            name TEXT NOT NULL,
+            company_id INTEGER NOT NULL,
+            role TEXT DEFAULT 'recruiter',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (company_id) REFERENCES companies(id)
+        )
+        ''')
+        
+        conn.commit()
+        print("Users table created successfully.")
+    except Exception as e:
+        print(f"Error creating users table: {str(e)}")
+    finally:
+        conn.close()
+
+def add_company_id_to_existing_tables():
+    """Add company_id foreign key to existing tables for multi-tenancy"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Get the default company ID
+        cursor.execute('SELECT id FROM companies LIMIT 1')
+        default_company = cursor.fetchone()
+        if not default_company:
+            print("No default company found. Creating one...")
+            cursor.execute(
+                'INSERT INTO companies (name, domain) VALUES (?, ?)',
+                ('Default Company', 'example.com')
+            )
+            conn.commit()
+            cursor.execute('SELECT id FROM companies LIMIT 1')
+            default_company = cursor.fetchone()
+        
+        default_company_id = default_company[0]
+        
+        # Add company_id to candidates table
+        cursor.execute("PRAGMA table_info(candidates)")
+        candidates_columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'company_id' not in candidates_columns:
+            print("Adding company_id to candidates table...")
+            cursor.execute("ALTER TABLE candidates ADD COLUMN company_id INTEGER REFERENCES companies(id)")
+            # Set default company for existing candidates
+            cursor.execute("UPDATE candidates SET company_id = ? WHERE company_id IS NULL", (default_company_id,))
+        
+        # Add company_id to tests table
+        cursor.execute("PRAGMA table_info(tests)")
+        tests_columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'company_id' not in tests_columns:
+            print("Adding company_id to tests table...")
+            cursor.execute("ALTER TABLE tests ADD COLUMN company_id INTEGER REFERENCES companies(id)")
+            # Set default company for existing tests
+            cursor.execute("UPDATE tests SET company_id = ? WHERE company_id IS NULL", (default_company_id,))
+        
+        # Add created_by_user_id to tests table
+        if 'created_by_user_id' not in tests_columns:
+            print("Adding created_by_user_id to tests table...")
+            cursor.execute("ALTER TABLE tests ADD COLUMN created_by_user_id INTEGER REFERENCES users(id)")
+        
+        conn.commit()
+        print("Company ID columns added to existing tables successfully.")
+    except Exception as e:
+        print(f"Error adding company_id to existing tables: {str(e)}")
+    finally:
+        conn.close()
+
+def add_approved_domains_support():
+    """Add approved column to companies table for domain control"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if 'approved' column exists
+        cursor.execute("PRAGMA table_info(companies)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'approved' not in columns:
+            print("Adding 'approved' column to companies table...")
+            cursor.execute("ALTER TABLE companies ADD COLUMN approved BOOLEAN DEFAULT 0")
+            
+            # Mark existing companies as approved (for backward compatibility)
+            cursor.execute("UPDATE companies SET approved = 1")
+        
+        conn.commit()
+        print("Approved domains support added successfully.")
+    except Exception as e:
+        print(f"Error adding approved domains support: {str(e)}")
     finally:
         conn.close()
 

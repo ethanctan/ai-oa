@@ -18,7 +18,9 @@
     "isbot": "^4.4.0",
     "node-fetch": "^3.3.2",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "remix-auth": "^3.6.0",
+    "remix-auth-auth0": "^1.4.0"
   },
   "devDependencies": {
     "@remix-run/dev": "^2.16.2",

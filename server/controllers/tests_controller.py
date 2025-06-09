@@ -1,27 +1,46 @@
 from database.db import get_connection
 from datetime import datetime, timezone
 
-def get_all_tests():
-    """Get all tests from the database"""
+def get_all_tests(company_id=None):
+    """Get all tests from the database, filtered by company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        cursor.execute(
-            '''
-            SELECT 
-                t.id, t.name, t.github_repo, 
-                t.candidates_assigned, t.candidates_completed,
-                t.enable_timer, t.timer_duration,
-                t.created_at, t.updated_at,
-                t.target_github_repo, t.target_github_token,
-                COUNT(DISTINCT tc.candidate_id) as total_candidates
-            FROM tests t
-            LEFT JOIN test_candidates tc ON t.id = tc.test_id
-            GROUP BY t.id
-            ORDER BY t.created_at DESC
-            '''
-        )
+        if company_id:
+            cursor.execute(
+                '''
+                SELECT 
+                    t.id, t.name, t.github_repo, 
+                    t.candidates_assigned, t.candidates_completed,
+                    t.enable_timer, t.timer_duration,
+                    t.created_at, t.updated_at,
+                    t.target_github_repo, t.target_github_token,
+                    COUNT(DISTINCT tc.candidate_id) as total_candidates
+                FROM tests t
+                LEFT JOIN test_candidates tc ON t.id = tc.test_id
+                WHERE t.company_id = ?
+                GROUP BY t.id
+                ORDER BY t.created_at DESC
+                ''',
+                (company_id,)
+            )
+        else:
+            cursor.execute(
+                '''
+                SELECT 
+                    t.id, t.name, t.github_repo, 
+                    t.candidates_assigned, t.candidates_completed,
+                    t.enable_timer, t.timer_duration,
+                    t.created_at, t.updated_at,
+                    t.target_github_repo, t.target_github_token,
+                    COUNT(DISTINCT tc.candidate_id) as total_candidates
+                FROM tests t
+                LEFT JOIN test_candidates tc ON t.id = tc.test_id
+                GROUP BY t.id
+                ORDER BY t.created_at DESC
+                '''
+            )
         
         tests = []
         for row in cursor.fetchall():
@@ -37,31 +56,52 @@ def get_all_tests():
     finally:
         conn.close()
 
-def get_test(test_id):
-    """Get a specific test by ID"""
+def get_test(test_id, company_id=None):
+    """Get a specific test by ID, optionally filtered by company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        cursor.execute(
-            '''
-            SELECT 
-                t.id, t.name, t.github_repo, t.github_token, 
-                t.initial_prompt, t.final_prompt, 
-                t.qualitative_assessment_prompt, t.quantitative_assessment_prompt,
-                t.candidates_assigned, t.candidates_completed, 
-                t.enable_timer, t.timer_duration,
-                t.enable_project_timer, t.project_timer_duration,
-                t.created_at, t.updated_at,
-                t.target_github_repo, t.target_github_token,
-                COUNT(DISTINCT tc.candidate_id) as total_candidates
-            FROM tests t
-            LEFT JOIN test_candidates tc ON t.id = tc.test_id
-            WHERE t.id = ?
-            GROUP BY t.id
-            ''',
-            (test_id,)
-        )
+        if company_id:
+            cursor.execute(
+                '''
+                SELECT 
+                    t.id, t.name, t.github_repo, t.github_token, 
+                    t.initial_prompt, t.final_prompt, 
+                    t.qualitative_assessment_prompt, t.quantitative_assessment_prompt,
+                    t.candidates_assigned, t.candidates_completed, 
+                    t.enable_timer, t.timer_duration,
+                    t.enable_project_timer, t.project_timer_duration,
+                    t.created_at, t.updated_at,
+                    t.target_github_repo, t.target_github_token,
+                    COUNT(DISTINCT tc.candidate_id) as total_candidates
+                FROM tests t
+                LEFT JOIN test_candidates tc ON t.id = tc.test_id
+                WHERE t.id = ? AND t.company_id = ?
+                GROUP BY t.id
+                ''',
+                (test_id, company_id)
+            )
+        else:
+            cursor.execute(
+                '''
+                SELECT 
+                    t.id, t.name, t.github_repo, t.github_token, 
+                    t.initial_prompt, t.final_prompt, 
+                    t.qualitative_assessment_prompt, t.quantitative_assessment_prompt,
+                    t.candidates_assigned, t.candidates_completed, 
+                    t.enable_timer, t.timer_duration,
+                    t.enable_project_timer, t.project_timer_duration,
+                    t.created_at, t.updated_at,
+                    t.target_github_repo, t.target_github_token,
+                    COUNT(DISTINCT tc.candidate_id) as total_candidates
+                FROM tests t
+                LEFT JOIN test_candidates tc ON t.id = tc.test_id
+                WHERE t.id = ?
+                GROUP BY t.id
+                ''',
+                (test_id,)
+            )
         
         test = cursor.fetchone()
         
@@ -75,16 +115,27 @@ def get_test(test_id):
         test_dict["created_at"] = _convert_to_utc(test_dict["created_at"])
         test_dict["updated_at"] = _convert_to_utc(test_dict["updated_at"])
         
-        # Get candidates assigned to this test
-        cursor.execute(
-            '''
-            SELECT c.id, c.name, c.email, tc.completed
-            FROM candidates c
-            JOIN test_candidates tc ON c.id = tc.candidate_id
-            WHERE tc.test_id = ?
-            ''',
-            (test_id,)
-        )
+        # Get candidates assigned to this test (also filter by company if provided)
+        if company_id:
+            cursor.execute(
+                '''
+                SELECT c.id, c.name, c.email, tc.completed
+                FROM candidates c
+                JOIN test_candidates tc ON c.id = tc.candidate_id
+                WHERE tc.test_id = ? AND c.company_id = ?
+                ''',
+                (test_id, company_id)
+            )
+        else:
+            cursor.execute(
+                '''
+                SELECT c.id, c.name, c.email, tc.completed
+                FROM candidates c
+                JOIN test_candidates tc ON c.id = tc.candidate_id
+                WHERE tc.test_id = ?
+                ''',
+                (test_id,)
+            )
         
         candidates = []
         for row in cursor.fetchall():
@@ -102,6 +153,7 @@ def create_test(data):
     # Check for both 'name' and 'instanceName' to handle frontend form field naming
     name = data.get('name') or data.get('instanceName')
     candidate_ids = data.get('candidateIds', [])
+    company_id = data.get('company_id')
     
     # Extract timer configuration
     enable_timer = data.get('enableTimer', True)
@@ -114,11 +166,14 @@ def create_test(data):
     if not name:
         raise ValueError('Test name is required')
     
+    if not company_id:
+        raise ValueError('Company ID is required for multi-tenant support')
+    
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Insert new test with optional fields
+        # Insert new test with optional fields and company_id
         cursor.execute(
             '''
             INSERT INTO tests (
@@ -128,8 +183,8 @@ def create_test(data):
                 candidates_assigned, candidates_completed,
                 enable_timer, timer_duration,
                 enable_project_timer, project_timer_duration,
-                target_github_repo, target_github_token
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                target_github_repo, target_github_token, company_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             (
                 name,
@@ -146,7 +201,8 @@ def create_test(data):
                 1 if enable_project_timer else 0,  # Store as integer for SQLite compatibility
                 project_timer_duration,
                 data.get('targetGithubRepo', None),
-                data.get('targetGithubToken', None)
+                data.get('targetGithubToken', None),
+                company_id
             )
         )
         conn.commit()
@@ -173,8 +229,8 @@ def create_test(data):
                         print(f"Invalid candidate ID: {candidate_id}")
                         continue  # Skip this ID and move to the next
                     
-                    # Check if candidate exists
-                    cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+                    # Check if candidate exists and belongs to the same company
+                    cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
                     candidate = cursor.fetchone()
                     
                     if candidate:
@@ -214,18 +270,22 @@ def create_test(data):
     finally:
         conn.close()
 
-def update_test(test_id, data):
-    """Update a test"""
+def update_test(test_id, data, company_id=None):
+    """Update a test, ensuring it belongs to the user's company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Check if test exists
-        cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        # Check if test exists and belongs to the company
+        if company_id:
+            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+        else:
+            cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        
         existing = cursor.fetchone()
         
         if not existing:
-            raise ValueError(f"Test with ID {test_id} not found")
+            raise ValueError(f"Test with ID {test_id} not found in your organization")
         
         # Build update statement
         update_fields = []
@@ -252,7 +312,7 @@ def update_test(test_id, data):
         
         if not update_fields:
             # Nothing to update
-            return get_test(test_id)
+            return get_test(test_id, company_id)
         
         # Update the test
         query = f"UPDATE tests SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
@@ -262,25 +322,29 @@ def update_test(test_id, data):
         conn.commit()
         
         # Return updated test
-        return get_test(test_id)
+        return get_test(test_id, company_id)
     except Exception as e:
         conn.rollback()
         raise e
     finally:
         conn.close()
 
-def delete_test(test_id):
-    """Delete a test and all associated instances"""
+def delete_test(test_id, company_id=None):
+    """Delete a test and all associated instances, ensuring it belongs to the user's company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Check if test exists
-        cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        # Check if test exists and belongs to the company
+        if company_id:
+            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+        else:
+            cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        
         existing = cursor.fetchone()
         
         if not existing:
-            raise ValueError(f"Test with ID {test_id} not found")
+            raise ValueError(f"Test with ID {test_id} not found in your organization")
         
         # Get all associated instances
         cursor.execute('SELECT id, docker_instance_id FROM test_instances WHERE test_id = ?', (test_id,))
@@ -332,26 +396,38 @@ def delete_test(test_id):
     finally:
         conn.close()
 
-def get_test_candidates(test_id):
-    """Get all candidates assigned to a test and available candidates"""
+def get_test_candidates(test_id, company_id=None):
+    """Get all candidates assigned to a test and available candidates, ensuring test belongs to user's company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Check if test exists
-        cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        # Check if test exists and belongs to the company
+        if company_id:
+            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+        else:
+            cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        
         existing = cursor.fetchone()
         
         if not existing:
-            raise ValueError(f"Test with ID {test_id} not found")
+            raise ValueError(f"Test with ID {test_id} not found in your organization")
         
-        # Get candidates assigned to test
-        cursor.execute('''
-            SELECT c.*, tc.completed as test_completed, tc.deadline
-            FROM candidates c
-            JOIN test_candidates tc ON c.id = tc.candidate_id
-            WHERE tc.test_id = ?
-        ''', (test_id,))
+        # Get candidates assigned to test (only from the same company)
+        if company_id:
+            cursor.execute('''
+                SELECT c.*, tc.completed as test_completed, tc.deadline
+                FROM candidates c
+                JOIN test_candidates tc ON c.id = tc.candidate_id
+                WHERE tc.test_id = ? AND c.company_id = ?
+            ''', (test_id, company_id))
+        else:
+            cursor.execute('''
+                SELECT c.*, tc.completed as test_completed, tc.deadline
+                FROM candidates c
+                JOIN test_candidates tc ON c.id = tc.candidate_id
+                WHERE tc.test_id = ?
+            ''', (test_id,))
         
         assigned_candidates = []
         for row in cursor.fetchall():
@@ -368,16 +444,27 @@ def get_test_candidates(test_id):
                     candidate['deadline'] = None
             assigned_candidates.append(candidate)
         
-        # Get all candidates not assigned to this test
-        cursor.execute('''
-            SELECT c.*
-            FROM candidates c
-            WHERE c.id NOT IN (
-                SELECT tc.candidate_id 
-                FROM test_candidates tc 
-                WHERE tc.test_id = ?
-            )
-        ''', (test_id,))
+        # Get all candidates not assigned to this test (only from the same company)
+        if company_id:
+            cursor.execute('''
+                SELECT c.*
+                FROM candidates c
+                WHERE c.company_id = ? AND c.id NOT IN (
+                    SELECT tc.candidate_id 
+                    FROM test_candidates tc 
+                    WHERE tc.test_id = ?
+                )
+            ''', (company_id, test_id))
+        else:
+            cursor.execute('''
+                SELECT c.*
+                FROM candidates c
+                WHERE c.id NOT IN (
+                    SELECT tc.candidate_id 
+                    FROM test_candidates tc 
+                    WHERE tc.test_id = ?
+                )
+            ''', (test_id,))
         
         available_candidates = [dict(row) for row in cursor.fetchall()]
         
@@ -388,25 +475,33 @@ def get_test_candidates(test_id):
     finally:
         conn.close()
 
-def assign_candidate_to_test(test_id, candidate_id, deadline=None):
-    """Assign a candidate to a test with an optional deadline"""
+def assign_candidate_to_test(test_id, candidate_id, deadline=None, company_id=None):
+    """Assign a candidate to a test with an optional deadline, ensuring both belong to the same company"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Check if test exists
-        cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        # Check if test exists and belongs to the company
+        if company_id:
+            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+        else:
+            cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        
         test = cursor.fetchone()
         
         if not test:
-            raise ValueError(f"Test with ID {test_id} not found")
+            raise ValueError(f"Test with ID {test_id} not found in your organization")
         
-        # Check if candidate exists
-        cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        # Check if candidate exists and belongs to the same company
+        if company_id:
+            cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+        else:
+            cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        
         candidate = cursor.fetchone()
         
         if not candidate:
-            raise ValueError(f"Candidate with ID {candidate_id} not found")
+            raise ValueError(f"Candidate with ID {candidate_id} not found in your organization")
         
         # Check if relationship already exists
         cursor.execute(
@@ -446,12 +541,19 @@ def assign_candidate_to_test(test_id, candidate_id, deadline=None):
     finally:
         conn.close() 
 
-def update_candidate_deadline(test_id, candidate_id, deadline):
-    """Update the deadline for a candidate's test assignment"""
+def update_candidate_deadline(test_id, candidate_id, deadline, company_id=None):
+    """Update the deadline for a candidate's test assignment, ensuring access rights"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
+        # Check if test belongs to the company
+        if company_id:
+            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+            test = cursor.fetchone()
+            if not test:
+                raise ValueError(f"Test with ID {test_id} not found in your organization")
+        
         # Check if test-candidate relationship exists
         cursor.execute(
             'SELECT id FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
@@ -483,12 +585,20 @@ def update_candidate_deadline(test_id, candidate_id, deadline):
         conn.commit()
         
         # Get the updated candidate data to return
-        cursor.execute('''
-            SELECT c.*, tc.completed as test_completed, tc.deadline
-            FROM candidates c
-            JOIN test_candidates tc ON c.id = tc.candidate_id
-            WHERE tc.test_id = ? AND tc.candidate_id = ?
-        ''', (test_id, candidate_id))
+        if company_id:
+            cursor.execute('''
+                SELECT c.*, tc.completed as test_completed, tc.deadline
+                FROM candidates c
+                JOIN test_candidates tc ON c.id = tc.candidate_id
+                WHERE tc.test_id = ? AND tc.candidate_id = ? AND c.company_id = ?
+            ''', (test_id, candidate_id, company_id))
+        else:
+            cursor.execute('''
+                SELECT c.*, tc.completed as test_completed, tc.deadline
+                FROM candidates c
+                JOIN test_candidates tc ON c.id = tc.candidate_id
+                WHERE tc.test_id = ? AND tc.candidate_id = ?
+            ''', (test_id, candidate_id))
         
         updated_candidate = dict(cursor.fetchone())
         if updated_candidate['deadline']:
@@ -557,25 +667,33 @@ def update_candidate_deadline(test_id, candidate_id, deadline):
     finally:
         conn.close()
 
-def remove_candidate_from_test(test_id, candidate_id):
-    """Remove a candidate from a test"""
+def remove_candidate_from_test(test_id, candidate_id, company_id=None):
+    """Remove a candidate from a test, ensuring access rights"""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
-        # Check if test exists
-        cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        # Check if test exists and belongs to the company
+        if company_id:
+            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+        else:
+            cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+        
         test = cursor.fetchone()
         
         if not test:
-            raise ValueError(f"Test with ID {test_id} not found")
+            raise ValueError(f"Test with ID {test_id} not found in your organization")
         
-        # Check if candidate exists
-        cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        # Check if candidate exists and belongs to the same company
+        if company_id:
+            cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+        else:
+            cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+        
         candidate = cursor.fetchone()
         
         if not candidate:
-            raise ValueError(f"Candidate with ID {candidate_id} not found")
+            raise ValueError(f"Candidate with ID {candidate_id} not found in your organization")
         
         # Check if relationship exists
         cursor.execute(

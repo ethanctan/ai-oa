@@ -1,19 +1,49 @@
-import { useLoaderData, useSubmit } from "@remix-run/react";
-import { loader } from "../loaders/candidatesLoader.jsx";
-import { useState } from "react";
-import { getApiEndpoint } from "../utils/api";
-
-// Re-export the loader so Remix can pick it up
-export { loader };
+import { useSubmit } from "@remix-run/react";
+import { useState, useEffect } from "react";
+import { useAuthenticatedApi } from "../hooks/useAuthenticatedApi";
 
 export default function CandidatesAdmin() {
-  const { candidates } = useLoaderData();
+  const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [uploadStatus, setUploadStatus] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateData, setDuplicateData] = useState(null);
   const [duplicateDecisions, setDuplicateDecisions] = useState({});
   const submit = useSubmit();
+  const api = useAuthenticatedApi();
+
+  // Fetch candidates on component mount
+  useEffect(() => {
+    const fetchCandidates = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/candidates/');
+        const data = await response.json();
+        setCandidates(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error loading candidates:', err);
+        setError(err.message);
+        setCandidates([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCandidates();
+  }, []); // Empty dependency array - only run once on mount
+
+  const refreshCandidates = async () => {
+    try {
+      const response = await api.get('/candidates/');
+      const data = await response.json();
+      setCandidates(data);
+    } catch (err) {
+      console.error('Error refreshing candidates:', err);
+    }
+  };
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -39,13 +69,7 @@ export default function CandidatesAdmin() {
     formData.append('file', file);
 
     try {
-      const response = await fetch(getApiEndpoint('candidates/upload'), {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
+      const response = await api.uploadFile('/candidates/upload', formData);
 
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
@@ -67,8 +91,8 @@ export default function CandidatesAdmin() {
           type: 'success',
           message: `Successfully added ${result.success.length} candidates. ${result.errors.length} errors.`
         });
-        // Refresh the page to show new candidates
-        window.location.reload();
+        // Refresh the candidates list
+        await refreshCandidates();
       }
     } catch (error) {
       setUploadStatus({
@@ -96,15 +120,7 @@ export default function CandidatesAdmin() {
         };
       });
 
-      const response = await fetch(getApiEndpoint('candidates/resolve-duplicates'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(decisions)
-      });
-
+      const response = await api.post('/candidates/resolve-duplicates', decisions);
       const result = await response.json();
 
       if (!response.ok) {
@@ -120,7 +136,7 @@ export default function CandidatesAdmin() {
       setShowDuplicateModal(false);
       setDuplicateData(null);
       setDuplicateDecisions({});
-      window.location.reload();
+      await refreshCandidates();
     } catch (error) {
       setUploadStatus({
         type: 'error',
@@ -128,6 +144,36 @@ export default function CandidatesAdmin() {
       });
     }
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading candidates...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">Error Loading Candidates</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -234,22 +280,8 @@ export default function CandidatesAdmin() {
                       <input
                         type="radio"
                         name={`action-${index}`}
-                        value="create_new"
-                        checked={duplicateDecisions[index]?.action === 'create_new'}
-                        onChange={() => setDuplicateDecisions({
-                          ...duplicateDecisions,
-                          [index]: { action: 'create_new' }
-                        })}
-                        className="form-radio"
-                      />
-                      <span className="ml-2">Create as new candidate</span>
-                    </label>
-                    <label className="inline-flex items-center">
-                      <input
-                        type="radio"
-                        name={`action-${index}`}
                         value="update"
-                        checked={duplicateDecisions[index]?.action === 'update'}
+                        checked={duplicateDecisions[index]?.action === 'update' || !duplicateDecisions[index]}
                         onChange={() => setDuplicateDecisions({
                           ...duplicateDecisions,
                           [index]: { 
@@ -266,7 +298,7 @@ export default function CandidatesAdmin() {
                         type="radio"
                         name={`action-${index}`}
                         value="skip"
-                        checked={duplicateDecisions[index]?.action === 'skip' || !duplicateDecisions[index]}
+                        checked={duplicateDecisions[index]?.action === 'skip'}
                         onChange={() => setDuplicateDecisions({
                           ...duplicateDecisions,
                           [index]: { action: 'skip' }

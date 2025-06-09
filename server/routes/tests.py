@@ -1,14 +1,23 @@
 from flask import Blueprint, request, jsonify
 from controllers.tests_controller import get_all_tests, get_test, create_test, update_test, delete_test, get_test_candidates, assign_candidate_to_test, remove_candidate_from_test, update_candidate_deadline
+from controllers.auth_controller import require_session_auth
 
 # Create a Blueprint for tests routes
 tests_bp = Blueprint('tests', __name__)
 
+def get_user_company_id():
+    """Get the company_id from the authenticated user"""
+    if hasattr(request, 'user') and request.user:
+        return request.user.get('company_id')
+    return None
+
 # GET /tests - Get all tests
 @tests_bp.route('/', methods=['GET'])
+@require_session_auth
 def get_tests():
     try:
-        tests = get_all_tests()
+        company_id = get_user_company_id()
+        tests = get_all_tests(company_id)
         return jsonify(tests)
     except Exception as e:
         print(f'Error getting tests: {str(e)}')
@@ -16,9 +25,11 @@ def get_tests():
 
 # GET /tests/:id - Get a single test
 @tests_bp.route('/<int:test_id>', methods=['GET'])
+@require_session_auth
 def get_single_test(test_id):
     try:
-        test = get_test(test_id)
+        company_id = get_user_company_id()
+        test = get_test(test_id, company_id)
         if not test:
             return jsonify({'error': f'Test {test_id} not found'}), 404
         return jsonify(test)
@@ -28,6 +39,7 @@ def get_single_test(test_id):
 
 # POST /tests - Create a new test
 @tests_bp.route('/', methods=['POST'])
+@require_session_auth
 def create_new_test():
     try:
         # Handle both JSON and form data
@@ -55,6 +67,8 @@ def create_new_test():
                     # If conversion fails, use raw value
                     data['candidateIds'] = [form_data['candidateIds']]
         
+        company_id = get_user_company_id()
+        data['company_id'] = company_id  # Add company_id to test data
         print(f"Creating test with data: {data}")
         test = create_test(data)
         return jsonify(test)
@@ -64,10 +78,12 @@ def create_new_test():
 
 # PUT /tests/:id - Update a test
 @tests_bp.route('/<int:test_id>', methods=['PUT'])
+@require_session_auth
 def update_single_test(test_id):
     try:
         data = request.json
-        test = update_test(test_id, data)
+        company_id = get_user_company_id()
+        test = update_test(test_id, data, company_id)
         return jsonify(test)
     except Exception as e:
         print(f'Error updating test: {str(e)}')
@@ -75,9 +91,11 @@ def update_single_test(test_id):
 
 # DELETE /tests/:id - Delete a test
 @tests_bp.route('/<int:test_id>', methods=['DELETE'])
+@require_session_auth
 def delete_single_test(test_id):
     try:
-        result = delete_test(test_id)
+        company_id = get_user_company_id()
+        result = delete_test(test_id, company_id)
         return jsonify(result)
     except Exception as e:
         print(f'Error deleting test: {str(e)}')
@@ -85,9 +103,11 @@ def delete_single_test(test_id):
 
 # GET /tests/:id/candidates - Get candidates for a test
 @tests_bp.route('/<int:test_id>/candidates', methods=['GET'])
+@require_session_auth
 def get_candidates_for_test(test_id):
     try:
-        candidates = get_test_candidates(test_id)
+        company_id = get_user_company_id()
+        candidates = get_test_candidates(test_id, company_id)
         return jsonify(candidates)
     except Exception as e:
         print(f'Error getting candidates for test: {str(e)}')
@@ -95,11 +115,13 @@ def get_candidates_for_test(test_id):
 
 # POST /tests/:id/candidates/:candidateId - Assign candidate to test
 @tests_bp.route('/<int:test_id>/candidates/<int:candidate_id>', methods=['POST'])
+@require_session_auth
 def assign_candidate(test_id, candidate_id):
     try:
         data = request.json or {}
         deadline = data.get('deadline')
-        result = assign_candidate_to_test(test_id, candidate_id, deadline)
+        company_id = get_user_company_id()
+        result = assign_candidate_to_test(test_id, candidate_id, deadline, company_id)
         return jsonify(result)
     except Exception as e:
         print(f'Error assigning candidate to test: {str(e)}')
@@ -107,9 +129,11 @@ def assign_candidate(test_id, candidate_id):
 
 # DELETE /tests/:id/candidates/:candidateId - Remove candidate from test
 @tests_bp.route('/<int:test_id>/candidates/<int:candidate_id>', methods=['DELETE'])
+@require_session_auth
 def remove_candidate(test_id, candidate_id):
     try:
-        result = remove_candidate_from_test(test_id, candidate_id)
+        company_id = get_user_company_id()
+        result = remove_candidate_from_test(test_id, candidate_id, company_id)
         return jsonify(result)
     except Exception as e:
         print(f'Error removing candidate from test: {str(e)}')
@@ -117,15 +141,17 @@ def remove_candidate(test_id, candidate_id):
 
 # PUT /tests/:id/candidates/:candidateId/deadline - Update candidate deadline
 @tests_bp.route('/<int:test_id>/candidates/<int:candidate_id>/deadline', methods=['PUT'])
+@require_session_auth
 def update_candidate_deadline_route(test_id, candidate_id):
     try:
         data = request.json
         deadline = data.get('deadline')
+        company_id = get_user_company_id()
         
         # Allow null deadline to remove the deadline
         # No validation needed - null is acceptable
             
-        result = update_candidate_deadline(test_id, candidate_id, deadline)
+        result = update_candidate_deadline(test_id, candidate_id, deadline, company_id)
         return jsonify(result)
     except Exception as e:
         print(f'Error updating candidate deadline: {str(e)}')
