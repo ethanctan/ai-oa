@@ -9,8 +9,8 @@ from routes.instances import instances_bp
 from routes.timer import timer_bp
 from routes.reports import reports_bp
 from routes.auth import auth_bp
-from database.db import init_database
-from database.migrations import run_migrations
+from database.db_postgresql import init_database, test_connection
+from database.migrations_postgresql import run_migrations
 import logging
 
 # Set up logging
@@ -70,22 +70,35 @@ logger.info(f"   - AUTH0_DOMAIN: {os.environ.get('AUTH0_DOMAIN', 'NOT SET')}")
 logger.info(f"   - APPROVED_DOMAINS: {os.environ.get('APPROVED_DOMAINS', 'NOT SET')}")
 logger.info(f"   - API_BASE_URL: {os.environ.get('API_BASE_URL', 'NOT SET')}")
 logger.info(f"   - PORT: {os.environ.get('PORT', 'NOT SET')}")
+logger.info(f"   - DATABASE_URL: {'SET' if os.environ.get('DATABASE_URL') else 'NOT SET'}")
+
+# Test database connection first
+logger.info("🔍 STARTUP: Testing database connection...")
+try:
+    connection_result = test_connection()
+    logger.info(connection_result)
+except Exception as e:
+    logger.error(f"❌ STARTUP: Database connection test failed: {str(e)}")
+    logger.error("💡 Make sure DATABASE_URL is set in your .env file")
+    exit(1)
 
 # Initialize database
 try:
-    logger.info("🗄️ STARTUP: Initializing database...")
+    logger.info("🗄️ STARTUP: Initializing PostgreSQL database...")
     init_database()
     logger.info("✅ STARTUP: Database initialized successfully")
     
     # Run migrations to update schema
-    logger.info("🔄 STARTUP: Running migrations...")
+    logger.info("🔄 STARTUP: Running PostgreSQL migrations...")
     run_migrations()
     logger.info("✅ STARTUP: Migrations completed successfully")
 except Exception as e:
     logger.error(f"❌ STARTUP: Database initialization failed: {str(e)}")
+    logger.error("💡 Check your DATABASE_URL and Supabase connection")
     exit(1)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 3000))
     logger.info(f"🚀 STARTUP: Server starting on port {port}")
+    logger.info(f"🔗 STARTUP: Using PostgreSQL database (Supabase)")
     app.run(host='0.0.0.0', port=port, debug=True) 

@@ -6,7 +6,7 @@ import shutil
 import tempfile # For temporary directories and files
 import zipfile # For handling zip files
 from pathlib import Path
-from database.db import get_connection
+from database.db_postgresql import get_connection
 from controllers.timer_controller import start_instance_timer
 
 # Base directory for project repositories

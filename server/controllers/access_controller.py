@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from database.db import get_connection
+from database.db_postgresql import get_connection
 
 """
 More routes under /instances.

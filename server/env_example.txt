@@ -1,0 +1,17 @@
+# Supabase Configuration
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@db.hjlerkuwfbeempqjttts.supabase.co:5432/postgres
+
+# Your actual connection string:
+# DATABASE_URL=postgresql://postgres:A0JmOJxhebRupzI8@db.hjlerkuwfbeempqjttts.supabase.co:5432/postgres
+
+# Auth0 Configuration (keep existing)
+AUTH0_DOMAIN=your-auth0-domain.auth0.com
+APPROVED_DOMAINS=localhost,yourdomain.com
+
+# API Configuration
+API_BASE_URL=http://localhost:3000
+PORT=3000
+
+# Supabase Project Details (optional, for direct API usage)
+SUPABASE_URL=https://hjlerkuwfbeempqjttts.supabase.co
+SUPABASE_ANON_KEY=your-anon-key-here 

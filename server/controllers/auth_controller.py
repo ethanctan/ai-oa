@@ -1,7 +1,7 @@
 import requests
 import jwt
 from jwt import PyJWKClient
-from database.db import get_connection
+from database.db_postgresql import get_connection
 import os
 from functools import wraps
 from flask import request, jsonify

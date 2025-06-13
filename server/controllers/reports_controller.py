@@ -1,4 +1,4 @@
-from database.db import get_connection
+from database.db_postgresql import get_connection
 import time
 
 def get_report(instance_id):

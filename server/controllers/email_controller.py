@@ -5,7 +5,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timezone
 import secrets
 import hashlib
-from database.db import get_connection
+from database.db_postgresql import get_connection
 from controllers.instances_controller import create_instance
 
 """
