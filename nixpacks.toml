@@ -2,7 +2,7 @@
 nixPkgs = ["python3", "python3Packages.pip"]
 
 [phases.install]
-cmds = ["pip install -r server/requirements.txt"]
+cmds = ["pip install --break-system-packages -r requirements.txt"]
 
 [phases.build]
 cmds = ["echo 'Build completed'"]

@@ -1,0 +1,18 @@
+# Root requirements.txt - points to server requirements
+# This file exists to help Railway find the Python dependencies
+
+# Core Flask dependencies
+Flask==3.0.3
+Flask-CORS==4.0.1
+python-dotenv==1.0.1
+requests==2.32.3
+PyJWT==2.8.0
+Werkzeug==3.0.3
+
+# Database dependencies
+psycopg2-binary==2.9.9
+supabase==2.3.4
+
+# Testing dependencies (optional for production)
+pytest==8.2.2
+pytest-cov==5.0.0 

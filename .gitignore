@@ -1,4 +1,5 @@
 test.txt
+railway_env_vars.txt
 **/.venv/
 .venv
 /server/projects/**/
