@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["python3", "python3Packages.pip"]
+
+[phases.install]
+cmds = ["pip install -r server/requirements.txt"]
+
+[phases.build]
+cmds = ["echo 'Build completed'"]
+
+[start]
+cmd = "python server/railway_deploy.py" 
