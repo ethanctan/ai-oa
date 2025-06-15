@@ -7,21 +7,14 @@ from flask import Flask, request
 from flask_cors import CORS
 import os
 from dotenv import load_dotenv
-from routes.chat import chat_bp
-from routes.candidates import candidates_bp
-from routes.tests import tests_bp
-from routes.instances import instances_bp
-from routes.timer import timer_bp
-from routes.reports import reports_bp
-from routes.auth import auth_bp
-from database.db_postgresql import init_database, test_connection
-from database.migrations_postgresql import run_migrations
 import logging
+import sys
 
 # Set up logging for production
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout  # Ensure logs go to stdout for Railway
 )
 logger = logging.getLogger(__name__)
 
@@ -52,18 +45,17 @@ CORS(app,
 # Production logging middleware (less verbose)
 @app.before_request
 def log_request_info():
-    if app.debug:
-        logger.info(f"🌐 {request.method} {request.url}")
+    logger.info(f"🌐 {request.method} {request.url}")
 
 @app.after_request
 def log_response_info(response):
-    if app.debug:
-        logger.info(f"🌐 Response: {response.status_code}")
+    logger.info(f"🌐 Response: {response.status_code}")
     return response
 
 # Health check endpoint for Railway
 @app.route('/')
 def health_check():
+    logger.info("✅ Health check endpoint called")
     return {
         'status': 'healthy',
         'service': 'ai-oa-backend',
@@ -73,31 +65,59 @@ def health_check():
 
 @app.route('/health')
 def detailed_health_check():
+    logger.info("🔍 Detailed health check called")
     try:
+        # Import here to avoid startup issues
+        from database.db_postgresql import test_connection, get_connection
+        
         # Test database connection
         result = test_connection()
+        logger.info(f"✅ Database connection test: {result}")
+        
         return {
             'status': 'healthy',
             'database': 'connected',
             'message': result
         }
     except Exception as e:
+        logger.error(f"❌ Health check failed: {str(e)}")
         return {
             'status': 'unhealthy', 
             'database': 'disconnected',
             'error': str(e)
         }, 500
 
+# Simple test endpoint
+@app.route('/test')
+def test_endpoint():
+    logger.info("🧪 Test endpoint called")
+    return {
+        'message': 'API is working!',
+        'timestamp': '2024-01-01T00:00:00Z'
+    }
+
 # Register routes/blueprints
 logger.info("🚀 PRODUCTION: Registering blueprints...")
-app.register_blueprint(chat_bp, url_prefix='/chat')
-app.register_blueprint(candidates_bp, url_prefix='/candidates')
-app.register_blueprint(tests_bp, url_prefix='/tests')
-app.register_blueprint(instances_bp, url_prefix='/instances')
-app.register_blueprint(timer_bp, url_prefix='/timer')
-app.register_blueprint(reports_bp, url_prefix='/reports')
-app.register_blueprint(auth_bp, url_prefix='/auth')
-logger.info("✅ PRODUCTION: All blueprints registered")
+try:
+    from routes.chat import chat_bp
+    from routes.candidates import candidates_bp
+    from routes.tests import tests_bp
+    from routes.instances import instances_bp
+    from routes.timer import timer_bp
+    from routes.reports import reports_bp
+    from routes.auth import auth_bp
+    
+    app.register_blueprint(chat_bp, url_prefix='/chat')
+    app.register_blueprint(candidates_bp, url_prefix='/candidates')
+    app.register_blueprint(tests_bp, url_prefix='/tests')
+    app.register_blueprint(instances_bp, url_prefix='/instances')
+    app.register_blueprint(timer_bp, url_prefix='/timer')
+    app.register_blueprint(reports_bp, url_prefix='/reports')
+    app.register_blueprint(auth_bp, url_prefix='/auth')
+    logger.info("✅ PRODUCTION: All blueprints registered successfully")
+except Exception as e:
+    logger.error(f"❌ PRODUCTION: Failed to register blueprints: {str(e)}")
+    # Don't exit, let the app start with basic endpoints
 
 # Log environment status (safely)
 logger.info("🔧 PRODUCTION: Environment configuration:")
@@ -105,9 +125,12 @@ logger.info(f"   - PORT: {os.environ.get('PORT', 'NOT SET')}")
 logger.info(f"   - DATABASE_URL: {'SET' if os.environ.get('DATABASE_URL') else 'NOT SET'}")
 logger.info(f"   - RAILWAY_ENVIRONMENT: {os.environ.get('RAILWAY_ENVIRONMENT', 'NOT SET')}")
 
-# Initialize database on startup
+# Initialize database on startup (but don't fail if it doesn't work)
 try:
     logger.info("🗄️ PRODUCTION: Initializing PostgreSQL database...")
+    from database.db_postgresql import init_database, test_connection
+    from database.migrations_postgresql import run_migrations
+    
     init_database()
     logger.info("✅ PRODUCTION: Database initialized successfully")
     
@@ -116,8 +139,8 @@ try:
     logger.info("✅ PRODUCTION: Migrations completed successfully")
 except Exception as e:
     logger.error(f"❌ PRODUCTION: Database initialization failed: {str(e)}")
+    logger.error("💡 App will start but database features may not work")
     # Don't exit in production, let Railway handle restarts
-    pass
 
 if __name__ == '__main__':
     # Railway sets PORT environment variable
