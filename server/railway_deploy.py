@@ -29,6 +29,7 @@ app.url_map.strict_slashes = False
 frontend_origins = [
     'http://localhost:5173',  # Local development
     'http://127.0.0.1:5173',  # Local development
+    'http://localhost:3000',  # Alternative local port
     'https://*.vercel.app',   # Vercel deployments
     'https://*.railway.app'   # Railway deployments
 ]
@@ -36,20 +37,28 @@ frontend_origins = [
 # Get allowed origins from environment (when we deploy frontend)
 allowed_origins = os.environ.get('ALLOWED_ORIGINS', ','.join(frontend_origins)).split(',')
 
+# Log CORS configuration
+logger.info("🔧 CORS Configuration:")
+logger.info(f"   - Allowed origins: {allowed_origins}")
+
 CORS(app, 
      supports_credentials=True,
      origins=allowed_origins,
-     allow_headers=['Content-Type', 'Authorization', 'X-User-ID', 'X-Company-ID', 'X-Auth0-User-ID'],
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+     allow_headers=['Content-Type', 'Authorization', 'X-User-ID', 'X-Company-ID', 'X-Auth0-User-ID', 'Origin', 'Accept'],
+     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+     expose_headers=['Content-Type', 'Authorization'])
 
 # Production logging middleware (less verbose)
 @app.before_request
 def log_request_info():
     logger.info(f"🌐 {request.method} {request.url}")
+    logger.info(f"🌐 Origin: {request.headers.get('Origin', 'No Origin')}")
+    logger.info(f"🌐 Headers: {dict(request.headers)}")
 
 @app.after_request
 def log_response_info(response):
     logger.info(f"🌐 Response: {response.status_code}")
+    logger.info(f"🌐 CORS Headers: {dict(response.headers)}")
     return response
 
 # Health check endpoint for Railway
@@ -94,6 +103,16 @@ def test_endpoint():
     return {
         'message': 'API is working!',
         'timestamp': '2024-01-01T00:00:00Z'
+    }
+
+# CORS test endpoint
+@app.route('/cors-test')
+def cors_test():
+    logger.info("🔍 CORS test endpoint called")
+    return {
+        'message': 'CORS is working!',
+        'origin': request.headers.get('Origin', 'No Origin'),
+        'method': request.method
     }
 
 # Register routes/blueprints
