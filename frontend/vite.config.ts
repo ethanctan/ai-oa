@@ -24,5 +24,6 @@ export default defineConfig({
   define: {
     // Expose environment variables to the client
     'process.env.API_URL': JSON.stringify(process.env.API_URL || 'http://127.0.0.1:3000'),
+    'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || process.env.API_URL || 'http://127.0.0.1:3000'),
   },
 });

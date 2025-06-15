@@ -1,6 +1,7 @@
 test.txt
 railway_env_vars.txt
 **/.venv/
+frontend_env_update.txt
 .venv
 /server/projects/**/
 /lmql-testing/
