@@ -115,27 +115,113 @@ def cors_test():
         'method': request.method
     }
 
+# Simple candidates test endpoint (before blueprints)
+@app.route('/candidates-test')
+def candidates_test():
+    logger.info("👥 Candidates test endpoint called")
+    return {
+        'message': 'Candidates endpoint is accessible!',
+        'timestamp': '2024-01-01T00:00:00Z'
+    }
+
 # Register routes/blueprints
 logger.info("🚀 PRODUCTION: Registering blueprints...")
 try:
-    from routes.chat import chat_bp
-    from routes.candidates import candidates_bp
-    from routes.tests import tests_bp
-    from routes.instances import instances_bp
-    from routes.timer import timer_bp
-    from routes.reports import reports_bp
-    from routes.auth import auth_bp
+    logger.info("📦 PRODUCTION: Importing blueprints...")
     
-    app.register_blueprint(chat_bp, url_prefix='/chat')
-    app.register_blueprint(candidates_bp, url_prefix='/candidates')
-    app.register_blueprint(tests_bp, url_prefix='/tests')
-    app.register_blueprint(instances_bp, url_prefix='/instances')
-    app.register_blueprint(timer_bp, url_prefix='/timer')
-    app.register_blueprint(reports_bp, url_prefix='/reports')
-    app.register_blueprint(auth_bp, url_prefix='/auth')
+    # Import each blueprint individually to catch specific errors
+    try:
+        from routes.chat import chat_bp
+        logger.info("✅ PRODUCTION: chat_bp imported successfully")
+    except Exception as e:
+        logger.error(f"❌ PRODUCTION: Failed to import chat_bp: {str(e)}")
+        chat_bp = None
+    
+    try:
+        from routes.candidates import candidates_bp
+        logger.info("✅ PRODUCTION: candidates_bp imported successfully")
+    except Exception as e:
+        logger.error(f"❌ PRODUCTION: Failed to import candidates_bp: {str(e)}")
+        candidates_bp = None
+    
+    try:
+        from routes.tests import tests_bp
+        logger.info("✅ PRODUCTION: tests_bp imported successfully")
+    except Exception as e:
+        logger.error(f"❌ PRODUCTION: Failed to import tests_bp: {str(e)}")
+        tests_bp = None
+    
+    try:
+        from routes.instances import instances_bp
+        logger.info("✅ PRODUCTION: instances_bp imported successfully")
+    except Exception as e:
+        logger.error(f"❌ PRODUCTION: Failed to import instances_bp: {str(e)}")
+        instances_bp = None
+    
+    try:
+        from routes.timer import timer_bp
+        logger.info("✅ PRODUCTION: timer_bp imported successfully")
+    except Exception as e:
+        logger.error(f"❌ PRODUCTION: Failed to import timer_bp: {str(e)}")
+        timer_bp = None
+    
+    try:
+        from routes.reports import reports_bp
+        logger.info("✅ PRODUCTION: reports_bp imported successfully")
+    except Exception as e:
+        logger.error(f"❌ PRODUCTION: Failed to import reports_bp: {str(e)}")
+        reports_bp = None
+    
+    try:
+        from routes.auth import auth_bp
+        logger.info("✅ PRODUCTION: auth_bp imported successfully")
+    except Exception as e:
+        logger.error(f"❌ PRODUCTION: Failed to import auth_bp: {str(e)}")
+        auth_bp = None
+    
+    # Register blueprints if they were imported successfully
+    logger.info("🔗 PRODUCTION: Registering blueprints with app...")
+    
+    if chat_bp:
+        app.register_blueprint(chat_bp, url_prefix='/chat')
+        logger.info("✅ PRODUCTION: chat_bp registered")
+    
+    if candidates_bp:
+        app.register_blueprint(candidates_bp, url_prefix='/candidates')
+        logger.info("✅ PRODUCTION: candidates_bp registered")
+    
+    if tests_bp:
+        app.register_blueprint(tests_bp, url_prefix='/tests')
+        logger.info("✅ PRODUCTION: tests_bp registered")
+    
+    if instances_bp:
+        app.register_blueprint(instances_bp, url_prefix='/instances')
+        logger.info("✅ PRODUCTION: instances_bp registered")
+    
+    if timer_bp:
+        app.register_blueprint(timer_bp, url_prefix='/timer')
+        logger.info("✅ PRODUCTION: timer_bp registered")
+    
+    if reports_bp:
+        app.register_blueprint(reports_bp, url_prefix='/reports')
+        logger.info("✅ PRODUCTION: reports_bp registered")
+    
+    if auth_bp:
+        app.register_blueprint(auth_bp, url_prefix='/auth')
+        logger.info("✅ PRODUCTION: auth_bp registered")
+    
+    # Log all registered routes
+    logger.info("📋 PRODUCTION: All registered routes:")
+    for rule in app.url_map.iter_rules():
+        logger.info(f"   - {rule.rule} [{', '.join(rule.methods)}]")
+    
     logger.info("✅ PRODUCTION: All blueprints registered successfully")
+    
 except Exception as e:
     logger.error(f"❌ PRODUCTION: Failed to register blueprints: {str(e)}")
+    logger.error(f"❌ PRODUCTION: Error details: {type(e).__name__}: {str(e)}")
+    import traceback
+    logger.error(f"❌ PRODUCTION: Traceback: {traceback.format_exc()}")
     # Don't exit, let the app start with basic endpoints
 
 # Log environment status (safely)
