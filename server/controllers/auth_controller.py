@@ -244,16 +244,15 @@ def get_or_create_company_from_email(email):
         company_name = f"{domain.split('.')[0].title()} Company"
         logger.info(f"🆕 COMPANY: Creating new company: {company_name}")
         
+        # Use RETURNING clause to get the created company in one query
         cursor.execute(
-            'INSERT INTO companies (name, domain, approved) VALUES (%s, %s, %s)',
+            '''INSERT INTO companies (name, domain, approved) 
+               VALUES (%s, %s, %s)
+               RETURNING *''',
             (company_name, domain, 1)
         )
-        conn.commit()
-        
-        # Get the created company
-        company_id = cursor.lastrowid
-        cursor.execute('SELECT * FROM companies WHERE id = %s', (company_id,))
         new_company = dict(cursor.fetchone())
+        conn.commit()
         
         logger.info(f"✅ COMPANY: Created new company: {new_company['name']} (ID: {new_company['id']})")
         return new_company
@@ -308,16 +307,13 @@ def create_or_get_user_from_profile(auth0_user_id, email, name):
             logger.info("🆕 USER PROFILE: Creating new user")
             cursor.execute(
                 '''INSERT INTO users (auth0_user_id, email, name, company_id, role) 
-                   VALUES (%s, %s, %s, %s, %s)''',
+                   VALUES (%s, %s, %s, %s, %s)
+                   RETURNING *''',
                 (auth0_user_id, email, name, company['id'], 'recruiter')
             )
-            conn.commit()
-            
-            # Get the created user
-            user_id = cursor.lastrowid
-            cursor.execute('SELECT * FROM users WHERE id = %s', (user_id,))
             user = dict(cursor.fetchone())
             user['companyName'] = company['name']
+            conn.commit()
             
             logger.info(f"✅ USER PROFILE: Created new user: {user['email']} (ID: {user['id']})")
             logger.info(f"📋 USER PROFILE: Returning new user data: {user}")
