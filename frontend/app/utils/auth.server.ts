@@ -72,7 +72,7 @@ export const { getSession, commitSession, destroySession } = sessionStorage;
 async function getUserFromAuth0Profile(profile: Auth0Profile): Promise<User> {
   console.log("🚀 AUTH FRONTEND: getUserFromAuth0Profile - Starting");
   
-  const apiUrl = process.env.API_BASE_URL || 'http://localhost:3000';
+  const apiUrl = process.env.VITE_API_URL || 'http://localhost:3000';
   const endpoint = `${apiUrl}/auth/profile`;
   
   const profileData = {

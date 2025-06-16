@@ -1,6 +1,7 @@
 import time
 import json
 from pathlib import Path
+from datetime import datetime, timedelta
 
 # Path to the timers data file
 TIMERS_DATA_FILE = Path(__file__).parent.parent / 'data' / 'timers.json'
@@ -281,4 +282,72 @@ def set_final_interview_started(instance_id, started=True):
     return get_timer_status(instance_id)
 
 # Load timers on module initialization
-load_timers() 
+load_timers()
+
+def start_instance_timer(instance_id, duration_seconds):
+    """Start a timer for a test instance"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Check if instance exists
+        cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
+        instance = cursor.fetchone()
+        if not instance:
+            raise ValueError('Instance not found')
+        
+        # Calculate end time
+        end_time = datetime.now() + timedelta(seconds=duration_seconds)
+        
+        # Create or update timer
+        cursor.execute('''
+            INSERT INTO timers (instance_id, end_time, created_at, updated_at)
+            VALUES (%s, %s, NOW(), NOW())
+            ON CONFLICT (instance_id) DO UPDATE
+            SET end_time = %s, updated_at = NOW()
+        ''', (instance_id, end_time, end_time))
+        conn.commit()
+        
+        return True
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
+def get_instance_timer(instance_id):
+    """Get the timer for a test instance"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT * FROM timers WHERE instance_id = %s', (instance_id,))
+        timer = cursor.fetchone()
+        if not timer:
+            return None
+        
+        # Calculate remaining time
+        now = datetime.now()
+        end_time = timer['end_time']
+        remaining_seconds = max(0, int((end_time - now).total_seconds()))
+        
+        return {
+            'instance_id': timer['instance_id'],
+            'end_time': end_time.isoformat(),
+            'remaining_seconds': remaining_seconds,
+            'is_expired': remaining_seconds == 0
+        }
+    finally:
+        conn.close()
+
+def stop_instance_timer(instance_id):
+    """Stop the timer for a test instance"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('DELETE FROM timers WHERE instance_id = %s', (instance_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close() 

@@ -84,44 +84,60 @@ def save_chat_histories():
         print(f"Error saving chat histories: {str(e)}")
 
 def get_chat_history(instance_id):
-    """
-    Get chat history for a specific instance
-    Args:
-        instance_id (str): The instance ID
-    Returns:
-        list: The chat history
-    """
-    if not instance_id:
-        return []
-    
-    # Get the chat history or return an empty array if none exists
-    return chat_histories.get(instance_id, [])
+    """Get chat history for a test instance"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT ch.*, u.name as user_name
+            FROM chat_history ch
+            LEFT JOIN users u ON ch.user_id = u.id
+            WHERE ch.instance_id = %s
+            ORDER BY ch.created_at ASC
+        ''', (instance_id,))
+        messages = [dict(row) for row in cursor.fetchall()]
+        return messages
+    finally:
+        conn.close()
 
-def add_chat_message(instance_id, message):
-    """
-    Add a message to the chat history
-    Args:
-        instance_id (str): The instance ID
-        message (dict): The message to add
-    Returns:
-        list: The updated chat history
-    """
-    if not instance_id:
-        raise ValueError('Instance ID is required')
-    
-    # Get the existing history or create a new one
-    history = chat_histories.get(instance_id, [])
-    
-    # Add the new message
-    history.append(message)
-    
-    # Update the history
-    chat_histories[instance_id] = history
-    
-    # Save to persistent storage
-    save_chat_histories()
-    
-    return history
+def add_chat_message(instance_id, user_id, message, role='user'):
+    """Add a message to the chat history"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO chat_history (instance_id, user_id, message, role, created_at)
+            VALUES (%s, %s, %s, %s, NOW())
+        ''', (instance_id, user_id, message, role))
+        conn.commit()
+        
+        # Get the inserted message
+        cursor.execute('''
+            SELECT ch.*, u.name as user_name
+            FROM chat_history ch
+            LEFT JOIN users u ON ch.user_id = u.id
+            WHERE ch.id = %s
+        ''', (cursor.lastrowid,))
+        return dict(cursor.fetchone())
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
+def clear_chat_history(instance_id):
+    """Clear chat history for a test instance"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('DELETE FROM chat_history WHERE instance_id = %s', (instance_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
 
 async def get_chat_response_lmql(messages):
     """

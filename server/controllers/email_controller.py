@@ -13,102 +13,52 @@ More routes under /instances.
 Placed in a separate file for better organization.
 """
 
-def send_test_invitation(test_id, candidate_ids, deadline=None):
-    """
-    Send test invitations to multiple candidates
-    
-    Args:
-        test_id: ID of the test to send
-        candidate_ids: List of candidate IDs to send to
-        deadline: Optional deadline for the test (ISO format)
-    
-    Returns:
-        dict: Results of sending emails
-    """
-    results = {
-        'success': [],
-        'errors': []
-    }
-    
+def send_test_invitation(test_id, candidate_id, company_id):
+    """Send a test invitation email to a candidate"""
     conn = get_connection()
     cursor = conn.cursor()
-    
     try:
         # Get test details
-        cursor.execute('SELECT * FROM tests WHERE id = ?', (test_id,))
+        cursor.execute('SELECT * FROM tests WHERE id = %s', (test_id,))
         test = cursor.fetchone()
-        
         if not test:
-            raise ValueError(f"Test with ID {test_id} not found")
+            raise ValueError('Test not found')
         
-        test = dict(test)
+        # Get candidate details
+        cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
+        candidate = cursor.fetchone()
+        if not candidate:
+            raise ValueError('Candidate not found')
         
-        for candidate_id in candidate_ids:
-            try:
-                # Get candidate details
-                cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
-                candidate = cursor.fetchone()
-                
-                if not candidate:
-                    results['errors'].append({
-                        'candidate_id': candidate_id,
-                        'error': 'Candidate not found'
-                    })
-                    continue
-                
-                candidate = dict(candidate)
-                
-                # Create a test instance for this candidate
-                instance_data = {
-                    'testId': test_id,
-                    'candidateId': candidate_id,
-                    'githubUrl': test.get('github_repo'),
-                    'githubToken': test.get('github_token')
-                }
-                
-                instance = create_instance(instance_data)
-                
-                # Generate secure access token
-                access_token = generate_access_token(instance['id'], candidate_id, deadline)
-                
-                # Store the access token in database (deadline is now stored in test_candidates table)
-                store_access_token(instance['id'], access_token)
-                
-                # Generate the redirect access URL using the instances route
-                access_url = f"http://localhost:3000/instances/access/{access_token}"
-                
-                # Send email
-                email_sent = send_email(
-                    to_email=candidate['email'],
-                    candidate_name=candidate['name'],
-                    test_name=test['name'],
-                    access_url=access_url,
-                    deadline=deadline
-                )
-                
-                if email_sent:
-                    results['success'].append({
-                        'candidate_id': candidate_id,
-                        'candidate_name': candidate['name'],
-                        'candidate_email': candidate['email'],
-                        'instance_id': instance['id'],
-                        'access_url': access_url
-                    })
-                else:
-                    results['errors'].append({
-                        'candidate_id': candidate_id,
-                        'error': 'Failed to send email'
-                    })
-                    
-            except Exception as e:
-                results['errors'].append({
-                    'candidate_id': candidate_id,
-                    'error': str(e)
-                })
+        # Create test instance
+        cursor.execute(
+            '''INSERT INTO test_instances (test_id, candidate_id, company_id, created_at, updated_at)
+               VALUES (%s, %s, %s, NOW(), NOW())''',
+            (test_id, candidate_id, company_id)
+        )
+        conn.commit()
         
-        return results
+        # Get the created instance
+        instance_id = cursor.lastrowid
+        cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
+        instance = cursor.fetchone()
         
+        # Send email
+        send_email(
+            to_email=candidate['email'],
+            subject=f"Invitation to take {test['name']}",
+            template_name="test_invitation",
+            template_data={
+                'candidate_name': candidate['name'],
+                'test_name': test['name'],
+                'test_description': test['description'],
+                'instance_id': instance_id
+            }
+        )
+        
+        return dict(instance)
     except Exception as e:
+        conn.rollback()
         raise e
     finally:
         conn.close()

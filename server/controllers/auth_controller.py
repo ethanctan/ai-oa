@@ -232,7 +232,7 @@ def get_or_create_company_from_email(email):
     try:
         # Check if company exists with this domain
         logger.info(f"🔍 COMPANY: Checking if company exists for domain: {domain}")
-        cursor.execute('SELECT * FROM companies WHERE domain = ?', (domain,))
+        cursor.execute('SELECT * FROM companies WHERE domain = %s', (domain,))
         company = cursor.fetchone()
         
         if company:
@@ -245,14 +245,14 @@ def get_or_create_company_from_email(email):
         logger.info(f"🆕 COMPANY: Creating new company: {company_name}")
         
         cursor.execute(
-            'INSERT INTO companies (name, domain, approved) VALUES (?, ?, ?)',
+            'INSERT INTO companies (name, domain, approved) VALUES (%s, %s, %s)',
             (company_name, domain, 1)
         )
         conn.commit()
         
         # Get the created company
         company_id = cursor.lastrowid
-        cursor.execute('SELECT * FROM companies WHERE id = ?', (company_id,))
+        cursor.execute('SELECT * FROM companies WHERE id = %s', (company_id,))
         new_company = dict(cursor.fetchone())
         
         logger.info(f"✅ COMPANY: Created new company: {new_company['name']} (ID: {new_company['id']})")
@@ -289,7 +289,7 @@ def create_or_get_user_from_profile(auth0_user_id, email, name):
         try:
             # Check if user already exists
             logger.info(f"🔍 USER PROFILE: Checking if user exists: {auth0_user_id}")
-            cursor.execute('SELECT * FROM users WHERE auth0_user_id = ?', (auth0_user_id,))
+            cursor.execute('SELECT * FROM users WHERE auth0_user_id = %s', (auth0_user_id,))
             existing_user = cursor.fetchone()
             
             if existing_user:
@@ -297,7 +297,7 @@ def create_or_get_user_from_profile(auth0_user_id, email, name):
                 logger.info(f"✅ USER PROFILE: Found existing user: {user['email']} (ID: {user['id']})")
                 
                 # Get company info
-                cursor.execute('SELECT * FROM companies WHERE id = ?', (user['company_id'],))
+                cursor.execute('SELECT * FROM companies WHERE id = %s', (user['company_id'],))
                 company = dict(cursor.fetchone())
                 user['companyName'] = company['name']
                 
@@ -308,14 +308,14 @@ def create_or_get_user_from_profile(auth0_user_id, email, name):
             logger.info("🆕 USER PROFILE: Creating new user")
             cursor.execute(
                 '''INSERT INTO users (auth0_user_id, email, name, company_id, role) 
-                   VALUES (?, ?, ?, ?, ?)''',
+                   VALUES (%s, %s, %s, %s, %s)''',
                 (auth0_user_id, email, name, company['id'], 'recruiter')
             )
             conn.commit()
             
             # Get the created user
             user_id = cursor.lastrowid
-            cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+            cursor.execute('SELECT * FROM users WHERE id = %s', (user_id,))
             user = dict(cursor.fetchone())
             user['companyName'] = company['name']
             

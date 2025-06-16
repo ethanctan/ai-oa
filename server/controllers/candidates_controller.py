@@ -12,7 +12,7 @@ def get_all_candidates(company_id=None):
     try:
         # Get candidates filtered by company if provided
         if company_id:
-            cursor.execute('SELECT * FROM candidates WHERE company_id = ?', (company_id,))
+            cursor.execute('SELECT * FROM candidates WHERE company_id = %s', (company_id,))
         else:
             cursor.execute('SELECT * FROM candidates')
         
@@ -24,7 +24,7 @@ def get_all_candidates(company_id=None):
                 SELECT t.id, t.name
                 FROM tests t
                 JOIN test_candidates tc ON t.id = tc.test_id
-                WHERE tc.candidate_id = ?
+                WHERE tc.candidate_id = %s
             ''', (candidate['id'],))
             
             assigned_tests = [dict(row) for row in cursor.fetchall()]
@@ -41,9 +41,9 @@ def get_candidate(candidate_id, company_id=None):
     
     try:
         if company_id:
-            cursor.execute('SELECT * FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+            cursor.execute('SELECT * FROM candidates WHERE id = %s AND company_id = %s', (candidate_id, company_id))
         else:
-            cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+            cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
         
         candidate = cursor.fetchone()
         
@@ -71,7 +71,7 @@ def create_candidate(data, company_id=None):
     
     try:
         # Check if email already exists in the same company
-        cursor.execute('SELECT id FROM candidates WHERE email = ? AND company_id = ?', (email, company_id))
+        cursor.execute('SELECT id FROM candidates WHERE email = %s AND company_id = %s', (email, company_id))
         existing = cursor.fetchone()
         
         if existing:
@@ -79,14 +79,14 @@ def create_candidate(data, company_id=None):
         
         # Insert new candidate with company_id
         cursor.execute(
-            'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s)',
             (name, email, tags, company_id, 0)
         )
         conn.commit()
         
         # Get the inserted candidate
         candidate_id = cursor.lastrowid
-        cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+        cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
         
         return dict(cursor.fetchone())
     except Exception as e:
@@ -103,9 +103,9 @@ def update_candidate(candidate_id, data, company_id=None):
     try:
         # Check if candidate exists and belongs to the company
         if company_id:
-            cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+            cursor.execute('SELECT id FROM candidates WHERE id = %s AND company_id = %s', (candidate_id, company_id))
         else:
-            cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+            cursor.execute('SELECT id FROM candidates WHERE id = %s', (candidate_id,))
         
         existing = cursor.fetchone()
         
@@ -117,26 +117,26 @@ def update_candidate(candidate_id, data, company_id=None):
         update_values = []
         
         if 'name' in data:
-            update_fields.append('name = ?')
+            update_fields.append('name = %s')
             update_values.append(data['name'])
         
         if 'email' in data:
             # Check for email conflicts within the same company
-            cursor.execute('SELECT id FROM candidates WHERE email = ? AND company_id = ? AND id != ?', 
+            cursor.execute('SELECT id FROM candidates WHERE email = %s AND company_id = %s AND id != %s', 
                          (data['email'], company_id or 1, candidate_id))
             email_conflict = cursor.fetchone()
             if email_conflict:
                 raise ValueError(f"Email {data['email']} is already used by another candidate in your organization")
             
-            update_fields.append('email = ?')
+            update_fields.append('email = %s')
             update_values.append(data['email'])
         
         if 'completed' in data:
-            update_fields.append('completed = ?')
+            update_fields.append('completed = %s')
             update_values.append(1 if data['completed'] else 0)
         
         if 'tags' in data:
-            update_fields.append('tags = ?')
+            update_fields.append('tags = %s')
             update_values.append(data['tags'])
         
         if not update_fields:
@@ -144,7 +144,7 @@ def update_candidate(candidate_id, data, company_id=None):
             return get_candidate(candidate_id, company_id)
         
         # Update the candidate
-        query = f"UPDATE candidates SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        query = f"UPDATE candidates SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
         update_values.append(candidate_id)
         
         cursor.execute(query, update_values)
@@ -166,9 +166,9 @@ def delete_candidate(candidate_id, company_id=None):
     try:
         # Check if candidate exists and belongs to the company
         if company_id:
-            cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+            cursor.execute('SELECT id FROM candidates WHERE id = %s AND company_id = %s', (candidate_id, company_id))
         else:
-            cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+            cursor.execute('SELECT id FROM candidates WHERE id = %s', (candidate_id,))
         
         existing = cursor.fetchone()
         
@@ -176,7 +176,7 @@ def delete_candidate(candidate_id, company_id=None):
             raise ValueError(f"Candidate with ID {candidate_id} not found in your organization")
         
         # Delete the candidate
-        cursor.execute('DELETE FROM candidates WHERE id = ?', (candidate_id,))
+        cursor.execute('DELETE FROM candidates WHERE id = %s', (candidate_id,))
         conn.commit()
         
         return {"success": True, "message": f"Candidate {candidate_id} deleted successfully"}
@@ -194,9 +194,9 @@ def get_candidate_tests(candidate_id, company_id=None):
     try:
         # Check if candidate exists and belongs to the company
         if company_id:
-            cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+            cursor.execute('SELECT id FROM candidates WHERE id = %s AND company_id = %s', (candidate_id, company_id))
         else:
-            cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+            cursor.execute('SELECT id FROM candidates WHERE id = %s', (candidate_id,))
         
         existing = cursor.fetchone()
         
@@ -208,7 +208,7 @@ def get_candidate_tests(candidate_id, company_id=None):
             SELECT t.*, tc.completed as test_completed
             FROM tests t
             JOIN test_candidates tc ON t.id = tc.test_id
-            WHERE tc.candidate_id = ?
+            WHERE tc.candidate_id = %s
         ''', (candidate_id,))
         
         tests = [dict(row) for row in cursor.fetchall()]
@@ -255,7 +255,7 @@ def create_candidates_from_file(df, company_id=None):
                 cursor.execute('''
                     SELECT id, name, email, tags 
                     FROM candidates 
-                    WHERE (email = ? OR name = ?) AND company_id = ?
+                    WHERE (email = %s OR name = %s) AND company_id = %s
                 ''', (email, name, company_id))
                 existing = cursor.fetchall()
                 
@@ -273,13 +273,13 @@ def create_candidates_from_file(df, company_id=None):
                 
                 # Insert new candidate with company_id
                 cursor.execute(
-                    'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (?, ?, ?, ?, ?)',
+                    'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s)',
                     (name, email, tags, company_id, 0)
                 )
                 
                 # Get the inserted candidate
                 candidate_id = cursor.lastrowid
-                cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+                cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
                 new_candidate = dict(cursor.fetchone())
                 
                 results['success'].append(new_candidate)
@@ -356,20 +356,20 @@ def handle_duplicate_resolution(decisions, company_id=None):
                 if action == 'create_new':
                     # Insert as new candidate with company_id
                     cursor.execute(
-                        'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (?, ?, ?, ?, ?)',
+                        'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s)',
                         (new_data['name'], new_data['email'], new_data['tags'], company_id, 0)
                     )
                     candidate_id = cursor.lastrowid
-                    cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+                    cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
                     results['success'].append(dict(cursor.fetchone()))
                     
                 elif action == 'update' and existing_id:
                     # Update existing candidate, but verify it belongs to the same company
                     cursor.execute(
-                        'UPDATE candidates SET name = ?, email = ?, tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND company_id = ?',
+                        'UPDATE candidates SET name = %s, email = %s, tags = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s AND company_id = %s',
                         (new_data['name'], new_data['email'], new_data['tags'], existing_id, company_id)
                     )
-                    cursor.execute('SELECT * FROM candidates WHERE id = ? AND company_id = ?', (existing_id, company_id))
+                    cursor.execute('SELECT * FROM candidates WHERE id = %s AND company_id = %s', (existing_id, company_id))
                     updated_candidate = cursor.fetchone()
                     if updated_candidate:
                         results['success'].append(dict(updated_candidate))

@@ -6,6 +6,63 @@ More routes under /instances.
 Placed in a separate file for better organization.
 """
 
+def validate_access_token(token):
+    """Validate an access token and return the associated instance"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Get token details
+        cursor.execute('SELECT * FROM access_tokens WHERE token = %s', (token,))
+        token_record = cursor.fetchone()
+        if not token_record:
+            return None
+        
+        # Check if token is expired
+        if token_record['expires_at'] and token_record['expires_at'] < datetime.now():
+            return None
+        
+        # Get instance details
+        cursor.execute('SELECT * FROM test_instances WHERE id = %s', (token_record['instance_id'],))
+        instance = cursor.fetchone()
+        if not instance:
+            return None
+        
+        return dict(instance)
+    finally:
+        conn.close()
+
+def store_access_token(instance_id, token, expires_at=None):
+    """Store an access token for an instance"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            '''INSERT INTO access_tokens (instance_id, token, created_at, expires_at)
+               VALUES (%s, %s, NOW(), %s)''',
+            (instance_id, token, expires_at)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
+def revoke_access_token(token):
+    """Revoke an access token"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('DELETE FROM access_tokens WHERE token = %s', (token,))
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
 def validate_access_token_for_redirect(token):
     """Validate an access token for redirect without marking it as used"""
     conn = get_connection()
@@ -21,7 +78,7 @@ def validate_access_token_for_redirect(token):
             JOIN candidates c ON ti.candidate_id = c.id
             JOIN tests t ON ti.test_id = t.id
             JOIN test_candidates tc ON t.id = tc.test_id AND c.id = tc.candidate_id
-            WHERE at.token = ?
+            WHERE at.token = %s
         ''', (token,))
         
         token_data = cursor.fetchone()

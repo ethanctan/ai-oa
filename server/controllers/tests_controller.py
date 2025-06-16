@@ -19,7 +19,7 @@ def get_all_tests(company_id=None):
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
                 FROM tests t
                 LEFT JOIN test_candidates tc ON t.id = tc.test_id
-                WHERE t.company_id = ?
+                WHERE t.company_id = %s
                 GROUP BY t.id
                 ORDER BY t.created_at DESC
                 ''',
@@ -77,7 +77,7 @@ def get_test(test_id, company_id=None):
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
                 FROM tests t
                 LEFT JOIN test_candidates tc ON t.id = tc.test_id
-                WHERE t.id = ? AND t.company_id = ?
+                WHERE t.id = %s AND t.company_id = %s
                 GROUP BY t.id
                 ''',
                 (test_id, company_id)
@@ -97,7 +97,7 @@ def get_test(test_id, company_id=None):
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
                 FROM tests t
                 LEFT JOIN test_candidates tc ON t.id = tc.test_id
-                WHERE t.id = ?
+                WHERE t.id = %s
                 GROUP BY t.id
                 ''',
                 (test_id,)
@@ -122,7 +122,7 @@ def get_test(test_id, company_id=None):
                 SELECT c.id, c.name, c.email, tc.completed
                 FROM candidates c
                 JOIN test_candidates tc ON c.id = tc.candidate_id
-                WHERE tc.test_id = ? AND c.company_id = ?
+                WHERE tc.test_id = %s AND c.company_id = %s
                 ''',
                 (test_id, company_id)
             )
@@ -132,7 +132,7 @@ def get_test(test_id, company_id=None):
                 SELECT c.id, c.name, c.email, tc.completed
                 FROM candidates c
                 JOIN test_candidates tc ON c.id = tc.candidate_id
-                WHERE tc.test_id = ?
+                WHERE tc.test_id = %s
                 ''',
                 (test_id,)
             )
@@ -184,7 +184,7 @@ def create_test(data):
                 enable_timer, timer_duration,
                 enable_project_timer, project_timer_duration,
                 target_github_repo, target_github_token, company_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''',
             (
                 name,
@@ -230,13 +230,13 @@ def create_test(data):
                         continue  # Skip this ID and move to the next
                     
                     # Check if candidate exists and belongs to the same company
-                    cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+                    cursor.execute('SELECT id FROM candidates WHERE id = %s AND company_id = %s', (candidate_id, company_id))
                     candidate = cursor.fetchone()
                     
                     if candidate:
                         # Check if already assigned
                         cursor.execute(
-                            'SELECT id FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+                            'SELECT id FROM test_candidates WHERE test_id = %s AND candidate_id = %s',
                             (test_id, candidate_id)
                         )
                         existing = cursor.fetchone()
@@ -244,7 +244,7 @@ def create_test(data):
                         if not existing:
                             # Create test-candidate relationship
                             cursor.execute(
-                                'INSERT INTO test_candidates (test_id, candidate_id, completed) VALUES (?, ?, ?)',
+                                'INSERT INTO test_candidates (test_id, candidate_id, completed) VALUES (%s, %s, %s)',
                                 (test_id, candidate_id, 0)
                             )
                             assigned_count += 1
@@ -255,13 +255,13 @@ def create_test(data):
             # Update candidates_assigned count if any were assigned
             if assigned_count > 0:
                 cursor.execute(
-                    'UPDATE tests SET candidates_assigned = ? WHERE id = ?',
+                    'UPDATE tests SET candidates_assigned = %s WHERE id = %s',
                     (assigned_count, test_id)
                 )
                 conn.commit()
         
         # Get the inserted test
-        cursor.execute('SELECT * FROM tests WHERE id = ?', (test_id,))
+        cursor.execute('SELECT * FROM tests WHERE id = %s', (test_id,))
         
         return dict(cursor.fetchone())
     except Exception as e:
@@ -278,9 +278,9 @@ def update_test(test_id, data, company_id=None):
     try:
         # Check if test exists and belongs to the company
         if company_id:
-            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+            cursor.execute('SELECT id FROM tests WHERE id = %s AND company_id = %s', (test_id, company_id))
         else:
-            cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+            cursor.execute('SELECT id FROM tests WHERE id = %s', (test_id,))
         
         existing = cursor.fetchone()
         
@@ -307,7 +307,7 @@ def update_test(test_id, data, company_id=None):
         
         for js_field, db_field in field_mapping.items():
             if js_field in data:
-                update_fields.append(f'{db_field} = ?')
+                update_fields.append(f'{db_field} = %s')
                 update_values.append(data[js_field])
         
         if not update_fields:
@@ -315,7 +315,7 @@ def update_test(test_id, data, company_id=None):
             return get_test(test_id, company_id)
         
         # Update the test
-        query = f"UPDATE tests SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        query = f"UPDATE tests SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
         update_values.append(test_id)
         
         cursor.execute(query, update_values)
@@ -337,9 +337,9 @@ def delete_test(test_id, company_id=None):
     try:
         # Check if test exists and belongs to the company
         if company_id:
-            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+            cursor.execute('SELECT id FROM tests WHERE id = %s AND company_id = %s', (test_id, company_id))
         else:
-            cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+            cursor.execute('SELECT id FROM tests WHERE id = %s', (test_id,))
         
         existing = cursor.fetchone()
         
@@ -347,7 +347,7 @@ def delete_test(test_id, company_id=None):
             raise ValueError(f"Test with ID {test_id} not found in your organization")
         
         # Get all associated instances
-        cursor.execute('SELECT id, docker_instance_id FROM test_instances WHERE test_id = ?', (test_id,))
+        cursor.execute('SELECT id, docker_instance_id FROM test_instances WHERE test_id = %s', (test_id,))
         instances = cursor.fetchall()
         
         # Connect to Docker if needed
@@ -379,14 +379,14 @@ def delete_test(test_id, company_id=None):
         # Delete test instances
         instance_count = len(instances)
         if instance_count > 0:
-            cursor.execute('DELETE FROM test_instances WHERE test_id = ?', (test_id,))
+            cursor.execute('DELETE FROM test_instances WHERE test_id = %s', (test_id,))
             print(f"Deleted {instance_count} instances associated with test {test_id}")
         
         # Delete test-candidate relationships
-        cursor.execute('DELETE FROM test_candidates WHERE test_id = ?', (test_id,))
+        cursor.execute('DELETE FROM test_candidates WHERE test_id = %s', (test_id,))
         
         # Delete the test
-        cursor.execute('DELETE FROM tests WHERE id = ?', (test_id,))
+        cursor.execute('DELETE FROM tests WHERE id = %s', (test_id,))
         conn.commit()
         
         return {"success": True, "message": f"Test {test_id} deleted successfully with {instance_count} associated instances"}
@@ -404,9 +404,9 @@ def get_test_candidates(test_id, company_id=None):
     try:
         # Check if test exists and belongs to the company
         if company_id:
-            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+            cursor.execute('SELECT id FROM tests WHERE id = %s AND company_id = %s', (test_id, company_id))
         else:
-            cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+            cursor.execute('SELECT id FROM tests WHERE id = %s', (test_id,))
         
         existing = cursor.fetchone()
         
@@ -419,14 +419,14 @@ def get_test_candidates(test_id, company_id=None):
                 SELECT c.*, tc.completed as test_completed, tc.deadline
                 FROM candidates c
                 JOIN test_candidates tc ON c.id = tc.candidate_id
-                WHERE tc.test_id = ? AND c.company_id = ?
+                WHERE tc.test_id = %s AND c.company_id = %s
             ''', (test_id, company_id))
         else:
             cursor.execute('''
                 SELECT c.*, tc.completed as test_completed, tc.deadline
                 FROM candidates c
                 JOIN test_candidates tc ON c.id = tc.candidate_id
-                WHERE tc.test_id = ?
+                WHERE tc.test_id = %s
             ''', (test_id,))
         
         assigned_candidates = []
@@ -449,10 +449,10 @@ def get_test_candidates(test_id, company_id=None):
             cursor.execute('''
                 SELECT c.*
                 FROM candidates c
-                WHERE c.company_id = ? AND c.id NOT IN (
+                WHERE c.company_id = %s AND c.id NOT IN (
                     SELECT tc.candidate_id 
                     FROM test_candidates tc 
-                    WHERE tc.test_id = ?
+                    WHERE tc.test_id = %s
                 )
             ''', (company_id, test_id))
         else:
@@ -462,7 +462,7 @@ def get_test_candidates(test_id, company_id=None):
                 WHERE c.id NOT IN (
                     SELECT tc.candidate_id 
                     FROM test_candidates tc 
-                    WHERE tc.test_id = ?
+                    WHERE tc.test_id = %s
                 )
             ''', (test_id,))
         
@@ -483,9 +483,9 @@ def assign_candidate_to_test(test_id, candidate_id, deadline=None, company_id=No
     try:
         # Check if test exists and belongs to the company
         if company_id:
-            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+            cursor.execute('SELECT id FROM tests WHERE id = %s AND company_id = %s', (test_id, company_id))
         else:
-            cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+            cursor.execute('SELECT id FROM tests WHERE id = %s', (test_id,))
         
         test = cursor.fetchone()
         
@@ -494,9 +494,9 @@ def assign_candidate_to_test(test_id, candidate_id, deadline=None, company_id=No
         
         # Check if candidate exists and belongs to the same company
         if company_id:
-            cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+            cursor.execute('SELECT id FROM candidates WHERE id = %s AND company_id = %s', (candidate_id, company_id))
         else:
-            cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+            cursor.execute('SELECT id FROM candidates WHERE id = %s', (candidate_id,))
         
         candidate = cursor.fetchone()
         
@@ -505,7 +505,7 @@ def assign_candidate_to_test(test_id, candidate_id, deadline=None, company_id=No
         
         # Check if relationship already exists
         cursor.execute(
-            'SELECT id FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+            'SELECT id FROM test_candidates WHERE test_id = %s AND candidate_id = %s',
             (test_id, candidate_id)
         )
         existing = cursor.fetchone()
@@ -514,7 +514,7 @@ def assign_candidate_to_test(test_id, candidate_id, deadline=None, company_id=No
             # Update deadline if provided
             if deadline:
                 cursor.execute(
-                    'UPDATE test_candidates SET deadline = ? WHERE test_id = ? AND candidate_id = ?',
+                    'UPDATE test_candidates SET deadline = %s WHERE test_id = %s AND candidate_id = %s',
                     (deadline, test_id, candidate_id)
                 )
                 conn.commit()
@@ -522,13 +522,13 @@ def assign_candidate_to_test(test_id, candidate_id, deadline=None, company_id=No
         
         # Create the relationship with deadline if provided
         cursor.execute(
-            'INSERT INTO test_candidates (test_id, candidate_id, completed, deadline) VALUES (?, ?, ?, ?)',
+            'INSERT INTO test_candidates (test_id, candidate_id, completed, deadline) VALUES (%s, %s, %s, %s)',
             (test_id, candidate_id, 0, deadline)
         )
         
         # Update test's candidates_assigned count
         cursor.execute(
-            'UPDATE tests SET candidates_assigned = candidates_assigned + 1 WHERE id = ?',
+            'UPDATE tests SET candidates_assigned = candidates_assigned + 1 WHERE id = %s',
             (test_id,)
         )
         
@@ -549,14 +549,14 @@ def update_candidate_deadline(test_id, candidate_id, deadline, company_id=None):
     try:
         # Check if test belongs to the company
         if company_id:
-            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+            cursor.execute('SELECT id FROM tests WHERE id = %s AND company_id = %s', (test_id, company_id))
             test = cursor.fetchone()
             if not test:
                 raise ValueError(f"Test with ID {test_id} not found in your organization")
         
         # Check if test-candidate relationship exists
         cursor.execute(
-            'SELECT id FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+            'SELECT id FROM test_candidates WHERE test_id = %s AND candidate_id = %s',
             (test_id, candidate_id)
         )
         existing = cursor.fetchone()
@@ -579,7 +579,7 @@ def update_candidate_deadline(test_id, candidate_id, deadline, company_id=None):
         
         # Update the deadline (can be null to remove deadline)
         cursor.execute(
-            'UPDATE test_candidates SET deadline = ? WHERE test_id = ? AND candidate_id = ?',
+            'UPDATE test_candidates SET deadline = %s WHERE test_id = %s AND candidate_id = %s',
             (sqlite_deadline, test_id, candidate_id)
         )
         conn.commit()
@@ -590,14 +590,14 @@ def update_candidate_deadline(test_id, candidate_id, deadline, company_id=None):
                 SELECT c.*, tc.completed as test_completed, tc.deadline
                 FROM candidates c
                 JOIN test_candidates tc ON c.id = tc.candidate_id
-                WHERE tc.test_id = ? AND tc.candidate_id = ? AND c.company_id = ?
+                WHERE tc.test_id = %s AND tc.candidate_id = %s AND c.company_id = %s
             ''', (test_id, candidate_id, company_id))
         else:
             cursor.execute('''
                 SELECT c.*, tc.completed as test_completed, tc.deadline
                 FROM candidates c
                 JOIN test_candidates tc ON c.id = tc.candidate_id
-                WHERE tc.test_id = ? AND tc.candidate_id = ?
+                WHERE tc.test_id = %s AND tc.candidate_id = %s
             ''', (test_id, candidate_id))
         
         updated_candidate = dict(cursor.fetchone())
@@ -615,10 +615,10 @@ def update_candidate_deadline(test_id, candidate_id, deadline, company_id=None):
         # Automatically resend email with updated deadline information
         try:
             # Get test and candidate details for email
-            cursor.execute('SELECT * FROM tests WHERE id = ?', (test_id,))
+            cursor.execute('SELECT * FROM tests WHERE id = %s', (test_id,))
             test = dict(cursor.fetchone())
             
-            cursor.execute('SELECT * FROM candidates WHERE id = ?', (candidate_id,))
+            cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
             candidate = dict(cursor.fetchone())
             
             # Get the existing access token for this candidate's test instance
@@ -626,7 +626,7 @@ def update_candidate_deadline(test_id, candidate_id, deadline, company_id=None):
                 SELECT at.token
                 FROM access_tokens at
                 JOIN test_instances ti ON at.instance_id = ti.id
-                WHERE ti.test_id = ? AND ti.candidate_id = ?
+                WHERE ti.test_id = %s AND ti.candidate_id = %s
                 ORDER BY at.created_at DESC
                 LIMIT 1
             ''', (test_id, candidate_id))
@@ -675,9 +675,9 @@ def remove_candidate_from_test(test_id, candidate_id, company_id=None):
     try:
         # Check if test exists and belongs to the company
         if company_id:
-            cursor.execute('SELECT id FROM tests WHERE id = ? AND company_id = ?', (test_id, company_id))
+            cursor.execute('SELECT id FROM tests WHERE id = %s AND company_id = %s', (test_id, company_id))
         else:
-            cursor.execute('SELECT id FROM tests WHERE id = ?', (test_id,))
+            cursor.execute('SELECT id FROM tests WHERE id = %s', (test_id,))
         
         test = cursor.fetchone()
         
@@ -686,9 +686,9 @@ def remove_candidate_from_test(test_id, candidate_id, company_id=None):
         
         # Check if candidate exists and belongs to the same company
         if company_id:
-            cursor.execute('SELECT id FROM candidates WHERE id = ? AND company_id = ?', (candidate_id, company_id))
+            cursor.execute('SELECT id FROM candidates WHERE id = %s AND company_id = %s', (candidate_id, company_id))
         else:
-            cursor.execute('SELECT id FROM candidates WHERE id = ?', (candidate_id,))
+            cursor.execute('SELECT id FROM candidates WHERE id = %s', (candidate_id,))
         
         candidate = cursor.fetchone()
         
@@ -697,7 +697,7 @@ def remove_candidate_from_test(test_id, candidate_id, company_id=None):
         
         # Check if relationship exists
         cursor.execute(
-            'SELECT id FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+            'SELECT id FROM test_candidates WHERE test_id = %s AND candidate_id = %s',
             (test_id, candidate_id)
         )
         existing = cursor.fetchone()
@@ -707,13 +707,13 @@ def remove_candidate_from_test(test_id, candidate_id, company_id=None):
         
         # Delete the relationship
         cursor.execute(
-            'DELETE FROM test_candidates WHERE test_id = ? AND candidate_id = ?',
+            'DELETE FROM test_candidates WHERE test_id = %s AND candidate_id = %s',
             (test_id, candidate_id)
         )
         
         # Update test's candidates_assigned count
         cursor.execute(
-            'UPDATE tests SET candidates_assigned = candidates_assigned - 1 WHERE id = ?',
+            'UPDATE tests SET candidates_assigned = candidates_assigned - 1 WHERE id = %s',
             (test_id,)
         )
         
