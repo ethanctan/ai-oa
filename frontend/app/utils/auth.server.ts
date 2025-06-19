@@ -9,6 +9,7 @@ import {
   AUTH0_CLIENT_SECRET,
   AUTH0_DOMAIN,
   SECRETS,
+  API_URL,
 } from "~/constants/index.server";
 
 // Custom user type that includes company info
@@ -72,9 +73,11 @@ export const { getSession, commitSession, destroySession } = sessionStorage;
 async function getUserFromAuth0Profile(profile: Auth0Profile): Promise<User> {
   console.log("🚀 AUTH FRONTEND: getUserFromAuth0Profile - Starting");
   
-  const apiUrl = process.env.VITE_API_URL || 'http://localhost:3000';
-  const endpoint = `${apiUrl}/auth/profile`;
+  const endpoint = `${API_URL}/auth/profile`;
   
+  // log the endpoint we are going to call
+  console.log("🔗 AUTH FRONTEND: Endpoint for user profile:", endpoint);
+
   const profileData = {
     auth0UserId: profile.id,
     email: profile.emails?.[0]?.value,
@@ -84,7 +87,7 @@ async function getUserFromAuth0Profile(profile: Auth0Profile): Promise<User> {
   };
   
   console.log("📋 AUTH FRONTEND: Profile data to send:");
-  console.log("   - API URL:", apiUrl);
+  console.log("   - API URL:", API_URL);
   console.log("   - Endpoint:", endpoint);
   console.log("   - Profile data:", profileData);
   

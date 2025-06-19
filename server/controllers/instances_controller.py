@@ -152,7 +152,7 @@ def get_instance(instance_id, company_id=None):
     try:
         if company_id:
             cursor.execute('SELECT * FROM test_instances WHERE id = %s AND company_id = %s', (instance_id, company_id))
-        else:
+            else:
             cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
         instance = cursor.fetchone()
         return dict(instance) if instance else None
@@ -212,7 +212,7 @@ def update_instance(instance_id, data, company_id=None):
             cursor.execute('SELECT id FROM test_instances WHERE id = %s', (instance_id,))
         if not cursor.fetchone():
             raise ValueError('Instance not found')
-        
+            
         # Build update query dynamically based on provided fields
         update_fields = []
         update_values = []
@@ -221,20 +221,20 @@ def update_instance(instance_id, data, company_id=None):
             if field in data:
                 update_fields.append(f'{field} = %s')
                 update_values.append(data[field])
-        
+                
         if not update_fields:
             raise ValueError('No fields to update')
         
         # Add instance_id to values
         update_values.append(instance_id)
-        
+            
         # Execute update
         query = f'''UPDATE test_instances 
                    SET {", ".join(update_fields)}, updated_at = NOW() 
                    WHERE id = %s'''
         cursor.execute(query, update_values)
-        conn.commit()
-        
+            conn.commit()
+            
         # Get updated instance
         cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
         return dict(cursor.fetchone())
@@ -259,7 +259,7 @@ def delete_instance(instance_id, company_id=None):
         
         # Delete instance
         cursor.execute('DELETE FROM test_instances WHERE id = %s', (instance_id,))
-        conn.commit()
+                    conn.commit()
         return True
     except Exception as e:
         conn.rollback()
@@ -277,13 +277,13 @@ def get_instance_with_details(instance_id, company_id=None):
             cursor.execute('SELECT * FROM test_instances WHERE id = %s AND company_id = %s', (instance_id, company_id))
         else:
             cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
-            
+        
         instance = cursor.fetchone()
         if not instance:
             return None
-            
-        instance_dict = dict(instance)
         
+        instance_dict = dict(instance)
+    
         # Get test details
         cursor.execute('SELECT * FROM tests WHERE id = %s', (instance['test_id'],))
         test = cursor.fetchone()
