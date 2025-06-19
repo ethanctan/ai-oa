@@ -184,7 +184,7 @@ def create_test(data):
                 enable_timer, timer_duration,
                 enable_project_timer, project_timer_duration,
                 target_github_repo, target_github_token, company_id
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''',
             (
                 name,
