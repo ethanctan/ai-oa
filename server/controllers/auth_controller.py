@@ -44,7 +44,7 @@ def require_session_auth(f):
                 SELECT u.*, c.name as company_name 
                 FROM users u
                 JOIN companies c ON u.company_id = c.id
-                WHERE u.id = ? AND u.company_id = ? AND u.auth0_user_id = ?
+                WHERE u.id = %s AND u.company_id = %s AND u.auth0_user_id = %s
             ''', (user_id, company_id, auth0_user_id))
             
             user = cursor.fetchone()
