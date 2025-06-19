@@ -230,6 +230,12 @@ def get_or_create_company_from_email(email):
     cursor = conn.cursor()
     
     try:
+        # Test database connection and table structure
+        logger.info("🔍 COMPANY: Testing database connection...")
+        cursor.execute("SELECT COUNT(*) FROM companies")
+        count = cursor.fetchone()
+        logger.info(f"✅ COMPANY: Database connection successful. Companies count: {count['count']}")
+        
         # Check if company exists with this domain
         logger.info(f"🔍 COMPANY: Checking if company exists for domain: {domain}")
         cursor.execute('SELECT * FROM companies WHERE domain = %s', (domain,))
@@ -245,13 +251,22 @@ def get_or_create_company_from_email(email):
         logger.info(f"🆕 COMPANY: Creating new company: {company_name}")
         
         # Use RETURNING clause to get the created company in one query
-        cursor.execute(
-            '''INSERT INTO companies (name, domain, approved) 
-               VALUES (%s, %s, %s)
-               RETURNING *''',
-            (company_name, domain, 1)
-        )
-        new_company = dict(cursor.fetchone())
+        # Note: PostgreSQL schema doesn't have 'approved' column, so we omit it
+        insert_query = '''INSERT INTO companies (name, domain, created_at, updated_at) 
+                         VALUES (%s, %s, NOW(), NOW())
+                         RETURNING *'''
+        logger.info(f"🔧 COMPANY: Executing INSERT query: {insert_query}")
+        logger.info(f"🔧 COMPANY: With values: ({company_name}, {domain})")
+        
+        cursor.execute(insert_query, (company_name, domain))
+        
+        # Check if the insert was successful
+        new_company = cursor.fetchone()
+        if new_company is None:
+            logger.error("❌ COMPANY: INSERT query returned None - no company was created")
+            raise ValueError("Failed to create company - INSERT query returned no results")
+        
+        new_company = dict(new_company)
         conn.commit()
         
         logger.info(f"✅ COMPANY: Created new company: {new_company['name']} (ID: {new_company['id']})")
