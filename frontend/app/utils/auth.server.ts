@@ -44,22 +44,11 @@ const auth0Strategy = new Auth0Strategy(
     domain: AUTH0_DOMAIN,
   },
   async ({ profile }) => {
-    console.log("🚀 AUTH FRONTEND: Auth0 strategy callback triggered");
-    console.log("👤 AUTH FRONTEND: Auth0 profile received:");
-    console.log("   - Profile ID:", profile.id);
-    console.log("   - Profile emails:", profile.emails);
-    console.log("   - Profile displayName:", profile.displayName);
-    console.log("   - Profile name:", profile.name);
-    console.log("   - Full profile keys:", Object.keys(profile));
-    
     try {
       // Look up or create user in database based on Auth0 profile
-      console.log("🔄 AUTH FRONTEND: Calling getUserFromAuth0Profile");
       const user = await getUserFromAuth0Profile(profile);
-      console.log("✅ AUTH FRONTEND: Successfully got user from Auth0 profile:", user);
       return user;
     } catch (error) {
-      console.error("❌ AUTH FRONTEND: Error in Auth0 strategy callback:", error);
       throw error;
     }
   }
@@ -70,14 +59,9 @@ auth.use(auth0Strategy);
 export const { getSession, commitSession, destroySession } = sessionStorage;
 
 // Helper function to get or create user from Auth0 profile
-async function getUserFromAuth0Profile(profile: Auth0Profile): Promise<User> {
-  console.log("🚀 AUTH FRONTEND: getUserFromAuth0Profile - Starting");
-  
+async function getUserFromAuth0Profile(profile: Auth0Profile): Promise<User> {  
   const endpoint = `${API_URL}/auth/profile`;
   
-  // log the endpoint we are going to call
-  console.log("🔗 AUTH FRONTEND: Endpoint for user profile:", endpoint);
-
   const profileData = {
     auth0UserId: profile.id,
     email: profile.emails?.[0]?.value,
@@ -86,13 +70,7 @@ async function getUserFromAuth0Profile(profile: Auth0Profile): Promise<User> {
       : 'Unknown User'),
   };
   
-  console.log("📋 AUTH FRONTEND: Profile data to send:");
-  console.log("   - API URL:", API_URL);
-  console.log("   - Endpoint:", endpoint);
-  console.log("   - Profile data:", profileData);
-  
   try {
-    console.log("📤 AUTH FRONTEND: Making API call to backend...");
     
     // This will make an API call to your backend to get/create the user
     const response = await fetch(endpoint, {
@@ -103,16 +81,8 @@ async function getUserFromAuth0Profile(profile: Auth0Profile): Promise<User> {
       body: JSON.stringify(profileData),
     });
 
-    console.log("📥 AUTH FRONTEND: Received response from backend:");
-    console.log("   - Status:", response.status);
-    console.log("   - Status Text:", response.statusText);
-    console.log("   - Headers:", Object.fromEntries(response.headers.entries()));
-
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("❌ AUTH FRONTEND: Backend response not OK:");
-      console.error("   - Status:", response.status);
-      console.error("   - Error text:", errorText);
       
       let errorJson;
       try {
@@ -126,9 +96,6 @@ async function getUserFromAuth0Profile(profile: Auth0Profile): Promise<User> {
     }
 
     const backendUserData = await response.json();
-    console.log("✅ AUTH FRONTEND: Successfully received user data from backend:");
-    console.log("   - Backend user data:", backendUserData);
-    console.log("   - Backend user keys:", Object.keys(backendUserData));
     
     // Map backend response (snake_case) to frontend User interface (camelCase)
     const mappedUserData: User = {
@@ -140,11 +107,7 @@ async function getUserFromAuth0Profile(profile: Auth0Profile): Promise<User> {
       companyName: backendUserData.companyName,
       role: backendUserData.role
     };
-    
-    console.log("🔄 AUTH FRONTEND: Mapped user data for frontend:");
-    console.log("   - Mapped user data:", mappedUserData);
-    console.log("   - Mapped user keys:", Object.keys(mappedUserData));
-    
+
     return mappedUserData;
   } catch (error) {
     console.error("❌ AUTH FRONTEND: Error in getUserFromAuth0Profile:");
