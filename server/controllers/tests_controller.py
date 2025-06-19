@@ -184,7 +184,7 @@ def create_test(data):
                 enable_timer, timer_duration,
                 enable_project_timer, project_timer_duration,
                 target_github_repo, target_github_token, company_id
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
             ''',
             (
                 name,
@@ -205,10 +205,13 @@ def create_test(data):
                 company_id
             )
         )
+        
+        # Get the inserted test directly from the INSERT statement
+        new_test = dict(cursor.fetchone())
         conn.commit()
         
         # Get the inserted test ID
-        test_id = cursor.lastrowid
+        test_id = new_test['id']
         
         # If candidate_ids were provided, assign them to the test
         if candidate_ids:
@@ -245,7 +248,7 @@ def create_test(data):
                             # Create test-candidate relationship
                             cursor.execute(
                                 'INSERT INTO test_candidates (test_id, candidate_id, completed) VALUES (%s, %s, %s)',
-                                (test_id, candidate_id, 0)
+                                (test_id, candidate_id, False)
                             )
                             assigned_count += 1
                 except Exception as e:
@@ -260,10 +263,7 @@ def create_test(data):
                 )
                 conn.commit()
         
-        # Get the inserted test
-        cursor.execute('SELECT * FROM tests WHERE id = %s', (test_id,))
-        
-        return dict(cursor.fetchone())
+        return new_test
     except Exception as e:
         conn.rollback()
         raise e
@@ -523,7 +523,7 @@ def assign_candidate_to_test(test_id, candidate_id, deadline=None, company_id=No
         # Create the relationship with deadline if provided
         cursor.execute(
             'INSERT INTO test_candidates (test_id, candidate_id, completed, deadline) VALUES (%s, %s, %s, %s)',
-            (test_id, candidate_id, 0, deadline)
+            (test_id, candidate_id, False, deadline)
         )
         
         # Update test's candidates_assigned count
@@ -727,7 +727,27 @@ def remove_candidate_from_test(test_id, candidate_id, company_id=None):
         conn.close()
 
 def _convert_to_utc(raw_ts):
-    """Convert SQLite string to UTC ISO 8601"""
-    dt = datetime.strptime(raw_ts, "%Y-%m-%d %H:%M:%S")
-    dt = dt.replace(tzinfo=timezone.utc)
-    return dt.isoformat() 
+    """Convert SQLite string or PostgreSQL datetime to UTC ISO 8601"""
+    if raw_ts is None:
+        return None
+    
+    # If it's already a datetime object (PostgreSQL), convert directly
+    if isinstance(raw_ts, datetime):
+        # Ensure it has timezone info, default to UTC if not
+        if raw_ts.tzinfo is None:
+            raw_ts = raw_ts.replace(tzinfo=timezone.utc)
+        return raw_ts.isoformat()
+    
+    # If it's a string (SQLite), parse it
+    if isinstance(raw_ts, str):
+        dt = datetime.strptime(raw_ts, "%Y-%m-%d %H:%M:%S")
+        dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+    
+    # Fallback: try to convert to string and parse
+    try:
+        dt = datetime.strptime(str(raw_ts), "%Y-%m-%d %H:%M:%S")
+        dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+    except (ValueError, TypeError):
+        return None 
