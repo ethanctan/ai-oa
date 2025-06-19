@@ -94,16 +94,15 @@ def create_candidate(data, company_id=None):
         
         # Insert new candidate with company_id
         cursor.execute(
-            'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s)',
+            'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s) RETURNING *',
             (name, email, tags, company_id, False)
         )
+        
+        # Get the inserted candidate directly from the INSERT statement
+        new_candidate = dict(cursor.fetchone())
         conn.commit()
         
-        # Get the inserted candidate
-        candidate_id = cursor.lastrowid
-        cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
-        
-        return dict(cursor.fetchone())
+        return new_candidate
     except Exception as e:
         conn.rollback()
         raise e
@@ -301,16 +300,14 @@ def create_candidates_from_file(df, company_id=None):
                 # Insert new candidate with company_id
                 logger.info(f"Row {index + 1}: Inserting new candidate")
                 cursor.execute(
-                    'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s)',
+                    'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s) RETURNING *',
                     (name, email, tags, company_id, False)
                 )
                 
-                # Get the inserted candidate
-                candidate_id = cursor.lastrowid
-                cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
+                # Get the inserted candidate directly from the INSERT statement
                 new_candidate = dict(cursor.fetchone())
                 
-                logger.info(f"Row {index + 1}: Successfully created candidate with ID {candidate_id}")
+                logger.info(f"Row {index + 1}: Successfully created candidate with ID {new_candidate['id']}")
                 results['success'].append(new_candidate)
                 
             except Exception as e:
@@ -407,12 +404,11 @@ def handle_duplicate_resolution(decisions, company_id=None):
                 if action == 'create_new':
                     # Insert as new candidate with company_id
                     cursor.execute(
-                        'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s)',
+                        'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s) RETURNING *',
                         (new_data['name'], new_data['email'], new_data['tags'], company_id, False)
                     )
-                    candidate_id = cursor.lastrowid
-                    cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
-                    results['success'].append(dict(cursor.fetchone()))
+                    new_candidate = dict(cursor.fetchone())
+                    results['success'].append(new_candidate)
                     
                 elif action == 'update' and existing_id:
                     # Update existing candidate, but verify it belongs to the same company
