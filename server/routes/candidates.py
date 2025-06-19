@@ -13,6 +13,10 @@ from controllers.auth_controller import require_session_auth
 import pandas as pd
 from werkzeug.utils import secure_filename
 import os
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Create a Blueprint for candidates routes
 candidates_bp = Blueprint('candidates', __name__)
@@ -104,20 +108,36 @@ def get_tests_for_candidate(candidate_id):
 @candidates_bp.route('/upload', methods=['POST'])
 @require_session_auth
 def upload_candidates():
+    logger.info("Upload candidates route called")
     try:
+        logger.info(f"Request files: {list(request.files.keys())}")
+        logger.info(f"Request form: {list(request.form.keys())}")
+        
         if 'file' not in request.files:
+            logger.error("No file in request.files")
             return jsonify({'error': 'No file provided'}), 400
             
         file = request.files['file']
+        logger.info(f"File received: {file.filename}, Content-Type: {file.content_type}")
+        
         company_id = get_user_company_id()
+        logger.info(f"Company ID from user: {company_id}")
+        
+        if not company_id:
+            logger.error("No company_id found for user")
+            return jsonify({'error': 'User not associated with a company'}), 400
+        
         # Note: handle_file_upload will need to be updated to support company_id
+        logger.info("Calling handle_file_upload...")
         results = handle_file_upload(file, company_id)
+        logger.info(f"Upload completed. Results: {results}")
         return jsonify(results)
         
     except ValueError as e:
+        logger.error(f"ValueError in upload: {str(e)}")
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        print(f'Error uploading candidates: {str(e)}')
+        logger.error(f"Unexpected error uploading candidates: {str(e)}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
 
 # POST /candidates/resolve-duplicates - Handle duplicate resolution

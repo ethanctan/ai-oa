@@ -3,6 +3,11 @@ import pandas as pd
 from werkzeug.utils import secure_filename
 import os
 import numpy as np
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def clean_pandas_row(row):
     """Clean pandas row data by replacing NaN values with None for JSON serialization"""
@@ -231,6 +236,10 @@ def create_candidates_from_file(df, company_id=None):
     if not company_id:
         raise ValueError('Company ID is required for multi-tenant support')
     
+    logger.info(f"Starting CSV upload process for company_id: {company_id}")
+    logger.info(f"DataFrame shape: {df.shape}")
+    logger.info(f"DataFrame columns: {list(df.columns)}")
+    
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -242,10 +251,13 @@ def create_candidates_from_file(df, company_id=None):
     
     try:
         # Process each row in the DataFrame
-        for _, row in df.iterrows():
+        for index, row in df.iterrows():
+            logger.info(f"Processing row {index + 1}: {dict(row)}")
             try:
                 name = str(row['Name']).strip()
                 email = str(row['Email']).strip()
+                logger.info(f"Row {index + 1}: name='{name}', email='{email}'")
+                
                 # Handle tags - properly handle NaN values and ensure they're semicolon-separated
                 tags_value = row.get('Tags', '')
                 if pd.isna(tags_value) or tags_value == '' or str(tags_value).lower() == 'nan':
@@ -254,7 +266,11 @@ def create_candidates_from_file(df, company_id=None):
                     # Clean up tags and join with semicolons
                     tags = ';'.join(tag.strip() for tag in str(tags_value).split(';') if tag.strip())
                 
+                logger.info(f"Row {index + 1}: tags='{tags}'")
+                
                 if not name or not email:
+                    error_msg = f"Row {index + 1}: Name and email are required. Got name='{name}', email='{email}'"
+                    logger.error(error_msg)
                     results['errors'].append({
                         'row': clean_pandas_row(row),
                         'error': 'Name and email are required'
@@ -270,6 +286,7 @@ def create_candidates_from_file(df, company_id=None):
                 existing = cursor.fetchall()
                 
                 if existing:
+                    logger.info(f"Row {index + 1}: Found {len(existing)} existing candidates with same email or name")
                     # Add to duplicates list for frontend resolution
                     results['duplicates'].append({
                         'new': {
@@ -282,6 +299,7 @@ def create_candidates_from_file(df, company_id=None):
                     continue
                 
                 # Insert new candidate with company_id
+                logger.info(f"Row {index + 1}: Inserting new candidate")
                 cursor.execute(
                     'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s)',
                     (name, email, tags, company_id, 0)
@@ -292,18 +310,23 @@ def create_candidates_from_file(df, company_id=None):
                 cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
                 new_candidate = dict(cursor.fetchone())
                 
+                logger.info(f"Row {index + 1}: Successfully created candidate with ID {candidate_id}")
                 results['success'].append(new_candidate)
                 
             except Exception as e:
+                error_msg = f"Row {index + 1}: Error processing row: {str(e)}"
+                logger.error(error_msg, exc_info=True)
                 results['errors'].append({
                     'row': clean_pandas_row(row),
                     'error': str(e)
                 })
         
+        logger.info(f"CSV upload completed. Success: {len(results['success'])}, Errors: {len(results['errors'])}, Duplicates: {len(results['duplicates'])}")
         conn.commit()
         return results
         
     except Exception as e:
+        logger.error(f"Database error during CSV upload: {str(e)}", exc_info=True)
         conn.rollback()
         raise e
     finally:
@@ -311,36 +334,54 @@ def create_candidates_from_file(df, company_id=None):
 
 def handle_file_upload(file, company_id=None):
     """Handle file upload and validation"""
+    logger.info(f"Starting file upload process. Filename: {file.filename}, Company ID: {company_id}")
+    
     if not file:
+        logger.error("No file provided")
         raise ValueError('No file provided')
         
     if file.filename == '':
+        logger.error("No file selected")
         raise ValueError('No file selected')
         
     if not file.filename.endswith(('.csv', '.xlsx', '.xls')):
+        logger.error(f"Invalid file type: {file.filename}")
         raise ValueError('File must be CSV or Excel format')
     
     if not company_id:
+        logger.error("Company ID is required but not provided")
         raise ValueError('Company ID is required for multi-tenant support')
         
     # Read the file based on its extension
     try:
+        logger.info(f"Reading file: {file.filename}")
         if file.filename.endswith('.csv'):
             df = pd.read_csv(file)
+            logger.info(f"Successfully read CSV file with {len(df)} rows")
         else:
             df = pd.read_excel(file)
+            logger.info(f"Successfully read Excel file with {len(df)} rows")
             
         # Validate required columns
         required_columns = {'Email', 'Name'}
+        logger.info(f"File columns: {list(df.columns)}")
+        logger.info(f"Required columns: {required_columns}")
+        
         if not all(col in df.columns for col in required_columns):
-            raise ValueError('File must contain Email and Name columns')
+            missing_columns = required_columns - set(df.columns)
+            logger.error(f"Missing required columns: {missing_columns}")
+            raise ValueError(f'File must contain Email and Name columns. Missing: {missing_columns}')
             
+        logger.info("File validation passed, processing candidates...")
         return create_candidates_from_file(df, company_id)
     except pd.errors.EmptyDataError:
+        logger.error("The uploaded file is empty")
         raise ValueError('The file is empty')
-    except pd.errors.ParserError:
+    except pd.errors.ParserError as e:
+        logger.error(f"Error parsing the file: {str(e)}")
         raise ValueError('Error parsing the file. Please ensure it is properly formatted')
     except Exception as e:
+        logger.error(f"Unexpected error processing file: {str(e)}", exc_info=True)
         raise ValueError(f'Error processing file: {str(e)}')
 
 def handle_duplicate_resolution(decisions, company_id=None):
