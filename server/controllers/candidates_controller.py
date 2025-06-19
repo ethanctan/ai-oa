@@ -95,7 +95,7 @@ def create_candidate(data, company_id=None):
         # Insert new candidate with company_id
         cursor.execute(
             'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s)',
-            (name, email, tags, company_id, 0)
+            (name, email, tags, company_id, False)
         )
         conn.commit()
         
@@ -148,7 +148,7 @@ def update_candidate(candidate_id, data, company_id=None):
         
         if 'completed' in data:
             update_fields.append('completed = %s')
-            update_values.append(1 if data['completed'] else 0)
+            update_values.append(bool(data['completed']))
         
         if 'tags' in data:
             update_fields.append('tags = %s')
@@ -302,7 +302,7 @@ def create_candidates_from_file(df, company_id=None):
                 logger.info(f"Row {index + 1}: Inserting new candidate")
                 cursor.execute(
                     'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s)',
-                    (name, email, tags, company_id, 0)
+                    (name, email, tags, company_id, False)
                 )
                 
                 # Get the inserted candidate
@@ -408,7 +408,7 @@ def handle_duplicate_resolution(decisions, company_id=None):
                     # Insert as new candidate with company_id
                     cursor.execute(
                         'INSERT INTO candidates (name, email, tags, company_id, completed) VALUES (%s, %s, %s, %s, %s)',
-                        (new_data['name'], new_data['email'], new_data['tags'], company_id, 0)
+                        (new_data['name'], new_data['email'], new_data['tags'], company_id, False)
                     )
                     candidate_id = cursor.lastrowid
                     cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))

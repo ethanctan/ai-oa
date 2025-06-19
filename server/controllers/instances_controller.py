@@ -152,7 +152,7 @@ def get_instance(instance_id, company_id=None):
     try:
         if company_id:
             cursor.execute('SELECT * FROM test_instances WHERE id = %s AND company_id = %s', (instance_id, company_id))
-            else:
+        else:
             cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
         instance = cursor.fetchone()
         return dict(instance) if instance else None
@@ -233,8 +233,8 @@ def update_instance(instance_id, data, company_id=None):
                    SET {", ".join(update_fields)}, updated_at = NOW() 
                    WHERE id = %s'''
         cursor.execute(query, update_values)
-            conn.commit()
-            
+        conn.commit()
+        
         # Get updated instance
         cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
         return dict(cursor.fetchone())
@@ -259,7 +259,7 @@ def delete_instance(instance_id, company_id=None):
         
         # Delete instance
         cursor.execute('DELETE FROM test_instances WHERE id = %s', (instance_id,))
-                    conn.commit()
+        conn.commit()
         return True
     except Exception as e:
         conn.rollback()
