@@ -159,15 +159,43 @@ def update_candidate_deadline_route(test_id, candidate_id):
 
 # POST /tests/:id/try - Try a test (for admins)
 @tests_bp.route('/<int:test_id>/try', methods=['POST'])
+@require_session_auth
 def try_test(test_id):
     try:
         data = request.json
-        data['testId'] = test_id
+        company_id = get_user_company_id()
+        
+        # For "try test", we need to create a temporary candidate or use a default one
+        # For now, let's create a temporary candidate for admin testing
+        from controllers.candidates_controller import create_candidate
+        
+        # Create a temporary candidate for admin testing
+        temp_candidate_data = {
+            'name': data.get('adminUser', {}).get('name', 'Admin Test User'),
+            'email': f'admin-test-{test_id}@example.com',
+            'tags': 'admin-test'
+        }
+        
+        try:
+            temp_candidate = create_candidate(temp_candidate_data, company_id)
+            candidate_id = temp_candidate['id']
+        except ValueError as e:
+            if "already exists" in str(e):
+                # If candidate already exists, get the existing one
+                from controllers.candidates_controller import get_all_candidates
+                candidates = get_all_candidates(company_id)
+                existing_candidate = next((c for c in candidates if c['email'] == temp_candidate_data['email']), None)
+                if existing_candidate:
+                    candidate_id = existing_candidate['id']
+                else:
+                    raise e
+            else:
+                raise e
         
         # Import here to avoid circular imports
         from controllers.instances_controller import create_instance
         
-        instance = create_instance(data)
+        instance = create_instance(test_id, candidate_id, company_id)
         
         # Format the response with the specific fields the frontend expects
         response_data = {
@@ -176,9 +204,9 @@ def try_test(test_id):
             'accessUrl': instance.get('access_url'),
             'instance': {
                 'id': instance['id'],
-                'port': instance['port'],
+                'port': instance.get('port'),
                 'testName': instance.get('test_name', 'Test'),
-                'dockerId': instance['docker_instance_id'],
+                'dockerId': instance.get('docker_instance_id'),
             }
         }
         
@@ -190,10 +218,12 @@ def try_test(test_id):
 
 # POST /tests/:id/send - Send test to candidates
 @tests_bp.route('/<int:test_id>/send', methods=['POST'])
+@require_session_auth
 def send_test(test_id):
     try:
         data = request.json
         candidate_ids = data.get('candidateIds', [])
+        company_id = get_user_company_id()
         
         if not candidate_ids:
             return jsonify({'error': 'No candidates specified'}), 400
@@ -204,11 +234,7 @@ def send_test(test_id):
         results = []
         for candidate_id in candidate_ids:
             try:
-                instance_data = {
-                    'testId': test_id,
-                    'candidateId': candidate_id
-                }
-                instance = create_instance(instance_data)
+                instance = create_instance(test_id, candidate_id, company_id)
                 results.append({
                     'candidateId': candidate_id,
                     'instanceId': instance['id'],

@@ -68,59 +68,82 @@ def get_all_instances():
         
         db_instances = [dict(row) for row in cursor.fetchall()]
         
-        # Connect to Docker to get container info
-        client = docker.from_env()
-        
-        # Get all running containers
+        # Try to connect to Docker, but handle gracefully if not available
         running_instances = []
         
-        for db_instance in db_instances:
-            try:
-                # Try to get the container info
-                container = client.containers.get(db_instance['docker_instance_id'])
-                
-                # If the container exists, format it for the frontend
-                if container:
-                    container_info = client.api.inspect_container(container.id)
+        try:
+            client = docker.from_env()
+            
+            for db_instance in db_instances:
+                try:
+                    # Try to get the container info
+                    container = client.containers.get(db_instance['docker_instance_id'])
                     
-                    # Get container ports (similar to what Docker CLI would show)
-                    ports = []
-                    if 'NetworkSettings' in container_info and 'Ports' in container_info['NetworkSettings']:
-                        for port_key, bindings in container_info['NetworkSettings']['Ports'].items():
-                            if bindings:
-                                for binding in bindings:
-                                    ports.append({
-                                        'PrivatePort': int(port_key.split('/')[0]),
-                                        'PublicPort': int(binding['HostPort']),
-                                        'Type': port_key.split('/')[1]
-                                    })
+                    # If the container exists, format it for the frontend
+                    if container:
+                        container_info = client.api.inspect_container(container.id)
+                        
+                        # Get container ports (similar to what Docker CLI would show)
+                        ports = []
+                        if 'NetworkSettings' in container_info and 'Ports' in container_info['NetworkSettings']:
+                            for port_key, bindings in container_info['NetworkSettings']['Ports'].items():
+                                if bindings:
+                                    for binding in bindings:
+                                        ports.append({
+                                            'PrivatePort': int(port_key.split('/')[0]),
+                                            'PublicPort': int(binding['HostPort']),
+                                            'Type': port_key.split('/')[1]
+                                        })
+                        
+                        # Format the instance for the frontend
+                        instance = {
+                            'Id': container.id,
+                            'Names': [f"/{container.name}"],  # Frontend expects an array of names with leading slash
+                            'Image': container.image.tags[0] if container.image.tags else 'unknown',
+                            'ImageID': container.image.id,
+                            'Command': container_info.get('Config', {}).get('Cmd', [''])[0] if container_info.get('Config', {}).get('Cmd') else '',
+                            'Created': container_info.get('Created', ''),
+                            'Ports': ports,
+                            'Status': container.status,
+                            'State': container_info.get('State', {}),
+                            # Add the DB fields as well
+                            'test_id': db_instance['test_id'],
+                            'candidate_id': db_instance['candidate_id'],
+                            'test_name': db_instance['test_name'],
+                            'candidate_name': db_instance['candidate_name'],
+                            'id': db_instance['id']  # Include the database ID
+                        }
+                        
+                        running_instances.append(instance)
+                except docker.errors.NotFound:
+                    # Container not found in Docker, skip it
+                    continue
+                except Exception as e:
+                    print(f"Error getting container info for instance {db_instance['id']}: {str(e)}")
+                    continue
                     
-                    # Format the instance for the frontend
-                    instance = {
-                        'Id': container.id,
-                        'Names': [f"/{container.name}"],  # Frontend expects an array of names with leading slash
-                        'Image': container.image.tags[0] if container.image.tags else 'unknown',
-                        'ImageID': container.image.id,
-                        'Command': container_info.get('Config', {}).get('Cmd', [''])[0] if container_info.get('Config', {}).get('Cmd') else '',
-                        'Created': container_info.get('Created', ''),
-                        'Ports': ports,
-                        'Status': container.status,
-                        'State': container_info.get('State', {}),
-                        # Add the DB fields as well
-                        'test_id': db_instance['test_id'],
-                        'candidate_id': db_instance['candidate_id'],
-                        'test_name': db_instance['test_name'],
-                        'candidate_name': db_instance['candidate_name'],
-                        'id': db_instance['id']  # Include the database ID
-                    }
-                    
-                    running_instances.append(instance)
-            except docker.errors.NotFound:
-                # Container not found in Docker, skip it
-                continue
-            except Exception as e:
-                print(f"Error getting container info for instance {db_instance['id']}: {str(e)}")
-                continue
+        except Exception as e:
+            print(f"Docker not available or connection failed: {str(e)}")
+            # If Docker is not available, return database instances with basic info
+            for db_instance in db_instances:
+                instance = {
+                    'Id': db_instance['docker_instance_id'] or 'unknown',
+                    'Names': [f"/test-instance-{db_instance['id']}"],
+                    'Image': 'unknown',
+                    'ImageID': 'unknown',
+                    'Command': '',
+                    'Created': str(db_instance['created_at']) if db_instance['created_at'] else '',
+                    'Ports': [],
+                    'Status': 'unknown',
+                    'State': {},
+                    # Add the DB fields as well
+                    'test_id': db_instance['test_id'],
+                    'candidate_id': db_instance['candidate_id'],
+                    'test_name': db_instance['test_name'],
+                    'candidate_name': db_instance['candidate_name'],
+                    'id': db_instance['id']
+                }
+                running_instances.append(instance)
         
         return running_instances
     
