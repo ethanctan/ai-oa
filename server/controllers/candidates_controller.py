@@ -4,6 +4,16 @@ from werkzeug.utils import secure_filename
 import os
 import numpy as np
 
+def clean_pandas_row(row):
+    """Clean pandas row data by replacing NaN values with None for JSON serialization"""
+    cleaned_row = {}
+    for key, value in row.items():
+        if pd.isna(value) or (isinstance(value, str) and value.lower() == 'nan'):
+            cleaned_row[key] = None
+        else:
+            cleaned_row[key] = value
+    return cleaned_row
+
 def get_all_candidates(company_id=None):
     """Get all candidates from the database with their assigned tests, filtered by company"""
     conn = get_connection()
@@ -246,7 +256,7 @@ def create_candidates_from_file(df, company_id=None):
                 
                 if not name or not email:
                     results['errors'].append({
-                        'row': row.to_dict(),
+                        'row': clean_pandas_row(row),
                         'error': 'Name and email are required'
                     })
                     continue
@@ -286,7 +296,7 @@ def create_candidates_from_file(df, company_id=None):
                 
             except Exception as e:
                 results['errors'].append({
-                    'row': row.to_dict(),
+                    'row': clean_pandas_row(row),
                     'error': str(e)
                 })
         
