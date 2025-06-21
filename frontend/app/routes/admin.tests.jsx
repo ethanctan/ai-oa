@@ -271,14 +271,8 @@ export default function TestsAdmin() {
   // Handle Try Test button click
   const handleTryTest = async (testId, testName) => {
     try {
-      const response = await fetch(getApiEndpoint(`tests/${testId}/try/`), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          adminUser: { name: 'Admin' }
-        })
+      const response = await api.post(`/tests/${testId}/try`, {
+        adminUser: { name: 'Admin' }
       });
       
       if (response.ok) {
