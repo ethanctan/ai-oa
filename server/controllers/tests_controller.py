@@ -354,8 +354,8 @@ def delete_test(test_id, company_id=None):
         docker_client = None
         if instances:
             try:
-                import docker
-                docker_client = docker.from_env()
+                from controllers.instances_controller import get_docker_client
+                docker_client = get_docker_client()
                 print(f"Connected to Docker to clean up {len(instances)} instances")
             except Exception as e:
                 print(f"Warning: Unable to connect to Docker for instance cleanup: {str(e)}")
