@@ -19,12 +19,22 @@ print(f"Project directory set up at: {BASE_PROJECTS_DIR}")
 def get_docker_client():
     """Get Docker client - try remote host first, fallback to local"""
     try:
+        # Get certificate paths from environment variables
+        ca_cert = os.getenv('DOCKER_CA_CERT')
+        client_cert = os.getenv('DOCKER_CLIENT_CERT')
+        client_key = os.getenv('DOCKER_CLIENT_KEY')
+        docker_host = os.getenv('DOCKER_HOST', 'tcp://167.99.52.130:2376')
+
+        if not all([ca_cert, client_cert, client_key]):
+            print("Missing Docker TLS certificates in environment variables")
+            raise Exception("Docker TLS certificates not configured")
+
         # Try to connect to remote Docker host
         client = docker.DockerClient(
-            base_url='tcp://167.99.52.130:2376',
+            base_url=docker_host,
             tls=docker.tls.TLSConfig(
-                ca_cert='./ca.pem',
-                client_cert=('./client-cert.pem', './client-key.pem'),
+                ca_cert=ca_cert,
+                client_cert=(client_cert, client_key),
                 verify=True
             )
         )
@@ -42,7 +52,7 @@ def get_docker_client():
             return client
         except Exception as local_e:
             print(f"Failed to connect to local Docker: {str(local_e)}")
-            raise Exception("No Docker connection available")
+            return None  # Return None instead of raising an exception
 
 def sanitize_name(name):
     """Sanitize a name for Docker container use"""
@@ -233,30 +243,39 @@ def create_instance(test_id, candidate_id, company_id):
         if cursor.fetchone():
             raise ValueError('Test instance already exists for this candidate')
         
-        # Create instance
+        # Create instance with RETURNING id for PostgreSQL compatibility
         cursor.execute(
             '''INSERT INTO test_instances (test_id, candidate_id, company_id, created_at, updated_at)
-               VALUES (%s, %s, %s, NOW(), NOW())''',
+               VALUES (%s, %s, %s, NOW(), NOW()) RETURNING id''',
             (test_id, candidate_id, company_id)
         )
+        instance_id = cursor.fetchone()['id']
         conn.commit()
         
         # Get the created instance
-        instance_id = cursor.lastrowid
         cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
         instance = dict(cursor.fetchone())
         
         # Create the Docker container
         try:
             docker_info = create_docker_container(instance_id, test_id, candidate_id, company_id)
-            instance.update(docker_info)
+            if docker_info:
+                instance.update(docker_info)
+                # Update instance with Docker info
+                cursor.execute(
+                    'UPDATE test_instances SET docker_instance_id = %s, port = %s WHERE id = %s',
+                    (docker_info.get('container_id'), docker_info.get('port'), instance_id)
+                )
+                conn.commit()
         except Exception as e:
             print(f"Failed to create Docker container: {str(e)}")
             # Continue without Docker container - instance still created in DB
+            instance['error'] = str(e)
         
         return instance
     except Exception as e:
         conn.rollback()
+        print(f"Error in create_instance: {str(e)}")
         raise e
     finally:
         conn.close()
@@ -570,9 +589,16 @@ def upload_project_to_github(instance_id, file_storage):
 
 def create_docker_container(instance_id, test_id, candidate_id, company_id):
     """Create a Docker container for a test instance"""
+    conn = None
     try:
         # Get Docker client
-        client = get_docker_client()
+        try:
+            client = get_docker_client()
+            if not client:
+                raise Exception("Could not connect to Docker daemon")
+        except Exception as e:
+            print(f"Error connecting to Docker: {str(e)}")
+            return None
         
         # Get test details
         conn = get_connection()
@@ -593,59 +619,71 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             # Check if image exists
             client.images.get('ai-oa:latest')
             print(f"Using existing ai-oa:latest image")
-        except:
+        except docker.errors.ImageNotFound:
             print(f"Building Docker image...")
-            # Build the image from the Dockerfile
-            dockerfile_path = os.path.join(os.path.dirname(__file__), '..', '..', 'docker')
-            client.images.build(
-                path=dockerfile_path,
-                tag='ai-oa:latest',
-                dockerfile='Dockerfile'
-            )
-            print(f"Docker image built successfully")
+            try:
+                # Build the image from the Dockerfile
+                dockerfile_path = os.path.join(os.path.dirname(__file__), '..', '..', 'docker')
+                client.images.build(
+                    path=dockerfile_path,
+                    tag='ai-oa:latest',
+                    dockerfile='Dockerfile'
+                )
+                print(f"Docker image built successfully")
+            except Exception as build_error:
+                print(f"Error building Docker image: {str(build_error)}")
+                return None
+        except Exception as e:
+            print(f"Error checking Docker image: {str(e)}")
+            return None
         
-        # Find an available port (simple approach - you might want to implement port management)
-        import socket
-        def find_free_port():
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('', 0))
-                s.listen(1)
-                port = s.getsockname()[1]
-            return port
-        
-        port = find_free_port()
+        # Find an available port
+        try:
+            import socket
+            def find_free_port():
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.bind(('', 0))
+                    s.listen(1)
+                    port = s.getsockname()[1]
+                return port
+            
+            port = find_free_port()
+        except Exception as e:
+            print(f"Error finding free port: {str(e)}")
+            return None
         
         # Create and run the container
-        container = client.containers.run(
-            'ai-oa:latest',
-            name=container_name,
-            ports={'8080/tcp': port},
-            environment={
-                'TEST_ID': str(test_id),
-                'CANDIDATE_ID': str(candidate_id),
-                'INSTANCE_ID': str(instance_id)
-            },
-            detach=True,
-            remove=True  # Auto-remove when stopped
-        )
-        
-        # Update the instance with Docker info
-        cursor.execute(
-            'UPDATE test_instances SET docker_instance_id = %s, port = %s WHERE id = %s',
-            (container.id, port, instance_id)
-        )
-        conn.commit()
-        
-        print(f"Created Docker container {container.id} for instance {instance_id} on port {port}")
-        
-        return {
-            'container_id': container.id,
-            'port': port,
-            'access_url': f"http://167.99.52.130:{port}"
-        }
-        
+        try:
+            container = client.containers.run(
+                'ai-oa:latest',
+                name=container_name,
+                ports={'8080/tcp': port},
+                environment={
+                    'TEST_ID': str(test_id),
+                    'CANDIDATE_ID': str(candidate_id),
+                    'INSTANCE_ID': str(instance_id)
+                },
+                detach=True,
+                remove=True  # Auto-remove when stopped
+            )
+            
+            print(f"Created Docker container {container.id} for instance {instance_id} on port {port}")
+            
+            return {
+                'container_id': container.id,
+                'port': port,
+                'access_url': f"http://167.99.52.130:{port}"
+            }
+        except docker.errors.APIError as e:
+            print(f"Docker API error creating container: {str(e)}")
+            return None
+        except Exception as e:
+            print(f"Error creating Docker container: {str(e)}")
+            return None
+            
     except Exception as e:
-        print(f"Error creating Docker container: {str(e)}")
-        raise e
+        print(f"Error in create_docker_container: {str(e)}")
+        return None
     finally:
-        conn.close() 
+        if conn:
+            conn.close() 
