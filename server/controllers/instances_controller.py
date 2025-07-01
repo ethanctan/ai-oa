@@ -723,25 +723,45 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         
         # Pull the Docker image if it doesn't exist
         try:
-            # Use the public image
-            image_name = 'ectan/ai-oa-public:latest'
-            print(f"\nUsing public image: {image_name}")
+            # Try different registry URLs in order
+            registry_urls = [
+                'index.docker.io/v1/',
+                'https://index.docker.io/v1/',
+                'https://registry-1.docker.io/v2/',
+                'docker.io'
+            ]
             
-            try:
-                print(f"Checking for existing image {image_name}...")
-                image = client.images.get(image_name)
-                print(f"Using existing {image_name} image (ID: {image.id})")
-            except docker.errors.ImageNotFound:
-                print(f"\nPulling {image_name} from Docker Hub...")
+            image_name = 'ectan/ai-oa-public:latest'
+            full_image_names = [f"{registry}/{image_name}" for registry in registry_urls]
+            full_image_names.append(image_name)  # Also try without registry prefix
+            
+            success = False
+            last_error = None
+            
+            for full_name in full_image_names:
                 try:
-                    # Pull the public image
-                    image = client.images.pull(image_name)
-                    print(f"Successfully pulled {image_name} (ID: {image.id})")
-                except Exception as pull_error:
-                    print(f"Error pulling image: {str(pull_error)}")
-                    if hasattr(pull_error, 'stderr'):
-                        print(f"Pull stderr: {pull_error.stderr}")
-                    raise
+                    print(f"\nTrying to pull image as: {full_name}")
+                    image = client.images.pull(full_name)
+                    print(f"Successfully pulled image (ID: {image.id})")
+                    image_name = full_name  # Use the successful image name
+                    success = True
+                    break
+                except Exception as e:
+                    print(f"Failed to pull {full_name}: {str(e)}")
+                    last_error = e
+            
+            if not success:
+                print("\nTrying direct image load from local cache...")
+                try:
+                    image = client.images.get(image_name)
+                    print(f"Found image in local cache (ID: {image.id})")
+                    success = True
+                except Exception as e:
+                    print(f"Could not find image in local cache: {str(e)}")
+                    if last_error:
+                        raise last_error
+                    raise e
+            
         except Exception as e:
             print(f"Error with Docker image: {str(e)}")
             return None
