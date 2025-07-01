@@ -25,40 +25,90 @@ def get_docker_client():
         client_key = os.getenv('DOCKER_CLIENT_KEY')
         docker_host = os.getenv('DOCKER_HOST', 'tcp://167.99.52.130:2376')
 
-        print("Docker configuration:")
+        print("\nDocker configuration:")
         print(f"Docker host: {docker_host}")
         print(f"CA cert length: {len(ca_cert) if ca_cert else 'None'}")
         print(f"Client cert length: {len(client_cert) if client_cert else 'None'}")
         print(f"Client key length: {len(client_key) if client_key else 'None'}")
 
+        # Verify certificate format
+        print("\nVerifying certificate formats:")
+        print(f"CA cert starts with: {ca_cert[:40] if ca_cert else 'None'}...")
+        print(f"CA cert ends with: ...{ca_cert[-40:] if ca_cert else 'None'}")
+        print(f"Client cert starts with: {client_cert[:40] if client_cert else 'None'}...")
+        print(f"Client cert ends with: ...{client_cert[-40:] if client_cert else 'None'}")
+        print(f"Client key starts with: {client_key[:40] if client_key else 'None'}...")
+        print(f"Client key ends with: ...{client_key[-40:] if client_key else 'None'}")
+
         if not all([ca_cert, client_cert, client_key]):
             print("Missing Docker TLS certificates in environment variables")
             raise Exception("Docker TLS certificates not configured")
+
+        # Create temporary files for the certificates
+        import tempfile
+        import atexit
+
+        cert_files = []
+        def cleanup_cert_files():
+            for f in cert_files:
+                try:
+                    os.remove(f)
+                    print(f"Cleaned up temporary file: {f}")
+                except Exception as e:
+                    print(f"Failed to clean up {f}: {str(e)}")
+
+        atexit.register(cleanup_cert_files)
+
+        def write_temp_cert(content, suffix):
+            try:
+                temp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+                temp.write(content.encode('utf-8'))
+                temp.flush()
+                cert_files.append(temp.name)
+                print(f"Created temporary {suffix} file: {temp.name}")
+                # Verify the file contents
+                with open(temp.name, 'r') as f:
+                    content_check = f.read()
+                    print(f"Verified {suffix} file contents length: {len(content_check)}")
+                return temp.name
+            except Exception as e:
+                print(f"Error creating temporary {suffix} file: {str(e)}")
+                raise
+
+        ca_cert_path = write_temp_cert(ca_cert, '.ca.pem')
+        client_cert_path = write_temp_cert(client_cert, '.cert.pem')
+        client_key_path = write_temp_cert(client_key, '.key.pem')
+
+        print("\nAttempting to connect to Docker with:")
+        print(f"CA cert path: {ca_cert_path}")
+        print(f"Client cert path: {client_cert_path}")
+        print(f"Client key path: {client_key_path}")
 
         # Try to connect to remote Docker host
         client = docker.DockerClient(
             base_url=docker_host,
             tls=docker.tls.TLSConfig(
-                ca_cert=ca_cert,
-                client_cert=(client_cert, client_key),
+                ca_cert=ca_cert_path,
+                client_cert=(client_cert_path, client_key_path),
                 verify=True
             )
         )
+        
         # Test the connection
         client.ping()
-        print("Connected to remote Docker host")
+        print("\nSuccessfully connected to remote Docker host")
         return client
     except Exception as e:
-        print(f"Failed to connect to remote Docker host: {str(e)}")
+        print(f"\nFailed to connect to remote Docker host: {str(e)}")
         try:
-            # Fallback to local Docker
-            client = docker.from_env()
+            # Try to connect to the local Docker socket instead
+            client = docker.DockerClient(base_url='unix://var/run/docker.sock')
             client.ping()
-            print("Connected to local Docker")
+            print("Connected to local Docker socket")
             return client
         except Exception as local_e:
             print(f"Failed to connect to local Docker: {str(local_e)}")
-            return None  # Return None instead of raising an exception
+            return None
 
 def sanitize_name(name):
     """Sanitize a name for Docker container use"""
