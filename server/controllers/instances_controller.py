@@ -723,14 +723,18 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         
         # Pull the Docker image if it doesn't exist
         try:
-            image_name = 'ectan/ai-oa:latest'  # Use the Docker Hub image
+            # Use the public image
+            image_name = 'ectan/ai-oa-public:latest'
+            print(f"\nUsing public image: {image_name}")
+            
             try:
-                print(f"\nChecking for existing image {image_name}...")
+                print(f"Checking for existing image {image_name}...")
                 image = client.images.get(image_name)
                 print(f"Using existing {image_name} image (ID: {image.id})")
             except docker.errors.ImageNotFound:
                 print(f"\nPulling {image_name} from Docker Hub...")
                 try:
+                    # Pull the public image
                     image = client.images.pull(image_name)
                     print(f"Successfully pulled {image_name} (ID: {image.id})")
                 except Exception as pull_error:
