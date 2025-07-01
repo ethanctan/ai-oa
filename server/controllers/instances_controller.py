@@ -25,6 +25,12 @@ def get_docker_client():
         client_key = os.getenv('DOCKER_CLIENT_KEY')
         docker_host = os.getenv('DOCKER_HOST', 'tcp://167.99.52.130:2376')
 
+        print("Docker configuration:")
+        print(f"Docker host: {docker_host}")
+        print(f"CA cert length: {len(ca_cert) if ca_cert else 'None'}")
+        print(f"Client cert length: {len(client_cert) if client_cert else 'None'}")
+        print(f"Client key length: {len(client_key) if client_key else 'None'}")
+
         if not all([ca_cert, client_cert, client_key]):
             print("Missing Docker TLS certificates in environment variables")
             raise Exception("Docker TLS certificates not configured")
