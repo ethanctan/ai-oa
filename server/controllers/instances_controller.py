@@ -687,6 +687,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             client = get_docker_client()
             if not client:
                 raise Exception("Could not connect to Docker daemon")
+            print("Successfully got Docker client")
         except Exception as e:
             print(f"Error connecting to Docker: {str(e)}")
             return None
@@ -701,9 +702,11 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             raise ValueError('Test not found')
         
         test = dict(test)
+        print(f"Retrieved test details: {test}")
         
         # Generate a unique container name
         container_name = f"ai-oa-instance-{instance_id}"
+        print(f"Generated container name: {container_name}")
         
         # Build the Docker image if it doesn't exist
         try:
@@ -715,14 +718,29 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             try:
                 # Build the image from the Dockerfile
                 dockerfile_path = os.path.join(os.path.dirname(__file__), '..', '..', 'docker')
-                client.images.build(
+                print(f"Dockerfile path: {dockerfile_path}")
+                
+                # Verify Dockerfile exists
+                dockerfile_full_path = os.path.join(dockerfile_path, 'Dockerfile')
+                if not os.path.exists(dockerfile_full_path):
+                    raise Exception(f"Dockerfile not found at {dockerfile_full_path}")
+                print(f"Found Dockerfile at {dockerfile_full_path}")
+                
+                # Build with detailed output
+                image, build_logs = client.images.build(
                     path=dockerfile_path,
                     tag='ai-oa:latest',
                     dockerfile='Dockerfile'
                 )
-                print(f"Docker image built successfully")
+                print("Docker image build logs:")
+                for log in build_logs:
+                    if 'stream' in log:
+                        print(log['stream'].strip())
+                print(f"Docker image built successfully with ID: {image.id}")
             except Exception as build_error:
                 print(f"Error building Docker image: {str(build_error)}")
+                if hasattr(build_error, 'msg'):
+                    print(f"Build error message: {build_error.msg}")
                 return None
         except Exception as e:
             print(f"Error checking Docker image: {str(e)}")
@@ -736,7 +754,8 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                     s.bind(('', 0))
                     s.listen(1)
                     port = s.getsockname()[1]
-                return port
+                    print(f"Found free port: {port}")
+                    return port
             
             port = find_free_port()
         except Exception as e:
@@ -745,6 +764,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         
         # Create and run the container
         try:
+            print(f"Creating container with port mapping 8080/tcp -> {port}")
             container = client.containers.run(
                 'ai-oa:latest',
                 name=container_name,
@@ -760,6 +780,15 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             
             print(f"Created Docker container {container.id} for instance {instance_id} on port {port}")
             
+            # Wait briefly and check container status
+            time.sleep(2)
+            container.reload()
+            print(f"Container status: {container.status}")
+            
+            # Get container logs
+            print("Container logs:")
+            print(container.logs().decode('utf-8'))
+            
             # Get the public domain from environment variable or use default
             public_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN', '167.99.52.130')
             access_url = f"http://{public_domain}:{port}"
@@ -772,6 +801,8 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             }
         except docker.errors.APIError as e:
             print(f"Docker API error creating container: {str(e)}")
+            if hasattr(e, 'explanation'):
+                print(f"API error explanation: {e.explanation}")
             return None
         except Exception as e:
             print(f"Error creating Docker container: {str(e)}")
