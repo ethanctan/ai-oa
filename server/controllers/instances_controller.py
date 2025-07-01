@@ -708,42 +708,18 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         container_name = f"ai-oa-instance-{instance_id}"
         print(f"Generated container name: {container_name}")
         
-        # Build the Docker image if it doesn't exist
+        # Pull the Docker image if it doesn't exist
         try:
-            # Check if image exists
-            client.images.get('ai-oa:latest')
-            print(f"Using existing ai-oa:latest image")
-        except docker.errors.ImageNotFound:
-            print(f"Building Docker image...")
+            image_name = 'ectan/ai-oa:latest'  # Use the Docker Hub image
             try:
-                # Build the image from the Dockerfile
-                dockerfile_path = os.path.join(os.path.dirname(__file__), '..', '..', 'docker')
-                print(f"Dockerfile path: {dockerfile_path}")
-                
-                # Verify Dockerfile exists
-                dockerfile_full_path = os.path.join(dockerfile_path, 'Dockerfile')
-                if not os.path.exists(dockerfile_full_path):
-                    raise Exception(f"Dockerfile not found at {dockerfile_full_path}")
-                print(f"Found Dockerfile at {dockerfile_full_path}")
-                
-                # Build with detailed output
-                image, build_logs = client.images.build(
-                    path=dockerfile_path,
-                    tag='ai-oa:latest',
-                    dockerfile='Dockerfile'
-                )
-                print("Docker image build logs:")
-                for log in build_logs:
-                    if 'stream' in log:
-                        print(log['stream'].strip())
-                print(f"Docker image built successfully with ID: {image.id}")
-            except Exception as build_error:
-                print(f"Error building Docker image: {str(build_error)}")
-                if hasattr(build_error, 'msg'):
-                    print(f"Build error message: {build_error.msg}")
-                return None
+                client.images.get(image_name)
+                print(f"Using existing {image_name} image")
+            except docker.errors.ImageNotFound:
+                print(f"Pulling {image_name} from Docker Hub...")
+                client.images.pull(image_name)
+                print(f"Successfully pulled {image_name}")
         except Exception as e:
-            print(f"Error checking Docker image: {str(e)}")
+            print(f"Error with Docker image: {str(e)}")
             return None
         
         # Find an available port
@@ -766,7 +742,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         try:
             print(f"Creating container with port mapping 8080/tcp -> {port}")
             container = client.containers.run(
-                'ai-oa:latest',
+                image_name,
                 name=container_name,
                 ports={'8080/tcp': port},
                 environment={
