@@ -684,12 +684,25 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
     try:
         # Get Docker client
         try:
+            print("\nAttempting to connect to Docker daemon...")
             client = get_docker_client()
             if not client:
                 raise Exception("Could not connect to Docker daemon")
             print("Successfully got Docker client")
+            
+            # Test Docker connection
+            try:
+                info = client.info()
+                print(f"Docker version: {info.get('ServerVersion')}")
+                print(f"Total containers: {info.get('Containers')}")
+                print(f"Running containers: {info.get('ContainersRunning')}")
+            except Exception as e:
+                print(f"Warning: Could not get Docker info: {str(e)}")
+            
         except Exception as e:
             print(f"Error connecting to Docker: {str(e)}")
+            if hasattr(e, 'stderr'):
+                print(f"Docker stderr: {e.stderr}")
             return None
         
         # Get test details
@@ -712,12 +725,19 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         try:
             image_name = 'ectan/ai-oa:latest'  # Use the Docker Hub image
             try:
-                client.images.get(image_name)
-                print(f"Using existing {image_name} image")
+                print(f"\nChecking for existing image {image_name}...")
+                image = client.images.get(image_name)
+                print(f"Using existing {image_name} image (ID: {image.id})")
             except docker.errors.ImageNotFound:
-                print(f"Pulling {image_name} from Docker Hub...")
-                client.images.pull(image_name)
-                print(f"Successfully pulled {image_name}")
+                print(f"\nPulling {image_name} from Docker Hub...")
+                try:
+                    image = client.images.pull(image_name)
+                    print(f"Successfully pulled {image_name} (ID: {image.id})")
+                except Exception as pull_error:
+                    print(f"Error pulling image: {str(pull_error)}")
+                    if hasattr(pull_error, 'stderr'):
+                        print(f"Pull stderr: {pull_error.stderr}")
+                    raise
         except Exception as e:
             print(f"Error with Docker image: {str(e)}")
             return None
@@ -740,7 +760,16 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         
         # Create and run the container
         try:
-            print(f"Creating container with port mapping 8080/tcp -> {port}")
+            print(f"\nCreating container with port mapping 8080/tcp -> {port}")
+            print("Container configuration:")
+            print(f"- Image: {image_name}")
+            print(f"- Name: {container_name}")
+            print(f"- Port mapping: 8080/tcp -> {port}")
+            print(f"- Environment variables:")
+            print(f"  - TEST_ID: {test_id}")
+            print(f"  - CANDIDATE_ID: {candidate_id}")
+            print(f"  - INSTANCE_ID: {instance_id}")
+            
             container = client.containers.run(
                 image_name,
                 name=container_name,
@@ -754,21 +783,32 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                 remove=True  # Auto-remove when stopped
             )
             
-            print(f"Created Docker container {container.id} for instance {instance_id} on port {port}")
+            print(f"\nCreated Docker container {container.id} for instance {instance_id} on port {port}")
             
             # Wait briefly and check container status
             time.sleep(2)
-            container.reload()
-            print(f"Container status: {container.status}")
-            
-            # Get container logs
-            print("Container logs:")
-            print(container.logs().decode('utf-8'))
+            try:
+                container.reload()
+                print(f"Container status: {container.status}")
+                
+                # Get container logs
+                print("\nContainer logs:")
+                print(container.logs().decode('utf-8'))
+                
+                # Get detailed container info
+                inspect_info = client.api.inspect_container(container.id)
+                print("\nContainer network settings:")
+                print(f"IP Address: {inspect_info.get('NetworkSettings', {}).get('IPAddress', 'N/A')}")
+                print(f"Gateway: {inspect_info.get('NetworkSettings', {}).get('Gateway', 'N/A')}")
+                print(f"Ports: {inspect_info.get('NetworkSettings', {}).get('Ports', {})}")
+                
+            except Exception as info_error:
+                print(f"Warning: Could not get container info: {str(info_error)}")
             
             # Get the public domain from environment variable or use default
             public_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN', '167.99.52.130')
             access_url = f"http://{public_domain}:{port}"
-            print(f"Generated access URL: {access_url}")
+            print(f"\nGenerated access URL: {access_url}")
             
             return {
                 'container_id': container.id,
@@ -776,16 +816,22 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                 'access_url': access_url
             }
         except docker.errors.APIError as e:
-            print(f"Docker API error creating container: {str(e)}")
+            print(f"\nDocker API error creating container: {str(e)}")
             if hasattr(e, 'explanation'):
                 print(f"API error explanation: {e.explanation}")
+            if hasattr(e, 'stderr'):
+                print(f"API error stderr: {e.stderr}")
             return None
         except Exception as e:
-            print(f"Error creating Docker container: {str(e)}")
+            print(f"\nError creating Docker container: {str(e)}")
+            if hasattr(e, 'stderr'):
+                print(f"Error stderr: {e.stderr}")
             return None
             
     except Exception as e:
-        print(f"Error in create_docker_container: {str(e)}")
+        print(f"\nError in create_docker_container: {str(e)}")
+        if hasattr(e, 'stderr'):
+            print(f"Error stderr: {e.stderr}")
         return None
     finally:
         if conn:
