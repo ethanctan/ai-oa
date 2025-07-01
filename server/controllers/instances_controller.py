@@ -25,21 +25,6 @@ def get_docker_client():
         client_key = os.getenv('DOCKER_CLIENT_KEY')
         docker_host = os.getenv('DOCKER_HOST', 'tcp://167.99.52.130:2376')
 
-        print("\nDocker configuration:")
-        print(f"Docker host: {docker_host}")
-        print(f"CA cert length: {len(ca_cert) if ca_cert else 'None'}")
-        print(f"Client cert length: {len(client_cert) if client_cert else 'None'}")
-        print(f"Client key length: {len(client_key) if client_key else 'None'}")
-
-        # Verify certificate format
-        print("\nVerifying certificate formats:")
-        print(f"CA cert starts with: {ca_cert[:40] if ca_cert else 'None'}...")
-        print(f"CA cert ends with: ...{ca_cert[-40:] if ca_cert else 'None'}")
-        print(f"Client cert starts with: {client_cert[:40] if client_cert else 'None'}...")
-        print(f"Client cert ends with: ...{client_cert[-40:] if client_cert else 'None'}")
-        print(f"Client key starts with: {client_key[:40] if client_key else 'None'}...")
-        print(f"Client key ends with: ...{client_key[-40:] if client_key else 'None'}")
-
         if not all([ca_cert, client_cert, client_key]):
             print("Missing Docker TLS certificates in environment variables")
             raise Exception("Docker TLS certificates not configured")
@@ -276,30 +261,75 @@ def get_instance(instance_id, company_id=None):
     finally:
         conn.close()
 
-def create_instance(test_id, candidate_id, company_id):
-    """Create a new test instance"""
+def cleanup_admin_test_candidates():
+    """Clean up temporary admin test candidates and their instances"""
     conn = get_connection()
     cursor = conn.cursor()
     try:
+        # Find admin test candidates older than 1 hour
+        cursor.execute('''
+            SELECT id FROM candidates 
+            WHERE email LIKE 'admin-test-%@example.com'
+            AND created_at < NOW() - INTERVAL '1 hour'
+        ''')
+        old_candidates = cursor.fetchall()
+        
+        for candidate in old_candidates:
+            candidate_id = candidate['id']
+            print(f"Cleaning up old admin test candidate {candidate_id}")
+            
+            # Delete associated instances first
+            cursor.execute('DELETE FROM test_instances WHERE candidate_id = %s', (candidate_id,))
+            # Then delete the candidate
+            cursor.execute('DELETE FROM candidates WHERE id = %s', (candidate_id,))
+        
+        conn.commit()
+        print(f"Cleaned up {len(old_candidates)} old admin test candidates")
+    except Exception as e:
+        print(f"Error cleaning up admin test candidates: {str(e)}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+def create_instance(test_id, candidate_id, company_id):
+    """Create a new test instance"""
+    # Clean up old admin test candidates first
+    cleanup_admin_test_candidates()
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        print(f"\nAttempting to create instance for test_id: {test_id}, candidate_id: {candidate_id}, company_id: {company_id}")
+        
         # Check if test exists and belongs to company
         cursor.execute('SELECT * FROM tests WHERE id = %s AND company_id = %s', (test_id, company_id))
         test = cursor.fetchone()
         if not test:
+            print(f"Test not found for test_id: {test_id} and company_id: {company_id}")
             raise ValueError('Test not found')
+        print(f"Found test: {dict(test)}")
         
         # Check if candidate exists and belongs to company
         cursor.execute('SELECT * FROM candidates WHERE id = %s AND company_id = %s', (candidate_id, company_id))
         candidate = cursor.fetchone()
         if not candidate:
+            print(f"Candidate not found for candidate_id: {candidate_id} and company_id: {company_id}")
             raise ValueError('Candidate not found')
+        print(f"Found candidate: {dict(candidate)}")
         
         # Check if instance already exists
-        cursor.execute('SELECT id FROM test_instances WHERE test_id = %s AND candidate_id = %s',
+        cursor.execute('''
+            SELECT id, test_id, candidate_id, docker_instance_id, port, created_at 
+            FROM test_instances 
+            WHERE test_id = %s AND candidate_id = %s''',
             (test_id, candidate_id))
-        if cursor.fetchone():
+        existing = cursor.fetchone()
+        if existing:
+            print(f"Found existing instance: {dict(existing)}")
             raise ValueError('Test instance already exists for this candidate')
         
-        # Create instance with RETURNING id for PostgreSQL compatibility
+        # Create instance
+        print("Creating new instance...")
         cursor.execute(
             '''INSERT INTO test_instances (test_id, candidate_id, company_id, created_at, updated_at)
                VALUES (%s, %s, %s, NOW(), NOW()) RETURNING id''',
@@ -307,10 +337,12 @@ def create_instance(test_id, candidate_id, company_id):
         )
         instance_id = cursor.fetchone()['id']
         conn.commit()
+        print(f"Created instance with ID: {instance_id}")
         
         # Get the created instance
         cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
         instance = dict(cursor.fetchone())
+        print(f"Retrieved instance details: {instance}")
         
         # Create the Docker container
         try:
@@ -323,6 +355,9 @@ def create_instance(test_id, candidate_id, company_id):
                     (docker_info.get('container_id'), docker_info.get('port'), instance_id)
                 )
                 conn.commit()
+                print(f"Updated instance with Docker info: {docker_info}")
+            else:
+                print("No Docker info returned from create_docker_container")
         except Exception as e:
             print(f"Failed to create Docker container: {str(e)}")
             # Continue without Docker container - instance still created in DB
@@ -725,10 +760,15 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             
             print(f"Created Docker container {container.id} for instance {instance_id} on port {port}")
             
+            # Get the public domain from environment variable or use default
+            public_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN', '167.99.52.130')
+            access_url = f"http://{public_domain}:{port}"
+            print(f"Generated access URL: {access_url}")
+            
             return {
                 'container_id': container.id,
                 'port': port,
-                'access_url': f"http://167.99.52.130:{port}"
+                'access_url': access_url
             }
         except docker.errors.APIError as e:
             print(f"Docker API error creating container: {str(e)}")
