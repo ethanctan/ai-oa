@@ -745,8 +745,6 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         # Use a fixed port range that we know is open in the firewall
         try:
             def find_free_port():
-                # Use a port range that's likely to be allowed through the firewall
-                # Adjust these numbers based on your DigitalOcean firewall settings
                 start_port = 8000
                 end_port = 9000
                 
@@ -788,30 +786,54 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                     'INSTANCE_ID': str(instance_id)
                 },
                 detach=True,
-                remove=True  # Auto-remove when stopped
+                # remove=True  # Removed auto-remove to allow inspection of failed containers
+                healthcheck={
+                    "test": ["CMD", "curl", "-f", "http://localhost:8080"],
+                    "interval": 1000000000,  # 1 second in nanoseconds
+                    "timeout": 1000000000,
+                    "retries": 30
+                }
             )
             
             print(f"\nCreated Docker container {container.id} for instance {instance_id} on port {port}")
             
-            # Wait briefly and check container status
-            time.sleep(2)
-            try:
-                container.reload()
-                print(f"Container status: {container.status}")
-                
-                # Get container logs
-                print("\nContainer logs:")
-                print(container.logs().decode('utf-8'))
-                
-                # Get detailed container info
-                inspect_info = client.api.inspect_container(container.id)
-                print("\nContainer network settings:")
-                print(f"IP Address: {inspect_info.get('NetworkSettings', {}).get('IPAddress', 'N/A')}")
-                print(f"Gateway: {inspect_info.get('NetworkSettings', {}).get('Gateway', 'N/A')}")
-                print(f"Ports: {inspect_info.get('NetworkSettings', {}).get('Ports', {})}")
-                
-            except Exception as info_error:
-                print(f"Warning: Could not get container info: {str(info_error)}")
+            # Wait for container to be healthy (up to 30 seconds)
+            max_wait = 30
+            wait_interval = 1
+            for i in range(max_wait):
+                try:
+                    container.reload()
+                    status = container.status
+                    health = container.attrs.get('State', {}).get('Health', {}).get('Status', 'unknown')
+                    print(f"Container status: {status}, health: {health}")
+                    
+                    if status == 'running' and health == 'healthy':
+                        break
+                    elif status in ['exited', 'dead']:
+                        print("\nContainer logs before failure:")
+                        print(container.logs().decode('utf-8'))
+                        raise Exception(f"Container failed to start. Status: {status}")
+                        
+                    time.sleep(wait_interval)
+                except docker.errors.NotFound:
+                    print("Container was removed unexpectedly")
+                    raise Exception("Container was removed unexpectedly")
+                except Exception as e:
+                    print(f"Error checking container status: {str(e)}")
+                    if i == max_wait - 1:  # Last iteration
+                        raise Exception("Container failed to become healthy")
+                    continue
+            
+            # Get container logs
+            print("\nContainer logs:")
+            print(container.logs().decode('utf-8'))
+            
+            # Get detailed container info
+            inspect_info = client.api.inspect_container(container.id)
+            print("\nContainer network settings:")
+            print(f"IP Address: {inspect_info.get('NetworkSettings', {}).get('IPAddress', 'N/A')}")
+            print(f"Gateway: {inspect_info.get('NetworkSettings', {}).get('Gateway', 'N/A')}")
+            print(f"Ports: {inspect_info.get('NetworkSettings', {}).get('Ports', {})}")
             
             # Use the DigitalOcean droplet's IP directly instead of Railway domain
             # This ensures direct access to the container port
