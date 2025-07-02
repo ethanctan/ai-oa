@@ -723,59 +723,43 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         
         # Pull the Docker image if it doesn't exist
         try:
-            # Try different registry URLs in order
-            registry_urls = [
-                'index.docker.io/v1/',
-                'https://index.docker.io/v1/',
-                'https://registry-1.docker.io/v2/',
-                'docker.io'
-            ]
-            
             image_name = 'ectan/ai-oa-public:latest'
-            full_image_names = [f"{registry}/{image_name}" for registry in registry_urls]
-            full_image_names.append(image_name)  # Also try without registry prefix
-            
-            success = False
-            last_error = None
-            
-            for full_name in full_image_names:
+            try:
+                print(f"Checking for existing image {image_name}...")
+                image = client.images.get(image_name)
+                print(f"Using existing {image_name} image (ID: {image.id})")
+            except docker.errors.ImageNotFound:
+                print(f"\nPulling {image_name} from Docker Hub...")
                 try:
-                    print(f"\nTrying to pull image as: {full_name}")
-                    image = client.images.pull(full_name)
-                    print(f"Successfully pulled image (ID: {image.id})")
-                    image_name = full_name  # Use the successful image name
-                    success = True
-                    break
-                except Exception as e:
-                    print(f"Failed to pull {full_name}: {str(e)}")
-                    last_error = e
-            
-            if not success:
-                print("\nTrying direct image load from local cache...")
-                try:
-                    image = client.images.get(image_name)
-                    print(f"Found image in local cache (ID: {image.id})")
-                    success = True
-                except Exception as e:
-                    print(f"Could not find image in local cache: {str(e)}")
-                    if last_error:
-                        raise last_error
-                    raise e
-            
+                    image = client.images.pull(image_name)
+                    print(f"Successfully pulled {image_name} (ID: {image.id})")
+                except Exception as pull_error:
+                    print(f"Error pulling image: {str(pull_error)}")
+                    if hasattr(pull_error, 'stderr'):
+                        print(f"Pull stderr: {pull_error.stderr}")
+                    raise
         except Exception as e:
             print(f"Error with Docker image: {str(e)}")
             return None
         
-        # Find an available port
+        # Use a fixed port range that we know is open in the firewall
         try:
-            import socket
             def find_free_port():
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.bind(('', 0))
-                    s.listen(1)
-                    port = s.getsockname()[1]
-                    print(f"Found free port: {port}")
-                    return port
+                # Use a port range that's likely to be allowed through the firewall
+                # Adjust these numbers based on your DigitalOcean firewall settings
+                start_port = 8000
+                end_port = 9000
+                
+                import socket
+                for port in range(start_port, end_port):
+                    try:
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                            s.bind(('', port))
+                            print(f"Found free port: {port}")
+                            return port
+                    except socket.error:
+                        continue
+                raise Exception("No free ports found in the allowed range")
             
             port = find_free_port()
         except Exception as e:
@@ -829,9 +813,9 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             except Exception as info_error:
                 print(f"Warning: Could not get container info: {str(info_error)}")
             
-            # Get the public domain from environment variable or use default
-            public_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN', '167.99.52.130')
-            access_url = f"http://{public_domain}:{port}"
+            # Use the DigitalOcean droplet's IP directly instead of Railway domain
+            # This ensures direct access to the container port
+            access_url = f"http://167.99.52.130:{port}"
             print(f"\nGenerated access URL: {access_url}")
             
             return {
