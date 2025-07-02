@@ -1,5 +1,5 @@
 # Use the official code-server image as the base image
-FROM codercom/code-server:latest
+FROM --platform=$TARGETPLATFORM codercom/code-server:latest
 
 # Switch to root user for package installation
 USER root
@@ -39,4 +39,9 @@ RUN code-server --install-extension /tmp/ai-oa-extension-0.1.0.vsix
 
 # Run code-server
 EXPOSE 8080
+
+# Use the default entrypoint from code-server
+ENTRYPOINT ["/usr/bin/entrypoint.sh"]
+
+# Set the command to run code-server
 CMD ["code-server", "--auth", "none", "--bind-addr", "0.0.0.0:8080", "/home/coder/project"]
