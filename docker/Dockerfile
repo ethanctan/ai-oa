@@ -7,7 +7,8 @@ USER root
 # Install Rust and Cargo
 RUN apt-get update && apt-get install -y \
     build-essential \
-    curl
+    curl \
+    git
 
 # Switch back to coder user before installing Rust
 USER coder
@@ -34,14 +35,21 @@ COPY ai-oa-extension-0.1.0.vsix /tmp/ai-oa-extension-0.1.0.vsix
 # Switch back to coder to install the extension
 USER coder
 
+# Create project directory
+RUN mkdir -p /home/coder/project
+
 # Install the extension
 RUN code-server --install-extension /tmp/ai-oa-extension-0.1.0.vsix 
 
 # Run code-server
 EXPOSE 8080
 
+# Set environment variables
+ENV SHELL=/bin/bash
+ENV SERVER_URL=http://167.99.52.130:3000
+
 # Use the default entrypoint from code-server
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]
 
-# Set the command to run code-server
-CMD ["code-server", "--auth", "none", "--bind-addr", "0.0.0.0:8080", "/home/coder/project"]
+# Set the command to run code-server with improved configuration
+CMD ["code-server", "--auth", "none", "--bind-addr", "0.0.0.0:8080", "--disable-telemetry", "--disable-update-check", "/home/coder/project"]

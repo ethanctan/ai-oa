@@ -5,7 +5,7 @@ const { getChatHtml } = require('./getChatHtml');
 const { getWorkspaceContent } = require('../context/getWorkspaceContent');
 const JSZip = require('jszip'); // Added for zipping files
 
-const SERVER_URL = 'http://host.docker.internal:3000';
+const SERVER_URL = 'http://167.99.52.130:3000';
 const SERVER_TIMER_START_URL = `${SERVER_URL}/timer/start`;
 const SERVER_TIMER_STATUS_URL = `${SERVER_URL}/timer/status`;
 const SERVER_TIMER_INTERVIEW_STARTED_URL = `${SERVER_URL}/timer/interview-started`;

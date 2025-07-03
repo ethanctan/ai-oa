@@ -776,17 +776,68 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             print(f"  - CANDIDATE_ID: {candidate_id}")
             print(f"  - INSTANCE_ID: {instance_id}")
             
+            # Prepare environment variables including GitHub repo info
+            env_vars = {
+                'TEST_ID': str(test_id),
+                'CANDIDATE_ID': str(candidate_id),
+                'INSTANCE_ID': str(instance_id),
+                'SERVER_URL': 'http://167.99.52.130:3000'  # Use the actual server IP
+            }
+            
+            # Add GitHub repo info if available
+            if test.get('github_repo'):
+                env_vars['GITHUB_REPO'] = test['github_repo']
+                if test.get('github_token'):
+                    env_vars['GITHUB_TOKEN'] = test['github_token']
+            
+            # Create a startup script to clone the repo
+            startup_script = """#!/bin/bash
+cd /home/coder/project
+
+# Clone repository if GITHUB_REPO is set
+if [ ! -z "$GITHUB_REPO" ]; then
+    if [ ! -z "$GITHUB_TOKEN" ]; then
+        REPO_URL=$(echo $GITHUB_REPO | sed 's#https://#https://'$GITHUB_TOKEN'@#')
+    else
+        REPO_URL=$GITHUB_REPO
+    fi
+    
+    # Remove any existing content
+    rm -rf /home/coder/project/*
+    
+    # Clone the repository
+    git clone $REPO_URL .
+    
+    if [ $? -ne 0 ]; then
+        echo "Failed to clone repository"
+        exit 1
+    fi
+fi
+
+# Start code-server
+code-server --auth none --bind-addr 0.0.0.0:8080 --disable-telemetry --disable-update-check /home/coder/project
+"""
+            
+            # Create a temporary file for the startup script
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+                f.write(startup_script)
+                startup_script_path = f.name
+            
+            # Create the container with the startup script
             container = client.containers.run(
                 image_name,
                 name=container_name,
                 ports={'8080/tcp': port},
-                environment={
-                    'TEST_ID': str(test_id),
-                    'CANDIDATE_ID': str(candidate_id),
-                    'INSTANCE_ID': str(instance_id)
+                environment=env_vars,
+                volumes={
+                    startup_script_path: {
+                        'bind': '/startup.sh',
+                        'mode': 'ro'
+                    }
                 },
+                command=["/bin/bash", "/startup.sh"],
                 detach=True,
-                # remove=True  # Removed auto-remove to allow inspection of failed containers
                 healthcheck={
                     "test": ["CMD", "curl", "-f", "http://localhost:8080"],
                     "interval": 1000000000,  # 1 second in nanoseconds
@@ -796,6 +847,10 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             )
             
             print(f"\nCreated Docker container {container.id} for instance {instance_id} on port {port}")
+            
+            # Clean up the temporary startup script
+            import os
+            os.unlink(startup_script_path)
             
             # Wait for container to be healthy (up to 30 seconds)
             max_wait = 30
@@ -836,7 +891,6 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             print(f"Ports: {inspect_info.get('NetworkSettings', {}).get('Ports', {})}")
             
             # Use the DigitalOcean droplet's IP directly instead of Railway domain
-            # This ensures direct access to the container port
             access_url = f"http://167.99.52.130:{port}"
             print(f"\nGenerated access URL: {access_url}")
             
