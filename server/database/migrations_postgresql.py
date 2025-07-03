@@ -43,6 +43,9 @@ def run_migrations():
         # Set default values where needed
         set_default_values(cursor, conn)
         
+        # Add instance_access_tokens table
+        create_instance_access_tokens_table(cursor)
+        
         conn.close()
         logger.info("✅ PostgreSQL migrations completed successfully.")
         
@@ -135,4 +138,26 @@ def test_migration():
         return {
             'success': False,
             'message': f'Migration test failed: {str(e)}'
-        } 
+        }
+
+# Add instance_access_tokens table
+def create_instance_access_tokens_table(cursor):
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS instance_access_tokens (
+        id SERIAL PRIMARY KEY,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        instance_id INTEGER NOT NULL REFERENCES test_instances(id) ON DELETE CASCADE,
+        candidate_id INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(instance_id, candidate_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_instance_access_tokens_token ON instance_access_tokens(token);
+    CREATE INDEX IF NOT EXISTS idx_instance_access_tokens_instance ON instance_access_tokens(instance_id);
+    """)
+    logger.info("✅ Added instance_access_tokens table")
+
+# List of all migrations
+migrations = [
+    # ... existing migrations ...
+    create_instance_access_tokens_table,
+] 

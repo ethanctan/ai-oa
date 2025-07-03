@@ -847,7 +847,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                 if test.get('github_token'):
                     env_vars['GITHUB_TOKEN'] = test['github_token']
             
-            # Create a startup script to clone the repo
+            # Create a startup script to clone the repo and configure code-server
             startup_script = """#!/bin/bash
 cd /home/coder/project
 
@@ -871,8 +871,58 @@ if [ ! -z "$GITHUB_REPO" ]; then
     fi
 fi
 
-# Start code-server
-code-server --auth none --bind-addr 0.0.0.0:8080 --disable-telemetry --disable-update-check /home/coder/project
+# Create a simple proxy to validate access tokens
+cat > /home/coder/proxy.js << 'EOL'
+const http = require('http');
+const httpProxy = require('http-proxy');
+const url = require('url');
+
+const proxy = httpProxy.createProxyServer({});
+const SERVER_URL = process.env.SERVER_URL;
+const INSTANCE_ID = process.env.INSTANCE_ID;
+
+const server = http.createServer(async (req, res) => {
+    const parsedUrl = url.parse(req.url, true);
+    const accessToken = parsedUrl.query.access_token;
+
+    if (!accessToken) {
+        res.writeHead(401);
+        res.end('Access token required');
+        return;
+    }
+
+    try {
+        // Validate access token with main server
+        const validationResponse = await fetch(
+            `${SERVER_URL}/instances/${INSTANCE_ID}/validate?access_token=${accessToken}`
+        );
+
+        if (!validationResponse.ok) {
+            res.writeHead(401);
+            res.end('Invalid access token');
+            return;
+        }
+
+        // If valid, proxy the request to code-server
+        proxy.web(req, res, {
+            target: 'http://localhost:8080'
+        });
+    } catch (error) {
+        console.error('Error validating access token:', error);
+        res.writeHead(500);
+        res.end('Internal server error');
+    }
+});
+
+server.listen(8081);
+EOL
+
+# Install http-proxy for the validation proxy
+npm install -g http-proxy
+
+# Start the proxy and code-server
+node /home/coder/proxy.js &
+code-server --auth none --bind-addr 127.0.0.1:8080 --disable-telemetry --disable-update-check /home/coder/project
 """
             
             # Create a temporary file for the startup script

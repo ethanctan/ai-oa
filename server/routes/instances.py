@@ -30,14 +30,32 @@ def access_test_instance(token):
                 message = "There was an issue with the deadline configuration. Please contact the administrator."
             return render_error_page("Assessment Deadline Passed", message)
         
-        # Redirect to the test instance
-        instance_url = get_instance_url(token_data['port'])
+        # Generate the secure instance URL with access token
+        instance_url = get_instance_url(
+            token_data['port'],
+            token_data['instance_id'],
+            token_data['instance_access_token']
+        )
         return redirect(instance_url)
         
     except Exception as e:
         print(f"Error in access_test_instance: {str(e)}")
         return render_error_page("Access Error", 
                                "There was an error accessing your test. Please contact the administrator.")
+
+# GET /instances/<instance_id>/validate - Validate instance access
+@instances_bp.route('/instances/<int:instance_id>/validate')
+def validate_instance_access_token(instance_id):
+    """Validate instance access token"""
+    access_token = request.args.get('access_token')
+    if not access_token:
+        return jsonify({'valid': False, 'error': 'No access token provided'}), 401
+    
+    try:
+        is_valid = validate_instance_access(access_token, instance_id)
+        return jsonify({'valid': is_valid}), 200 if is_valid else 401
+    except Exception as e:
+        return jsonify({'valid': False, 'error': str(e)}), 500
 
 def render_error_page(title, message):
     """Render a simple error page"""

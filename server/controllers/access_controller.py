@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import secrets
 from database.db_postgresql import get_connection
 
 """
@@ -63,6 +64,46 @@ def revoke_access_token(token):
     finally:
         conn.close()
 
+def generate_instance_access_token(instance_id, candidate_id):
+    """Generate a secure token for instance access"""
+    token = secrets.token_urlsafe(32)
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Store the token with instance and candidate info
+        cursor.execute('''
+            INSERT INTO instance_access_tokens (token, instance_id, candidate_id, created_at)
+            VALUES (%s, %s, %s, NOW())
+        ''', (token, instance_id, candidate_id))
+        conn.commit()
+        return token
+    finally:
+        conn.close()
+
+def validate_instance_access(token, instance_id):
+    """Validate instance access token"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Get token details with instance validation
+        cursor.execute('''
+            SELECT iat.*, ti.port 
+            FROM instance_access_tokens iat
+            JOIN test_instances ti ON iat.instance_id = ti.id
+            WHERE iat.token = %s 
+            AND iat.instance_id = %s
+            AND iat.created_at > NOW() - INTERVAL '24 hours'
+        ''', (token, instance_id))
+        
+        token_data = cursor.fetchone()
+        return token_data is not None
+    finally:
+        conn.close()
+
+def get_instance_url(port, instance_id, access_token):
+    """Get the instance URL from port with secure access token"""
+    return f"http://167.99.52.130:{port}/instance/{instance_id}?access_token={access_token}"
+
 def validate_access_token_for_redirect(token):
     """Validate an access token for redirect without marking it as used"""
     conn = get_connection()
@@ -72,7 +113,7 @@ def validate_access_token_for_redirect(token):
         # Get token details and the CURRENT deadline from test_candidates table
         cursor.execute('''
             SELECT at.*, ti.port, ti.docker_instance_id, c.name as candidate_name, t.name as test_name,
-                   tc.deadline as current_deadline
+                   tc.deadline as current_deadline, ti.id as instance_id, c.id as candidate_id
             FROM access_tokens at
             JOIN test_instances ti ON at.instance_id = ti.id
             JOIN candidates c ON ti.candidate_id = c.id
@@ -87,6 +128,9 @@ def validate_access_token_for_redirect(token):
             return None
         
         token_dict = dict(token_data)
+        # Generate instance access token
+        instance_access_token = generate_instance_access_token(token_dict['instance_id'], token_dict['candidate_id'])
+        token_dict['instance_access_token'] = instance_access_token
         # Use the current deadline from test_candidates, not the static one from access_tokens
         token_dict['deadline'] = token_dict['current_deadline']
         
@@ -110,8 +154,4 @@ def check_deadline_expired(deadline_str):
         return is_expired, deadline_formatted
     except Exception as e:
         print(f"Error parsing deadline: {e}")
-        return True, None  # Treat invalid deadlines as expired
-
-def get_instance_url(port):
-    """Get the instance URL from port"""
-    return f"http://localhost:{port}" 
+        return True, None  # Treat invalid deadlines as expired 
