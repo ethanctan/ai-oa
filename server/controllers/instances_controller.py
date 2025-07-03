@@ -742,28 +742,85 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             print(f"Error with Docker image: {str(e)}")
             return None
         
-        # Use a fixed port range that we know is open in the firewall
-        try:
-            def find_free_port():
-                start_port = 8000
-                end_port = 9000
-                
-                import socket
-                for port in range(start_port, end_port):
-                    try:
-                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                            s.bind(('', port))
-                            print(f"Found free port: {port}")
-                            return port
-                    except socket.error:
-                        continue
-                raise Exception("No free ports found in the allowed range")
+        # Enhanced port allocation logic
+        def find_free_port():
+            """Find a free port using an expanded range and better availability checking"""
+            import socket
+            from contextlib import closing
+            import random
             
+            # Get list of ports already in use by Docker
+            try:
+                containers = client.containers.list()
+                used_ports = set()
+                for container in containers:
+                    container_data = client.api.inspect_container(container.id)
+                    port_bindings = container_data['HostConfig']['PortBindings'] or {}
+                    for binding in port_bindings.values():
+                        if binding:
+                            for port_info in binding:
+                                if 'HostPort' in port_info:
+                                    used_ports.add(int(port_info['HostPort']))
+                print(f"Ports currently in use by Docker: {sorted(list(used_ports))}")
+            except Exception as e:
+                print(f"Warning: Could not get Docker port usage: {str(e)}")
+                used_ports = set()
+
+            def is_port_available(port):
+                """Check if a port is available both through socket binding and Docker"""
+                if port in used_ports:
+                    return False
+                
+                try:
+                    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+                        # Set socket timeout to speed up checks
+                        sock.settimeout(0.2)
+                        # Try to bind to the port
+                        result = sock.bind(('', port))
+                        return True
+                except:
+                    return False
+
+            # Define multiple port ranges to try
+            # Primary range: 8000-8999 (1000 ports)
+            # Secondary range: 9000-9999 (1000 ports)
+            # Fallback range: 10000-65535 (for high load scenarios)
+            port_ranges = [
+                (8000, 8999),   # Primary range
+                (9000, 9999),   # Secondary range
+                (10000, 65535)  # Fallback range (large)
+            ]
+
+            max_attempts = 50  # Limit number of attempts to prevent infinite loops
+            attempts = 0
+            
+            for start_port, end_port in port_ranges:
+                if attempts >= max_attempts:
+                    break
+                
+                # Create a list of ports in this range and shuffle it
+                ports = list(range(start_port, end_port + 1))
+                random.shuffle(ports)  # Randomize port selection within range
+                
+                for port in ports:
+                    attempts += 1
+                    if attempts >= max_attempts:
+                        break
+                        
+                    if is_port_available(port):
+                        print(f"Found available port: {port} (after {attempts} attempts)")
+                        return port
+            
+            raise Exception(f"No free ports found after {attempts} attempts")
+            
+        # Try to find a free port
+        try:
             port = find_free_port()
+            print(f"Selected port {port} for container")
         except Exception as e:
             print(f"Error finding free port: {str(e)}")
             return None
-        
+
         # Create and run the container
         try:
             print(f"\nCreating container with port mapping 8080/tcp -> {port}")
