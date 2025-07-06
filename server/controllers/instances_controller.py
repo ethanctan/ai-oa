@@ -69,17 +69,18 @@ def get_docker_client():
         print(f"Client cert path: {client_cert_path}")
         print(f"Client key path: {client_key_path}")
 
-        # Try to connect to remote Docker host
+        # Try to connect to remote Docker host with increased timeouts
         client = docker.DockerClient(
             base_url=docker_host,
             tls=docker.tls.TLSConfig(
                 ca_cert=ca_cert_path,
                 client_cert=(client_cert_path, client_key_path),
                 verify=True
-            )
+            ),
+            timeout=120  # Increase timeout to 120 seconds
         )
         
-        # Test the connection
+        # Test the connection with timeout
         client.ping()
         print("\nSuccessfully connected to remote Docker host")
         return client
@@ -87,13 +88,16 @@ def get_docker_client():
         print(f"\nFailed to connect to remote Docker host: {str(e)}")
         try:
             # Try to connect to the local Docker socket instead
-            client = docker.DockerClient(base_url='unix://var/run/docker.sock')
+            client = docker.DockerClient(
+                base_url='unix://var/run/docker.sock',
+                timeout=120  # Same timeout for local connection
+            )
             client.ping()
             print("Connected to local Docker socket")
             return client
         except Exception as local_e:
             print(f"Failed to connect to local Docker: {str(local_e)}")
-            return None
+            raise  # Raise the exception instead of returning None
 
 def sanitize_name(name):
     """Sanitize a name for Docker container use"""
@@ -821,7 +825,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             print(f"Error finding free port: {str(e)}")
             return None
 
-        # Create and run the container
+        # Create the container
         try:
             print(f"\nCreating container with port mapping 8080/tcp -> {port}")
             print("Container configuration:")
@@ -846,118 +850,26 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                 env_vars['GITHUB_REPO'] = test['github_repo']
                 if test.get('github_token'):
                     env_vars['GITHUB_TOKEN'] = test['github_token']
-            
-            # Create a startup script to clone the repo and configure code-server
-            startup_script = """#!/bin/bash
-cd /home/coder/project
 
-# Clone repository if GITHUB_REPO is set
-if [ ! -z "$GITHUB_REPO" ]; then
-    if [ ! -z "$GITHUB_TOKEN" ]; then
-        REPO_URL=$(echo $GITHUB_REPO | sed 's#https://#https://'$GITHUB_TOKEN'@#')
-    else
-        REPO_URL=$GITHUB_REPO
-    fi
-    
-    # Remove any existing content
-    rm -rf /home/coder/project/*
-    
-    # Clone the repository
-    git clone $REPO_URL .
-    
-    if [ $? -ne 0 ]; then
-        echo "Failed to clone repository"
-        exit 1
-    fi
-fi
-
-# Create a simple proxy to validate access tokens
-cat > /home/coder/proxy.js << 'EOL'
-const http = require('http');
-const httpProxy = require('http-proxy');
-const url = require('url');
-
-const proxy = httpProxy.createProxyServer({});
-const SERVER_URL = process.env.SERVER_URL;
-const INSTANCE_ID = process.env.INSTANCE_ID;
-
-const server = http.createServer(async (req, res) => {
-    const parsedUrl = url.parse(req.url, true);
-    const accessToken = parsedUrl.query.access_token;
-
-    if (!accessToken) {
-        res.writeHead(401);
-        res.end('Access token required');
-        return;
-    }
-
-    try {
-        // Validate access token with main server
-        const validationResponse = await fetch(
-            `${SERVER_URL}/instances/${INSTANCE_ID}/validate?access_token=${accessToken}`
-        );
-
-        if (!validationResponse.ok) {
-            res.writeHead(401);
-            res.end('Invalid access token');
-            return;
-        }
-
-        // If valid, proxy the request to code-server
-        proxy.web(req, res, {
-            target: 'http://localhost:8080'
-        });
-    } catch (error) {
-        console.error('Error validating access token:', error);
-        res.writeHead(500);
-        res.end('Internal server error');
-    }
-});
-
-server.listen(8081);
-EOL
-
-# Install http-proxy for the validation proxy
-npm install -g http-proxy
-
-# Start the proxy and code-server
-node /home/coder/proxy.js &
-code-server --auth none --bind-addr 127.0.0.1:8080 --disable-telemetry --disable-update-check /home/coder/project
-"""
-            
-            # Create a temporary file for the startup script
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
-                f.write(startup_script)
-                startup_script_path = f.name
-            
-            # Create the container with the startup script
-            container = client.containers.run(
+            # Create the container using the image's built-in CMD
+            container = client.containers.create(
                 image_name,
                 name=container_name,
                 ports={'8080/tcp': port},
                 environment=env_vars,
-                volumes={
-                    startup_script_path: {
-                        'bind': '/startup.sh',
-                        'mode': 'ro'
-                    }
-                },
-                command=["/bin/bash", "/startup.sh"],
                 detach=True,
                 healthcheck={
                     "test": ["CMD", "curl", "-f", "http://localhost:8080"],
-                    "interval": 1000000000,  # 1 second in nanoseconds
-                    "timeout": 1000000000,
-                    "retries": 30
+                    "interval": 1000000000,  # 1 second
+                    "timeout": 3000000000,   # 3 seconds
+                    "retries": 30,
+                    "start_period": 2000000000  # 2 seconds
                 }
             )
             
-            print(f"\nCreated Docker container {container.id} for instance {instance_id} on port {port}")
-            
-            # Clean up the temporary startup script
-            import os
-            os.unlink(startup_script_path)
+            # Start the container
+            container.start()
+            print(f"\nCreated and started Docker container {container.id} for instance {instance_id} on port {port}")
             
             # Wait for container to be healthy (up to 30 seconds)
             max_wait = 30
@@ -997,7 +909,7 @@ code-server --auth none --bind-addr 127.0.0.1:8080 --disable-telemetry --disable
             print(f"Gateway: {inspect_info.get('NetworkSettings', {}).get('Gateway', 'N/A')}")
             print(f"Ports: {inspect_info.get('NetworkSettings', {}).get('Ports', {})}")
             
-            # Use the DigitalOcean droplet's IP directly instead of Railway domain
+            # Use the DigitalOcean droplet's IP directly
             access_url = f"http://167.99.52.130:{port}"
             print(f"\nGenerated access URL: {access_url}")
             
@@ -1012,12 +924,12 @@ code-server --auth none --bind-addr 127.0.0.1:8080 --disable-telemetry --disable
                 print(f"API error explanation: {e.explanation}")
             if hasattr(e, 'stderr'):
                 print(f"API error stderr: {e.stderr}")
-            return None
+            raise
         except Exception as e:
             print(f"\nError creating Docker container: {str(e)}")
             if hasattr(e, 'stderr'):
                 print(f"Error stderr: {e.stderr}")
-            return None
+            raise
             
     except Exception as e:
         print(f"\nError in create_docker_container: {str(e)}")
