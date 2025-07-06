@@ -261,12 +261,10 @@ def create_report_completion(messages, report_schema):
         )
         print(result.model_dump_json(indent=2))
 
-        report = result.choices[0].message.parsed 
-        return report
 
         # Check if the result contains choices and return the first reply.
         if result.choices and len(result.choices) > 0:
-            response = result.choices[0].message.content
+            response = result.choices[0].message.parsed
             print(f"Successfully received response from OpenAI")
             return response
         else:
