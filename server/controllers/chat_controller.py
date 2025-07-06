@@ -87,21 +87,29 @@ def get_chat_history(instance_id):
     """
     Get chat history for a specific instance
     Args:
-        instance_id (str): The instance ID
+        instance_id (str or int): The instance ID
     Returns:
         list: The chat history
     """
     if not instance_id:
+        print(f"get_chat_history: No instance_id provided")
         return []
     
+    # Convert instance_id to string to match the keys in chat_histories
+    instance_id_str = str(instance_id)
+    print(f"get_chat_history: Looking for instance_id '{instance_id_str}' (original: {instance_id}, type: {type(instance_id)})")
+    print(f"get_chat_history: Available keys in chat_histories: {list(chat_histories.keys())}")
+    
     # Get the chat history or return an empty array if none exists
-    return chat_histories.get(instance_id, [])
+    history = chat_histories.get(instance_id_str, [])
+    print(f"get_chat_history: Found {len(history)} messages for instance {instance_id_str}")
+    return history
 
 def add_chat_message(instance_id, message):
     """
     Add a message to the chat history
     Args:
-        instance_id (str): The instance ID
+        instance_id (str or int): The instance ID
         message (dict): The message to add
     Returns:
         list: The updated chat history
@@ -109,14 +117,17 @@ def add_chat_message(instance_id, message):
     if not instance_id:
         raise ValueError('Instance ID is required')
     
+    # Convert instance_id to string to match the keys in chat_histories
+    instance_id_str = str(instance_id)
+    
     # Get the existing history or create a new one
-    history = chat_histories.get(instance_id, [])
+    history = chat_histories.get(instance_id_str, [])
     
     # Add the new message
     history.append(message)
     
     # Update the history
-    chat_histories[instance_id] = history
+    chat_histories[instance_id_str] = history
     
     # Save to persistent storage
     save_chat_histories()
