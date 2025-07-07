@@ -2,6 +2,7 @@ import os
 import json
 from pathlib import Path
 from openai import AzureOpenAI
+from database.db_postgresql import get_connection
 
 # Get environment variables
 endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")

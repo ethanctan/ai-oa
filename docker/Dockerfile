@@ -26,11 +26,17 @@ RUN . $HOME/.cargo/env && cargo install code2prompt
 # Make sure the binary is in the PATH
 RUN echo 'export PATH="/home/coder/.cargo/bin:$PATH"' >> /home/coder/.bashrc
 
-# Switch back to root to copy and install the extension
+# Switch back to root to copy files and set up the container
 USER root
 
 # Copy chatbot extension VSIX file into the container
 COPY ai-oa-extension-0.1.0.vsix /tmp/ai-oa-extension-0.1.0.vsix
+
+# Copy startup script
+COPY startup.sh /usr/local/bin/startup.sh
+
+# Make startup script executable
+RUN chmod +x /usr/local/bin/startup.sh
 
 # Switch back to coder to install the extension
 USER coder
@@ -41,6 +47,9 @@ RUN mkdir -p /home/coder/project
 # Install the extension
 RUN code-server --install-extension /tmp/ai-oa-extension-0.1.0.vsix 
 
+# Switch back to root for final setup
+USER root
+
 # Run code-server
 EXPOSE 8080
 
@@ -48,8 +57,5 @@ EXPOSE 8080
 ENV SHELL=/bin/bash
 ENV SERVER_URL=http://167.99.52.130:3000
 
-# Use the default entrypoint from code-server
-ENTRYPOINT ["/usr/bin/entrypoint.sh"]
-
-# Set the command to run code-server with improved configuration
-CMD ["code-server", "--auth", "none", "--bind-addr", "0.0.0.0:8080", "--disable-telemetry", "--disable-update-check", "/home/coder/project"]
+# Use our startup script which handles git clone and starts code-server
+CMD ["/usr/local/bin/startup.sh"]

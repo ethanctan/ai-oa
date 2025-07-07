@@ -2,6 +2,7 @@ import time
 import json
 from pathlib import Path
 from datetime import datetime, timedelta
+from database.db_postgresql import get_connection
 
 # Path to the timers data file
 TIMERS_DATA_FILE = Path(__file__).parent.parent / 'data' / 'timers.json'
