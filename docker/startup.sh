@@ -7,6 +7,30 @@ echo "🚀 Starting AI OA code-server container..."
 sudo mkdir -p /home/coder/project
 sudo chown coder:coder /home/coder/project
 
+# Create SSL directory and generate self-signed certificates
+echo "🔒 Setting up SSL certificates..."
+sudo mkdir -p /home/coder/.ssl
+cd /home/coder/.ssl
+
+# Generate self-signed certificate if it doesn't exist
+if [ ! -f server.crt ] || [ ! -f server.key ]; then
+    echo "📜 Generating self-signed SSL certificate..."
+    sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout server.key \
+        -out server.crt \
+        -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:167.99.52.130"
+    
+    # Set correct permissions
+    sudo chown coder:coder server.crt server.key
+    sudo chmod 600 server.key
+    sudo chmod 644 server.crt
+    
+    echo "✅ SSL certificate generated successfully"
+else
+    echo "✅ SSL certificate already exists"
+fi
+
 # Function to clone repository if needed
 clone_repo_if_needed() {
     if [ -n "$GITHUB_REPO" ]; then
@@ -66,12 +90,14 @@ clone_repo_if_needed() {
 # Clone repository as root (for permissions)
 clone_repo_if_needed
 
-echo "🔧 Starting code-server..."
+echo "🔧 Starting code-server with HTTPS..."
 
-# Switch to coder user and start code-server with correct flags
+# Switch to coder user and start code-server with HTTPS
 exec sudo -u coder code-server \
     --auth none \
-    --bind-addr 0.0.0.0:8080 \
+    --bind-addr 0.0.0.0:8443 \
+    --cert /home/coder/.ssl/server.crt \
+    --cert-key /home/coder/.ssl/server.key \
     --disable-telemetry \
     --disable-update-check \
     /home/coder/project 

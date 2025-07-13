@@ -4,11 +4,12 @@ FROM --platform=$TARGETPLATFORM codercom/code-server:latest
 # Switch to root user for package installation
 USER root
 
-# Install Rust and Cargo
+# Install Rust and Cargo + OpenSSL for certificate generation
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    git
+    git \
+    openssl
 
 # Switch back to coder user before installing Rust
 USER coder
@@ -50,12 +51,13 @@ RUN code-server --install-extension /tmp/ai-oa-extension-0.1.0.vsix
 # Switch back to root for final setup
 USER root
 
-# Run code-server
-EXPOSE 8080
+# Run code-server - expose both HTTP and HTTPS ports
+EXPOSE 8080 8443
 
 # Set environment variables
 ENV SHELL=/bin/bash
 ENV SERVER_URL=http://167.99.52.130:3000
 
-# Use our startup script which handles git clone and starts code-server
-CMD ["/usr/local/bin/startup.sh"]
+# Override the entrypoint to use our startup script
+ENTRYPOINT ["/usr/local/bin/startup.sh"]
+CMD []
