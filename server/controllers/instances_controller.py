@@ -827,11 +827,11 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
 
         # Create the container
         try:
-            print(f"\nCreating container with port mapping 8080/tcp -> {port}")
+            print(f"\nCreating container with port mapping 8443/tcp -> {port}")
             print("Container configuration:")
             print(f"- Image: {image_name}")
             print(f"- Name: {container_name}")
-            print(f"- Port mapping: 8080/tcp -> {port}")
+            print(f"- Port mapping: 8443/tcp -> {port} (HTTPS)")
             print(f"- Environment variables:")
             print(f"  - TEST_ID: {test_id}")
             print(f"  - CANDIDATE_ID: {candidate_id}")
@@ -855,11 +855,11 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             container = client.containers.create(
                 image_name,
                 name=container_name,
-                ports={'8080/tcp': port},
+                ports={'8443/tcp': port},
                 environment=env_vars,
                 detach=True,
                 healthcheck={
-                    "test": ["CMD", "curl", "-f", "http://localhost:8080"],
+                    "test": ["CMD", "sh", "-c", "netstat -tlnp | grep :8443 || ss -tlnp | grep :8443"],
                     "interval": 1000000000,  # 1 second
                     "timeout": 3000000000,   # 3 seconds
                     "retries": 30,
@@ -909,8 +909,8 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             print(f"Gateway: {inspect_info.get('NetworkSettings', {}).get('Gateway', 'N/A')}")
             print(f"Ports: {inspect_info.get('NetworkSettings', {}).get('Ports', {})}")
             
-            # Use the DigitalOcean droplet's IP directly
-            access_url = f"http://167.99.52.130:{port}"
+            # Use HTTPS since we're now serving over SSL
+            access_url = f"https://167.99.52.130:{port}"
             print(f"\nGenerated access URL: {access_url}")
             
             return {
