@@ -842,7 +842,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                 'TEST_ID': str(test_id),
                 'CANDIDATE_ID': str(candidate_id),
                 'INSTANCE_ID': str(instance_id),
-                'SERVER_URL': 'http://167.99.52.130:3000'  # Use the actual server IP
+                'SERVER_URL': 'https://ai-oa-production.up.railway.app' 
             }
             
             # Add GitHub repo info if available

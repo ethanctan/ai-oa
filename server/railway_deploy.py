@@ -51,14 +51,15 @@ CORS(app,
 # Production logging middleware (less verbose)
 @app.before_request
 def log_request_info():
-    logger.info(f"🌐 {request.method} {request.url}")
-    logger.info(f"🌐 Origin: {request.headers.get('Origin', 'No Origin')}")
-    logger.info(f"🌐 Headers: {dict(request.headers)}")
+    pass
+    # logger.info(f"🌐 {request.method} {request.url}")
+    # logger.info(f"🌐 Origin: {request.headers.get('Origin', 'No Origin')}")
+    # logger.info(f"🌐 Headers: {dict(request.headers)}")
 
 @app.after_request
 def log_response_info(response):
-    logger.info(f"🌐 Response: {response.status_code}")
-    logger.info(f"🌐 CORS Headers: {dict(response.headers)}")
+    # logger.info(f"🌐 Response: {response.status_code}")
+    # logger.info(f"🌐 CORS Headers: {dict(response.headers)}")
     return response
 
 # Health check endpoint for Railway
