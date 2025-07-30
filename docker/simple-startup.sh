@@ -1,14 +1,11 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting AI OA code-server container with nginx reverse proxy..."
+echo "🚀 Starting simplified AI OA code-server container..."
 
 # Ensure project directory exists with correct permissions
 sudo mkdir -p /home/coder/project
 sudo chown coder:coder /home/coder/project
-
-# Cloudflare handles SSL - no certificates needed
-echo "🌐 Cloudflare proxy will handle SSL termination"
 
 # Function to clone repository if needed
 clone_repo_if_needed() {
@@ -69,24 +66,12 @@ clone_repo_if_needed() {
 # Clone repository as root (for permissions)
 clone_repo_if_needed
 
-echo "🔧 Configuring nginx for Cloudflare proxy..."
+echo "📡 Starting code-server on HTTP port 80..."
 
-# Copy nginx configuration
-sudo cp /usr/local/bin/nginx.conf /etc/nginx/nginx.conf
-
-# Test nginx configuration
-sudo nginx -t
-
-echo "🌐 Starting nginx on port 80..."
-sudo nginx
-
-echo "📡 Starting code-server on HTTP (internal)..."
-
-# Start code-server on HTTP port 8080 (internal only)
-# Using exec to replace the shell process
+# Start code-server directly on port 80 (nginx proxy handles HTTPS)
 exec sudo -u coder code-server \
     --auth none \
-    --bind-addr 127.0.0.1:8080 \
+    --bind-addr 0.0.0.0:80 \
     --disable-telemetry \
     --disable-update-check \
-    /home/coder/project 
+    /home/coder/project

@@ -1,0 +1,16 @@
+services:
+  nginx-proxy:
+    build:
+      context: .
+      dockerfile: nginx-proxy.Dockerfile
+    container_name: ai-oa-nginx-proxy
+    ports:
+      - "80:80"
+    networks:
+      - ai-oa-network
+    restart: unless-stopped
+
+networks:
+  ai-oa-network:
+    external: true
+    name: ai-oa-network 

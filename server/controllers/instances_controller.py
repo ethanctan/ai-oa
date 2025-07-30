@@ -482,7 +482,7 @@ def stop_instance(instance_id):
     
     try:
         # Get the instance details
-        cursor.execute('SELECT * FROM test_instances WHERE id = ?', (instance_id,))
+        cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
         instance = cursor.fetchone()
         
         if not instance:
@@ -503,7 +503,7 @@ def stop_instance(instance_id):
                 
                 # Update the instance status
                 cursor.execute(
-                    'UPDATE test_instances SET status = ? WHERE id = ?',
+                    'UPDATE test_instances SET status = %s WHERE id = %s',
                     ('stopped', instance_id)
                 )
                 conn.commit()
@@ -514,7 +514,7 @@ def stop_instance(instance_id):
             except docker.errors.NotFound:
                 # Container doesn't exist anymore
                 cursor.execute(
-                    'UPDATE test_instances SET status = ? WHERE id = ?',
+                    'UPDATE test_instances SET status = %s WHERE id = %s',
                     ('not_found', instance_id)
                 )
                 conn.commit()
@@ -547,7 +547,7 @@ def upload_project_to_github(instance_id, file_storage):
             SELECT ti.candidate_id, ti.test_id, c.name as candidate_name, c.email as candidate_email
             FROM test_instances ti
             LEFT JOIN candidates c ON ti.candidate_id = c.id
-            WHERE ti.id = ?
+            WHERE ti.id = %s
         ''', (instance_id,))
         instance_details = cursor.fetchone()
 
@@ -566,7 +566,7 @@ def upload_project_to_github(instance_id, file_storage):
         cursor.execute('''
             SELECT target_github_repo, target_github_token 
             FROM tests 
-            WHERE id = ?
+            WHERE id = %s
         ''', (test_id,))
         test_details = cursor.fetchone()
 
@@ -721,117 +721,64 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         test = dict(test)
         print(f"Retrieved test details: {test}")
         
-        # Generate a unique container name
-        container_name = f"ai-oa-instance-{instance_id}"
+        # Generate a unique container name that matches nginx routing pattern
+        container_name = f"instance-{instance_id}"
         print(f"Generated container name: {container_name}")
         
-        # Pull the Docker image if it doesn't exist
+        # Build the simple Docker image for instances (without nginx)
         try:
-            image_name = 'ectan/ai-oa-public:latest'
+            # Use the simple Dockerfile for instances (direct code-server on port 80)
+            print(f"Building simple image for instance {instance_id}...")
+            
+            # Build from the simple Dockerfile
+            import os
+            docker_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'docker')
+            
             try:
-                print(f"Checking for existing image {image_name}...")
-                image = client.images.get(image_name)
-                print(f"Using existing {image_name} image (ID: {image.id})")
-            except docker.errors.ImageNotFound:
-                print(f"\nPulling {image_name} from Docker Hub...")
+                image, logs = client.images.build(
+                    path=docker_dir,
+                    dockerfile='simple.Dockerfile',
+                    tag=f'ai-oa-simple:latest',
+                    rm=True
+                )
+                print(f"Successfully built simple image (ID: {image.id})")
+                for log in logs:
+                    if 'stream' in log:
+                        print(log['stream'].strip())
+            except Exception as build_error:
+                # If build fails, try to use existing image
+                print(f"Build failed, trying to use existing image: {str(build_error)}")
                 try:
-                    image = client.images.pull(image_name)
-                    print(f"Successfully pulled {image_name} (ID: {image.id})")
-                except Exception as pull_error:
-                    print(f"Error pulling image: {str(pull_error)}")
-                    if hasattr(pull_error, 'stderr'):
-                        print(f"Pull stderr: {pull_error.stderr}")
-                    raise
+                    image = client.images.get('ai-oa-simple:latest')
+                    print(f"Using existing ai-oa-simple:latest image")
+                except docker.errors.ImageNotFound:
+                    # Fall back to public image
+                    print("No local image found, pulling from Docker Hub...")
+                    image = client.images.pull('ectan/ai-oa-public:latest')
+                    print(f"Using fallback image: ectan/ai-oa-public:latest")
+                    
         except Exception as e:
             print(f"Error with Docker image: {str(e)}")
             return None
         
-        # Enhanced port allocation logic
-        def find_free_port():
-            """Find a free port using an expanded range and better availability checking"""
-            import socket
-            from contextlib import closing
-            import random
-            
-            # Get list of ports already in use by Docker
-            try:
-                containers = client.containers.list()
-                used_ports = set()
-                for container in containers:
-                    container_data = client.api.inspect_container(container.id)
-                    port_bindings = container_data['HostConfig']['PortBindings'] or {}
-                    for binding in port_bindings.values():
-                        if binding:
-                            for port_info in binding:
-                                if 'HostPort' in port_info:
-                                    used_ports.add(int(port_info['HostPort']))
-                print(f"Ports currently in use by Docker: {sorted(list(used_ports))}")
-            except Exception as e:
-                print(f"Warning: Could not get Docker port usage: {str(e)}")
-                used_ports = set()
-
-            def is_port_available(port):
-                """Check if a port is available both through socket binding and Docker"""
-                if port in used_ports:
-                    return False
-                
-                try:
-                    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
-                        # Set socket timeout to speed up checks
-                        sock.settimeout(0.2)
-                        # Try to bind to the port
-                        result = sock.bind(('', port))
-                        return True
-                except:
-                    return False
-
-            # Define multiple port ranges to try
-            # Primary range: 8000-8999 (1000 ports)
-            # Secondary range: 9000-9999 (1000 ports)
-            # Fallback range: 10000-65535 (for high load scenarios)
-            port_ranges = [
-                (8000, 8999),   # Primary range
-                (9000, 9999),   # Secondary range
-                (10000, 65535)  # Fallback range (large)
-            ]
-
-            max_attempts = 50  # Limit number of attempts to prevent infinite loops
-            attempts = 0
-            
-            for start_port, end_port in port_ranges:
-                if attempts >= max_attempts:
-                    break
-                
-                # Create a list of ports in this range and shuffle it
-                ports = list(range(start_port, end_port + 1))
-                random.shuffle(ports)  # Randomize port selection within range
-                
-                for port in ports:
-                    attempts += 1
-                    if attempts >= max_attempts:
-                        break
-                        
-                    if is_port_available(port):
-                        print(f"Found available port: {port} (after {attempts} attempts)")
-                        return port
-            
-            raise Exception(f"No free ports found after {attempts} attempts")
-            
-        # Try to find a free port
+        # Ensure the ai-oa-network exists
         try:
-            port = find_free_port()
-            print(f"Selected port {port} for container")
+            network = client.networks.get('ai-oa-network')
+            print(f"Using existing Docker network: ai-oa-network")
+        except docker.errors.NotFound:
+            print("Creating Docker network: ai-oa-network")
+            network = client.networks.create('ai-oa-network', driver='bridge')
         except Exception as e:
-            print(f"Error finding free port: {str(e)}")
+            print(f"Error with Docker network: {str(e)}")
             return None
 
         # Create the container
         try:
-            print(f"\nCreating container with port mapping 8443/tcp -> {port}")
+            print(f"\nCreating container for Docker network communication")
             print("Container configuration:")
-            print(f"- Image: {image_name}")
+            print(f"- Image: ai-oa-simple:latest")
             print(f"- Name: {container_name}")
-            print(f"- Port mapping: 8443/tcp -> {port} (HTTPS)")
+            print(f"- Network: ai-oa-network (internal communication)")
             print(f"- Environment variables:")
             print(f"  - TEST_ID: {test_id}")
             print(f"  - CANDIDATE_ID: {candidate_id}")
@@ -851,25 +798,25 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                 if test.get('github_token'):
                     env_vars['GITHUB_TOKEN'] = test['github_token']
 
-            # Create the container using the image's built-in CMD
+            # Create the container without port mapping (network communication only)
             container = client.containers.create(
-                image_name,
+                'ai-oa-simple:latest',
                 name=container_name,
-                ports={'8443/tcp': port},
                 environment=env_vars,
                 detach=True,
+                network='ai-oa-network',
                 healthcheck={
-                    "test": ["CMD", "sh", "-c", "netstat -tlnp | grep :8443 || ss -tlnp | grep :8443"],
+                    "test": ["CMD", "sh", "-c", "curl -f http://localhost:80 || exit 1"],
                     "interval": 1000000000,  # 1 second
-                    "timeout": 3000000000,   # 3 seconds
+                    "timeout": 5000000000,   # 5 seconds
                     "retries": 30,
-                    "start_period": 2000000000  # 2 seconds
+                    "start_period": 3000000000  # 3 seconds
                 }
             )
             
             # Start the container
             container.start()
-            print(f"\nCreated and started Docker container {container.id} for instance {instance_id} on port {port}")
+            print(f"\nCreated and started Docker container {container.id} for instance {instance_id}")
             
             # Wait for container to be healthy (up to 30 seconds)
             max_wait = 30
@@ -905,17 +852,20 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             # Get detailed container info
             inspect_info = client.api.inspect_container(container.id)
             print("\nContainer network settings:")
-            print(f"IP Address: {inspect_info.get('NetworkSettings', {}).get('IPAddress', 'N/A')}")
-            print(f"Gateway: {inspect_info.get('NetworkSettings', {}).get('Gateway', 'N/A')}")
-            print(f"Ports: {inspect_info.get('NetworkSettings', {}).get('Ports', {})}")
+            networks = inspect_info.get('NetworkSettings', {}).get('Networks', {})
+            if 'ai-oa-network' in networks:
+                network_info = networks['ai-oa-network']
+                print(f"Network IP: {network_info.get('IPAddress', 'N/A')}")
+                print(f"Gateway: {network_info.get('Gateway', 'N/A')}")
             
-            # Use HTTPS since we're now serving over SSL
-            access_url = f"https://167.99.52.130:{port}"
+            # Generate subdomain URL (nginx proxy routes to this container)
+            access_url = f"https://instance-{instance_id}.code.verihire.me"
             print(f"\nGenerated access URL: {access_url}")
+            print(f"Nginx will route this subdomain to container '{container_name}' on the ai-oa-network")
             
             return {
                 'container_id': container.id,
-                'port': port,
+                'port': 80,  # Always port 80 for internal network communication
                 'access_url': access_url
             }
         except docker.errors.APIError as e:

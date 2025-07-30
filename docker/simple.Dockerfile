@@ -4,13 +4,11 @@ FROM --platform=$TARGETPLATFORM codercom/code-server:latest
 # Switch to root user for package installation
 USER root
 
-# Install Rust and Cargo + OpenSSL for certificate generation + nginx + curl
+# Install basic tools (no nginx needed)
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    git \
-    openssl \
-    nginx
+    git
 
 # Switch back to coder user before installing Rust
 USER coder
@@ -34,11 +32,8 @@ USER root
 # Copy chatbot extension VSIX file into the container
 COPY ai-oa-extension-0.1.0.vsix /tmp/ai-oa-extension-0.1.0.vsix
 
-# Copy startup script
-COPY startup.sh /usr/local/bin/startup.sh
-
-# Copy nginx configuration
-COPY nginx.conf /usr/local/bin/nginx.conf
+# Copy simplified startup script
+COPY simple-startup.sh /usr/local/bin/startup.sh
 
 # Make startup script executable
 RUN chmod +x /usr/local/bin/startup.sh
@@ -55,7 +50,7 @@ RUN code-server --install-extension /tmp/ai-oa-extension-0.1.0.vsix
 # Switch back to root for final setup
 USER root
 
-# Run code-server - expose HTTP port (Cloudflare handles HTTPS)
+# Expose HTTP port only (nginx proxy handles HTTPS)
 EXPOSE 80
 
 # Set environment variables
