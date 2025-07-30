@@ -725,37 +725,28 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         container_name = f"instance-{instance_id}"
         print(f"Generated container name: {container_name}")
         
-        # Build the simple Docker image for instances (without nginx)
+        # Use the existing simple Docker image for instances
         try:
-            # Use the simple Dockerfile for instances (direct code-server on port 80)
-            print(f"Building simple image for instance {instance_id}...")
+            print(f"Using existing image for instance {instance_id}...")
             
-            # Build from the simple Dockerfile
-            import os
-            docker_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'docker')
-            
+            # First try to use the simple image that's already built on the droplet
+            image_name = 'ectan/ai-oa-simple:latest'
             try:
-                image, logs = client.images.build(
-                    path=docker_dir,
-                    dockerfile='simple.Dockerfile',
-                    tag=f'ai-oa-simple:latest',
-                    rm=True
-                )
-                print(f"Successfully built simple image (ID: {image.id})")
-                for log in logs:
-                    if 'stream' in log:
-                        print(log['stream'].strip())
-            except Exception as build_error:
-                # If build fails, try to use existing image
-                print(f"Build failed, trying to use existing image: {str(build_error)}")
+                image = client.images.get(image_name)
+                print(f"Using existing {image_name} image (ID: {image.id})")
+            except docker.errors.ImageNotFound:
+                print(f"Image {image_name} not found, trying alternative...")
+                # Try alternative naming
                 try:
                     image = client.images.get('ai-oa-simple:latest')
+                    image_name = 'ai-oa-simple:latest'
                     print(f"Using existing ai-oa-simple:latest image")
                 except docker.errors.ImageNotFound:
                     # Fall back to public image
-                    print("No local image found, pulling from Docker Hub...")
-                    image = client.images.pull('ectan/ai-oa-public:latest')
-                    print(f"Using fallback image: ectan/ai-oa-public:latest")
+                    print("No simple image found, using public image...")
+                    image = client.images.get('ectan/ai-oa-public:latest')
+                    image_name = 'ectan/ai-oa-public:latest'
+                    print(f"Using fallback image: {image_name}")
                     
         except Exception as e:
             print(f"Error with Docker image: {str(e)}")
@@ -776,7 +767,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         try:
             print(f"\nCreating container for Docker network communication")
             print("Container configuration:")
-            print(f"- Image: ai-oa-simple:latest")
+            print(f"- Image: {image_name}")
             print(f"- Name: {container_name}")
             print(f"- Network: ai-oa-network (internal communication)")
             print(f"- Environment variables:")
@@ -800,7 +791,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
 
             # Create the container without port mapping (network communication only)
             container = client.containers.create(
-                'ai-oa-simple:latest',
+                image_name,
                 name=container_name,
                 environment=env_vars,
                 detach=True,
