@@ -5,7 +5,7 @@ This directory contains the Docker configuration for the AI OA multi-tenant asse
 ## Architecture
 
 ```
-Cloudflare (*.code.verihire.me) 
+Cloudflare (*.verihire.me) 
     ↓
 nginx-proxy (routes subdomains)
     ↓
@@ -28,8 +28,8 @@ cd docker
 - Each instance will automatically get a unique subdomain
 
 ### 3. Access instances
-- Instance 123: https://instance-123.code.verihire.me
-- Instance 456: https://instance-456.code.verihire.me
+- Instance 123: https://instance-123.verihire.me
+- Instance 456: https://instance-456.verihire.me
 
 ## Files
 
@@ -70,14 +70,14 @@ cd docker
 
 ## How it works
 
-1. **nginx-proxy container**: Runs on port 80 and routes `instance-*.code.verihire.me` to the appropriate container
+1. **nginx-proxy container**: Runs on port 80 and routes `instance-*.verihire.me` to the appropriate container
 2. **ai-oa-network**: Docker bridge network for internal communication
 3. **Instance containers**: Each named `instance-{id}` running code-server on port 80
-4. **Cloudflare**: Handles SSL termination and DNS for `*.code.verihire.me`
+4. **Cloudflare**: Handles SSL termination and DNS for `*.verihire.me`
 
 ## Network Flow
 
-1. User visits `https://instance-123.code.verihire.me`
+1. User visits `https://instance-123.verihire.me`
 2. Cloudflare handles SSL and forwards to nginx-proxy:80
 3. nginx extracts instance ID (123) from subdomain
 4. nginx forwards request to `instance-123:80` on ai-oa-network
@@ -89,6 +89,22 @@ The system automatically scales by:
 - Creating new containers when instances are requested
 - Using Docker network for internal communication (no port conflicts)
 - Each container is isolated with its own filesystem and environment
+
+## Cloudflare Setup
+
+### DNS Configuration
+Add this wildcard DNS record in Cloudflare:
+```
+Type: A
+Name: *.verihire.me
+IPv4 address: 167.99.52.130
+Proxy status: Proxied (🟠 orange cloud)
+```
+
+### SSL/TLS Settings
+- Go to SSL/TLS → Overview
+- Set encryption mode to: **"Full"**
+- Cloudflare's free plan covers `*.verihire.me` wildcards
 
 ## Troubleshooting
 
@@ -107,10 +123,19 @@ The system automatically scales by:
 ### nginx proxy issues
 ```bash
 # Check proxy logs
-docker logs ai-oa-nginx-proxy
+docker logs nginx-proxy
 
 # Restart proxy
 docker-compose restart nginx-proxy
+```
+
+### DNS/SSL issues
+```bash
+# Test direct routing (bypassing SSL)
+curl -H "Host: instance-123.verihire.me" http://167.99.52.130/
+
+# Check DNS resolution
+nslookup instance-123.verihire.me
 ```
 
 ### Network issues

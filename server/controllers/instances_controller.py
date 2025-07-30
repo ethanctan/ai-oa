@@ -850,7 +850,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                 print(f"Gateway: {network_info.get('Gateway', 'N/A')}")
             
             # Generate subdomain URL (nginx proxy routes to this container)
-            access_url = f"https://instance-{instance_id}.code.verihire.me"
+            access_url = f"https://instance-{instance_id}.verihire.me"
             print(f"\nGenerated access URL: {access_url}")
             print(f"Nginx will route this subdomain to container '{container_name}' on the ai-oa-network")
             
