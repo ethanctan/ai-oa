@@ -8,10 +8,8 @@ This directory contains the Docker configuration for the AI OA multi-tenant asse
 Cloudflare (*.verihire.me) 
     ↓
 nginx-proxy (routes subdomains)
-    ↓
-instance-123 (code-server container)
-instance-456 (code-server container)
-instance-789 (code-server container)
+    ├── verihire.me → "Coming Soon" placeholder (ready for Vercel redirect)
+    └── instance-*.verihire.me → Docker containers
 ```
 
 ## Quick Start
@@ -28,6 +26,7 @@ cd docker
 - Each instance will automatically get a unique subdomain
 
 ### 3. Access instances
+- Base domain: https://verihire.me (shows "Coming Soon" placeholder)
 - Instance 123: https://instance-123.verihire.me
 - Instance 456: https://instance-456.verihire.me
 
@@ -70,7 +69,9 @@ cd docker
 
 ## How it works
 
-1. **nginx-proxy container**: Runs on port 80 and routes `instance-*.verihire.me` to the appropriate container
+1. **nginx-proxy container**: Runs on port 80 and routes requests:
+   - `verihire.me` → Shows placeholder (ready for Vercel redirect)
+   - `instance-*.verihire.me` → Routes to appropriate container
 2. **ai-oa-network**: Docker bridge network for internal communication
 3. **Instance containers**: Each named `instance-{id}` running code-server on port 80
 4. **Cloudflare**: Handles SSL termination and DNS for `*.verihire.me`
@@ -93,8 +94,13 @@ The system automatically scales by:
 ## Cloudflare Setup
 
 ### DNS Configuration
-Add this wildcard DNS record in Cloudflare:
+Add these DNS records in Cloudflare:
 ```
+Type: A
+Name: verihire.me
+IPv4 address: 167.99.52.130
+Proxy status: Proxied (🟠 orange cloud)
+
 Type: A
 Name: *.verihire.me
 IPv4 address: 167.99.52.130
@@ -105,6 +111,30 @@ Proxy status: Proxied (🟠 orange cloud)
 - Go to SSL/TLS → Overview
 - Set encryption mode to: **"Full"**
 - Cloudflare's free plan covers `*.verihire.me` wildcards
+
+## Adding Vercel Redirect (When Ready)
+
+When you deploy your frontend to Vercel, update the base domain redirect:
+
+1. **Edit `nginx.conf`** - Replace the placeholder section:
+```nginx
+# Replace this section:
+location / {
+    return 200 'Coming Soon - Verihire Assessment Platform';
+    add_header Content-Type text/plain;
+}
+
+# With this:
+location / {
+    return 301 https://your-vercel-url.vercel.app$request_uri;
+}
+```
+
+2. **Redeploy nginx:**
+```bash
+scp -i ai-oa-key docker/nginx.conf root@167.99.52.130:/root/ai-oa-docker/
+ssh -i ai-oa-key root@167.99.52.130 "cd /root/ai-oa-docker && docker stop nginx-proxy && docker rm nginx-proxy && docker build -f nginx-proxy.Dockerfile -t nginx-proxy . && docker run -d --name nginx-proxy --network ai-oa-network -p 80:80 nginx-proxy"
+```
 
 ## Troubleshooting
 
