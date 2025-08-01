@@ -69,7 +69,18 @@ clone_repo_if_needed
 echo "📡 Starting code-server on HTTP port 80..."
 
 # Start code-server directly on port 80 (nginx proxy handles HTTPS)
-exec sudo -u coder code-server \
+# Pass environment variables needed by the VS Code extension
+exec sudo -u coder \
+    INSTANCE_ID="$INSTANCE_ID" \
+    INITIAL_PROMPT="$INITIAL_PROMPT" \
+    FINAL_PROMPT="$FINAL_PROMPT" \
+    ASSESSMENT_PROMPT="$ASSESSMENT_PROMPT" \
+    ENABLE_INITIAL_TIMER="$ENABLE_INITIAL_TIMER" \
+    INITIAL_DURATION_MINUTES="$INITIAL_DURATION_MINUTES" \
+    ENABLE_PROJECT_TIMER="$ENABLE_PROJECT_TIMER" \
+    PROJECT_DURATION_MINUTES="$PROJECT_DURATION_MINUTES" \
+    SERVER_URL="$SERVER_URL" \
+    code-server \
     --auth none \
     --bind-addr 0.0.0.0:80 \
     --disable-telemetry \
