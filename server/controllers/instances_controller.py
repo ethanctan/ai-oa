@@ -774,6 +774,13 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             print(f"  - TEST_ID: {test_id}")
             print(f"  - CANDIDATE_ID: {candidate_id}")
             print(f"  - INSTANCE_ID: {instance_id}")
+            print(f"  - INITIAL_PROMPT: {'SET' if test.get('initial_prompt') else 'NOT SET'}")
+            print(f"  - FINAL_PROMPT: {'SET' if test.get('final_prompt') else 'NOT SET'}")
+            print(f"  - ASSESSMENT_PROMPT: {'SET' if test.get('qualitative_assessment_prompt') else 'NOT SET'}")
+            print(f"  - ENABLE_INITIAL_TIMER: {test.get('enable_timer', 1)}")
+            print(f"  - INITIAL_DURATION_MINUTES: {test.get('timer_duration', 10)}")
+            print(f"  - ENABLE_PROJECT_TIMER: {test.get('enable_project_timer', 1)}")
+            print(f"  - PROJECT_DURATION_MINUTES: {test.get('project_timer_duration', 60)}")
             
             # Prepare environment variables including GitHub repo info
             env_vars = {
@@ -788,6 +795,20 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                 env_vars['GITHUB_REPO'] = test['github_repo']
                 if test.get('github_token'):
                     env_vars['GITHUB_TOKEN'] = test['github_token']
+            
+            # Add test prompts and timer configuration for the extension
+            if test.get('initial_prompt'):
+                env_vars['INITIAL_PROMPT'] = test['initial_prompt']
+            if test.get('final_prompt'):
+                env_vars['FINAL_PROMPT'] = test['final_prompt']
+            if test.get('qualitative_assessment_prompt'):
+                env_vars['ASSESSMENT_PROMPT'] = test['qualitative_assessment_prompt']
+            
+            # Add timer configuration
+            env_vars['ENABLE_INITIAL_TIMER'] = '1' if test.get('enable_timer', 1) else '0'
+            env_vars['INITIAL_DURATION_MINUTES'] = str(test.get('timer_duration', 10))
+            env_vars['ENABLE_PROJECT_TIMER'] = '1' if test.get('enable_project_timer', 1) else '0'
+            env_vars['PROJECT_DURATION_MINUTES'] = str(test.get('project_timer_duration', 60))
 
             # Create the container without port mapping (network communication only)
             container = client.containers.create(
