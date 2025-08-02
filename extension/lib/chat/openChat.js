@@ -5,14 +5,29 @@ const { getChatHtml } = require('./getChatHtml');
 const { getWorkspaceContent } = require('../context/getWorkspaceContent');
 const JSZip = require('jszip'); // Added for zipping files
 
-// Get SERVER_URL from environment variables, fallback to Railway URL
-const SERVER_URL = process.env.SERVER_URL || 'https://ai-oa-production.up.railway.app';
-const SERVER_TIMER_START_URL = `${SERVER_URL}/timer/start`;
-const SERVER_TIMER_STATUS_URL = `${SERVER_URL}/timer/status`;
-const SERVER_TIMER_INTERVIEW_STARTED_URL = `${SERVER_URL}/timer/interview-started`;
-const SERVER_PROJECT_TIMER_START_URL = `${SERVER_URL}/timer/project/start`;
-const SERVER_TIMER_FINAL_INTERVIEW_STARTED_URL = `${SERVER_URL}/timer/final-interview-started`;
-const SERVER_CHAT_URL = `${SERVER_URL}/chat`;
+// Function to get SERVER_URL from environment variables with fallback
+function getServerUrl() {
+  try {
+    return process.env.SERVER_URL || 'https://ai-oa-production.up.railway.app';
+  } catch (error) {
+    console.warn('Failed to access process.env.SERVER_URL, using fallback:', error);
+    return 'https://ai-oa-production.up.railway.app';
+  }
+}
+
+// Function to get server URLs - called when needed
+function getServerUrls() {
+  const SERVER_URL = getServerUrl();
+  return {
+    SERVER_URL,
+    SERVER_TIMER_START_URL: `${SERVER_URL}/timer/start`,
+    SERVER_TIMER_STATUS_URL: `${SERVER_URL}/timer/status`,
+    SERVER_TIMER_INTERVIEW_STARTED_URL: `${SERVER_URL}/timer/interview-started`,
+    SERVER_PROJECT_TIMER_START_URL: `${SERVER_URL}/timer/project/start`,
+    SERVER_TIMER_FINAL_INTERVIEW_STARTED_URL: `${SERVER_URL}/timer/final-interview-started`,
+    SERVER_CHAT_URL: `${SERVER_URL}/chat`
+  };
+}
 
 // Global variables to store environment prompts - accessed throughout the module
 let globalInitialPrompt = '';
@@ -103,6 +118,17 @@ function openChat() {
   // Listen for messages from the webview.
   global.chatPanel.webview.onDidReceiveMessage(async message => {
     console.log(`Received message from webview: ${message.command}`);
+    
+    // Get server URLs dynamically
+    const { 
+      SERVER_URL, 
+      SERVER_CHAT_URL, 
+      SERVER_TIMER_START_URL, 
+      SERVER_TIMER_STATUS_URL, 
+      SERVER_PROJECT_TIMER_START_URL, 
+      SERVER_TIMER_INTERVIEW_STARTED_URL, 
+      SERVER_TIMER_FINAL_INTERVIEW_STARTED_URL 
+    } = getServerUrls();
     
     if (message.command === 'getWorkspaceContent') {
       try {
@@ -440,6 +466,9 @@ async function startTimer(instanceId) {
   console.log(`Starting timer for instance: ${instanceId}`);
   
   try {
+    // Get server URLs dynamically
+    const { SERVER_TIMER_START_URL, SERVER_URL } = getServerUrls();
+    
     // Check if there are any timer configuration parameters
     const timerConfig = global.timerConfig || {};
     
@@ -491,6 +520,9 @@ async function startProjectTimer(instanceId) {
   console.log(`Starting project timer for instance: ${instanceId}`);
   
   try {
+    // Get server URLs dynamically
+    const { SERVER_PROJECT_TIMER_START_URL } = getServerUrls();
+    
     // Use the globally set project timer config from env vars
     const projectConfig = globalProjectTimerConfig || {}; // Use global config
     
@@ -587,6 +619,9 @@ async function getTimerStatus(instanceId) {
   console.log(`Getting timer status for instance: ${instanceId}`);
   
   try {
+    // Get server URLs dynamically
+    const { SERVER_TIMER_STATUS_URL, SERVER_URL } = getServerUrls();
+    
     const response = await fetch(
       `${SERVER_TIMER_STATUS_URL}?instanceId=${instanceId}`,
       {
@@ -916,6 +951,9 @@ async function getChatHistory(instanceId) {
   console.log(`Getting chat history for instance: ${instanceId}`);
   
   try {
+    // Get server URLs dynamically
+    const { SERVER_CHAT_URL } = getServerUrls();
+    
     // Ensure we're using the correct URL
     const url = `${SERVER_CHAT_URL}/history?instanceId=${instanceId}`;
     console.log(`Fetching chat history from: ${url}`);
@@ -982,6 +1020,9 @@ async function setInterviewStarted(instanceId) {
   console.log(`Setting interview started for instance: ${instanceId}`);
   
   try {
+    // Get server URLs dynamically
+    const { SERVER_TIMER_INTERVIEW_STARTED_URL } = getServerUrls();
+    
     const response = await fetch(SERVER_TIMER_INTERVIEW_STARTED_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1021,6 +1062,9 @@ async function setFinalInterviewStarted(instanceId) {
   console.log(`Setting final interview started for instance: ${instanceId}`);
   
   try {
+    // Get server URLs dynamically
+    const { SERVER_TIMER_FINAL_INTERVIEW_STARTED_URL } = getServerUrls();
+    
     // Call the server API to update the timer status
     const response = await fetch(SERVER_TIMER_FINAL_INTERVIEW_STARTED_URL, {
       method: 'POST', 
@@ -1106,6 +1150,9 @@ async function submitWorkspaceContent(instanceId, content) {
   }
   
   console.log(`Submitting workspace content for instance ${instanceId}`);
+  
+  // Get server URLs dynamically
+  const { SERVER_URL } = getServerUrls();
 
   // 1. Submit for report generation (existing functionality)
   if (content) {
