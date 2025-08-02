@@ -46,6 +46,9 @@ def run_migrations():
         # Add instance_access_tokens table
         create_instance_access_tokens_table(cursor)
         
+        # Add chat_history table
+        create_chat_history_table(cursor)
+        
         conn.close()
         logger.info("✅ PostgreSQL migrations completed successfully.")
         
@@ -156,8 +159,29 @@ def create_instance_access_tokens_table(cursor):
     """)
     logger.info("✅ Added instance_access_tokens table")
 
+# Add chat_history table
+def create_chat_history_table(cursor):
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS chat_history (
+        id SERIAL PRIMARY KEY,
+        instance_id INTEGER NOT NULL REFERENCES test_instances(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        message TEXT NOT NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'user',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_history_instance ON chat_history(instance_id);
+    CREATE INDEX IF NOT EXISTS idx_chat_history_created_at ON chat_history(created_at);
+    """)
+    logger.info("✅ Added chat_history table")
+
 # List of all migrations
 migrations = [
     # ... existing migrations ...
     create_instance_access_tokens_table,
-] 
+    create_chat_history_table,
+]
+
+if __name__ == "__main__":
+    """Run migrations when script is executed directly"""
+    run_migrations() 

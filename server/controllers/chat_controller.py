@@ -109,16 +109,20 @@ def add_chat_message(instance_id, user_id, message, role='user'):
         cursor.execute('''
             INSERT INTO chat_history (instance_id, user_id, message, role, created_at)
             VALUES (%s, %s, %s, %s, NOW())
+            RETURNING id
         ''', (instance_id, user_id, message, role))
+        
+        # Get the inserted message ID from RETURNING clause
+        inserted_id = cursor.fetchone()['id']
         conn.commit()
         
-        # Get the inserted message
+        # Get the inserted message with user details
         cursor.execute('''
             SELECT ch.*, u.name as user_name
             FROM chat_history ch
             LEFT JOIN users u ON ch.user_id = u.id
             WHERE ch.id = %s
-        ''', (cursor.lastrowid,))
+        ''', (inserted_id,))
         return dict(cursor.fetchone())
     except Exception as e:
         conn.rollback()
