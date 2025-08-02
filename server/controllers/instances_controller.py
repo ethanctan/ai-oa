@@ -38,7 +38,6 @@ def get_docker_client():
             for f in cert_files:
                 try:
                     os.remove(f)
-                    print(f"Cleaned up temporary file: {f}")
                 except Exception as e:
                     print(f"Failed to clean up {f}: {str(e)}")
 
@@ -50,11 +49,6 @@ def get_docker_client():
                 temp.write(content.encode('utf-8'))
                 temp.flush()
                 cert_files.append(temp.name)
-                print(f"Created temporary {suffix} file: {temp.name}")
-                # Verify the file contents
-                with open(temp.name, 'r') as f:
-                    content_check = f.read()
-                    print(f"Verified {suffix} file contents length: {len(content_check)}")
                 return temp.name
             except Exception as e:
                 print(f"Error creating temporary {suffix} file: {str(e)}")
@@ -64,10 +58,7 @@ def get_docker_client():
         client_cert_path = write_temp_cert(client_cert, '.cert.pem')
         client_key_path = write_temp_cert(client_key, '.key.pem')
 
-        print("\nAttempting to connect to Docker with:")
-        print(f"CA cert path: {ca_cert_path}")
-        print(f"Client cert path: {client_cert_path}")
-        print(f"Client key path: {client_key_path}")
+
 
         # Try to connect to remote Docker host with increased timeouts
         client = docker.DockerClient(
@@ -82,7 +73,6 @@ def get_docker_client():
         
         # Test the connection with timeout
         client.ping()
-        print("\nSuccessfully connected to remote Docker host")
         return client
     except Exception as e:
         print(f"\nFailed to connect to remote Docker host: {str(e)}")

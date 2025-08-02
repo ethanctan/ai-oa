@@ -16,17 +16,10 @@ def require_session_auth(f):
     """Middleware for session-based authentication (used with Remix Auth)"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        logger.info(f"🔐 SESSION AUTH: Checking session authentication for {request.endpoint}")
-        
         # Check for custom headers from frontend session
         user_id = request.headers.get('X-User-ID')
         company_id = request.headers.get('X-Company-ID') 
         auth0_user_id = request.headers.get('X-Auth0-User-ID')
-        
-        logger.info(f"📋 SESSION AUTH: Headers received:")
-        logger.info(f"   - X-User-ID: {user_id}")
-        logger.info(f"   - X-Company-ID: {company_id}")
-        logger.info(f"   - X-Auth0-User-ID: {auth0_user_id}")
         
         if not user_id or not company_id or not auth0_user_id:
             logger.warning("❌ SESSION AUTH: Missing required authentication headers")
@@ -57,9 +50,6 @@ def require_session_auth(f):
             
             # Convert to dict and attach to request
             request.user = dict(user)
-            logger.info(f"✅ SESSION AUTH: Authentication successful for user: {request.user['email']}")
-            logger.info(f"   - User ID: {request.user['id']}")
-            logger.info(f"   - Company: {request.user['company_name']}")
             
             return f(*args, **kwargs)
             

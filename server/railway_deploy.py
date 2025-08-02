@@ -18,6 +18,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Reduce werkzeug logging verbosity (Flask's HTTP request logs)
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
 # Load environment variables (Railway automatically provides them)
 load_dotenv()
 

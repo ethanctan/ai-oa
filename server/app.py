@@ -20,6 +20,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Reduce werkzeug logging verbosity (Flask's HTTP request logs)
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
 # Load environment variables
 load_dotenv('../server/.env')  # Load from existing .env file
 
@@ -35,23 +38,7 @@ CORS(app,
      allow_headers=['Content-Type', 'Authorization', 'X-User-ID', 'X-Company-ID', 'X-Auth0-User-ID'],
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
-# Add request logging middleware
-@app.before_request
-def log_request_info():
-    logger.info(f"🌐 REQUEST: {request.method} {request.url}")
-    logger.info(f"🌐 REQUEST: Headers: {dict(request.headers)}")
-    if request.method in ['POST', 'PUT', 'PATCH']:
-        if request.content_type and 'json' in request.content_type:
-            try:
-                logger.info(f"🌐 REQUEST: JSON Body: {request.json}")
-            except Exception as e:
-                logger.info(f"🌐 REQUEST: Could not parse JSON body: {e}")
-
-@app.after_request
-def log_response_info(response):
-    logger.info(f"🌐 RESPONSE: Status {response.status_code}")
-    logger.info(f"🌐 RESPONSE: Headers: {dict(response.headers)}")
-    return response
+# Request logging middleware removed to reduce log verbosity
 
 # Register routes/blueprints
 logger.info("🚀 STARTUP: Registering blueprints...")
