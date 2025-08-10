@@ -285,8 +285,8 @@ def set_final_interview_started(instance_id, started=True):
 # Load timers on module initialization
 load_timers()
 
-def start_instance_timer(instance_id, duration_seconds):
-    """Start a timer for a test instance"""
+def pg_start_instance_timer(instance_id, duration_seconds):
+    """[PostgreSQL variant] Start a timer for a test instance"""
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -315,8 +315,8 @@ def start_instance_timer(instance_id, duration_seconds):
     finally:
         conn.close()
 
-def get_instance_timer(instance_id):
-    """Get the timer for a test instance"""
+def pg_get_instance_timer(instance_id):
+    """[PostgreSQL variant] Get the timer for a test instance"""
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -339,8 +339,8 @@ def get_instance_timer(instance_id):
     finally:
         conn.close()
 
-def stop_instance_timer(instance_id):
-    """Stop the timer for a test instance"""
+def pg_stop_instance_timer(instance_id):
+    """[PostgreSQL variant] Stop the timer for a test instance"""
     conn = get_connection()
     cursor = conn.cursor()
     try:

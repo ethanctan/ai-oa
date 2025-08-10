@@ -86,3 +86,4 @@ exec sudo -u coder \
     --disable-telemetry \
     --disable-update-check \
     /home/coder/project
+

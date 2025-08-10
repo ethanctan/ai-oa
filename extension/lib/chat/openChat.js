@@ -521,7 +521,7 @@ async function startProjectTimer(instanceId) {
   
   try {
     // Get server URLs dynamically
-    const { SERVER_PROJECT_TIMER_START_URL } = getServerUrls();
+    const { SERVER_PROJECT_TIMER_START_URL, SERVER_URL } = getServerUrls();
     
     // Use the globally set project timer config from env vars
     const projectConfig = globalProjectTimerConfig || {}; // Use global config
@@ -581,6 +581,7 @@ function startProjectTimerDebugLogging(instanceId) {
   // Check project timer status every 10 seconds and log it
   const debugInterval = setInterval(async () => {
     try {
+      const { SERVER_TIMER_STATUS_URL } = getServerUrls();
       const response = await fetch(
         `${SERVER_TIMER_STATUS_URL}?instanceId=${instanceId}`,
         {
@@ -670,6 +671,7 @@ async function checkTimerAndInterviewStatus(instanceId) {
   
   try {
     console.log(`Checking timer and interview status for instance ${instanceId}`);
+    const { SERVER_TIMER_STATUS_URL, SERVER_URL } = getServerUrls();
     
     const response = await fetch(
       `${SERVER_TIMER_STATUS_URL}?instanceId=${instanceId}`,
@@ -765,6 +767,9 @@ async function sendChatMessage(message, instanceId) {
   console.log(`Sending chat message for instance: ${instanceId}`);
   
   try {
+    // Get server URLs dynamically
+    const { SERVER_CHAT_URL, SERVER_TIMER_STATUS_URL, SERVER_URL } = getServerUrls();
+    
     // First check timer status to determine if we're in final interview phase
     let isInFinalInterview = false;
     try {
@@ -1121,6 +1126,9 @@ async function saveInterviewPhase(instanceId, phase) {
   console.log(`Saving interview phase ${phase} for instance: ${instanceId}`);
   
   try {
+    // Get server URLs dynamically
+    const { SERVER_CHAT_URL } = getServerUrls();
+    
     // Add metadata to last message to indicate phase change
     await fetch(`${SERVER_CHAT_URL}/message`, {
       method: 'POST',
