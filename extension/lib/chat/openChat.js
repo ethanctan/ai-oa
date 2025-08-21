@@ -142,6 +142,33 @@ function openChat() {
       }
     }
 
+    // Handle explicit interview start from the webview
+    if (message.command === 'startInterview') {
+      try {
+        const startInstanceId = message.instanceId || instanceId;
+        if (!startInstanceId) {
+          throw new Error('No instance ID provided for startInterview');
+        }
+
+        // Ensure a timer exists; if status returns 404, create one
+        let statusResult = await getTimerStatus(startInstanceId);
+        if (statusResult && statusResult.error && String(statusResult.error).includes('404')) {
+          console.log('No existing timer found when starting interview; creating one now');
+          await startTimer(startInstanceId);
+        }
+
+        // Persist interviewStarted=true on the server so reloads honor the phase
+        await setInterviewStarted(startInstanceId);
+
+        // Acknowledge to the webview
+        if (global.chatPanel) {
+          global.chatPanel.webview.postMessage({ command: 'interviewStarted', success: true });
+        }
+      } catch (err) {
+        console.error(`Error handling startInterview: ${err.message}`);
+      }
+    }
+
     // Handle timer configuration
     if (message.command === 'setTimerConfig') {
       console.log(`Setting timer configuration: ${JSON.stringify(message.config)}`);
