@@ -85,24 +85,50 @@ def save_chat_histories():
         print(f"Error saving chat histories: {str(e)}")
 
 def get_chat_history(instance_id):
-    """Get chat history for a test instance"""
+    """Get chat history for a test instance, normalized to {role, content}."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
         cursor.execute('''
-            SELECT ch.*, u.name as user_name
+            SELECT ch.message, ch.role, ch.created_at, ch.user_id, u.name as user_name
             FROM chat_history ch
             LEFT JOIN users u ON ch.user_id = u.id
             WHERE ch.instance_id = %s
             ORDER BY ch.created_at ASC
         ''', (instance_id,))
-        messages = [dict(row) for row in cursor.fetchall()]
+        rows = cursor.fetchall()
+        # Normalize to the shape the extension expects
+        messages = []
+        for row in rows:
+            rowd = dict(row)
+            content = rowd.get('message') or rowd.get('content') or ''
+            role = rowd.get('role') or 'system'
+            messages.append({
+                'role': role,
+                'content': content,
+                'user_id': rowd.get('user_id'),
+                'user_name': rowd.get('user_name'),
+                'created_at': rowd.get('created_at').isoformat() if rowd.get('created_at') else None
+            })
         return messages
     finally:
         conn.close()
 
-def add_chat_message(instance_id, user_id, message, role='user'):
-    """Add a message to the chat history"""
+def add_chat_message(instance_id, message):
+    """Add a message to the chat history.
+    Accepts a message dict {role, content, user_id?} to match the extension routes.
+    """
+    # Normalize inputs
+    if isinstance(message, dict):
+        role = message.get('role', 'system')
+        content = message.get('content', '')
+        user_id = message.get('user_id')
+    else:
+        # Fallback for legacy usage
+        role = 'user'
+        content = str(message)
+        user_id = None
+
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -110,20 +136,13 @@ def add_chat_message(instance_id, user_id, message, role='user'):
             INSERT INTO chat_history (instance_id, user_id, message, role, created_at)
             VALUES (%s, %s, %s, %s, NOW())
             RETURNING id
-        ''', (instance_id, user_id, message, role))
-        
-        # Get the inserted message ID from RETURNING clause
+        ''', (instance_id, user_id, content, role))
+
         inserted_id = cursor.fetchone()['id']
         conn.commit()
-        
-        # Get the inserted message with user details
-        cursor.execute('''
-            SELECT ch.*, u.name as user_name
-            FROM chat_history ch
-            LEFT JOIN users u ON ch.user_id = u.id
-            WHERE ch.id = %s
-        ''', (inserted_id,))
-        return dict(cursor.fetchone())
+
+        # Return the updated history in normalized form
+        return get_chat_history(instance_id)
     except Exception as e:
         conn.rollback()
         raise e
