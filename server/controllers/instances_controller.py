@@ -558,11 +558,46 @@ def create_report(instance_id, workspace_content):
 
     # Prompts
     developer_prompt = """You are a technical interviewer analyzing a software engineering candidate's coding project.
-    Generate a structured evaluation report in the exact JSON format described in the schema.
-    Use the provided input data (which may include initial and final interview chat logs, candidate's codebase, and grading criteria) to generate all required sections.
-    Do not include any extra text, explanations, or formatting beyond the JSON object."""
-    user_instructions = ""
-    input_data = "\n"
+
+    You will be given a codebase that the candidate has written.
+    You may be given a chat history of the candidate's responses to your questions in an initial interview, before they start coding, and a final interview, after they have finished coding.
+    You may also be given a list of qualitative and quantitative criteria that you will use to evaluate the candidate's performance.
+
+    Your main task is to generate a structured evaluation report in the exact JSON format described in the schema.
+
+    Use only the information provided to you to generate the report.
+    If the schema requires a field that you do not have information for, do NOT include false information. Instead, raise this warning in the "report_warnings" field of the report.
+
+    <chat_history>
+    The chat history is formatted as follows, where message.role is either "user" or "assistant". "user" messages are the candidate's messages, and "assistant" messages are your messages.
+
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start with the project design phase. How would you approach understanding the requirements specified in the README.md file and translating them into a design plan?"
+    },
+    // ... further messages ...
+    </chat_history>
+
+    <code_citations>
+    When using markdown in the report, use backticks to format file, directory, function, and class names. Use \( and \) for inline math, \[ and \] for block math.
+    
+    Anyone reading this report can see the entire file, so they prefer to only read the updates to the code. So, when citing code, prefer to cite short snippets of code rather than the entire file.
+
+    You MUST use the following format when citing code regions or blocks:
+    ```12:15:app/components/Todo.tsx
+    // ... existing code ...
+    ```
+    This is the ONLY acceptable format for code citations. The format is ```startLine:endLine:filepath where startLine and endLine are line numbers.
+    </code_citations>
+
+
+    """
+    report_instructions = "Your report should contain the following sections:\n"
+    input_data = "In generating the report, use only information referenced from the following input data provided:\n"
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -576,7 +611,6 @@ def create_report(instance_id, workspace_content):
             WHERE ti.id = ?
         ''', (instance_id,))
         test_data = dict(cursor.fetchone())
-        # {'initial_prompt': "You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have not started yet. Instructions for the project have been provided in the README.md file. Interview the candidate about how they'll go about the project's design, implementation, and testing, in that order. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.", 'final_prompt': 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have completed. Interview them about their design decisions, implementation, and testing, in that order. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.', 'qualitative_assessment_prompt': '[{"title":"Code Clarity","description":"Does the candidate clearly document their code with comments and meaningful variable names?"}]', 'quantitative_assessment_prompt': '[]'}
         print("test data:", test_data)
         if not test_data:
             return {"message": f"Instance with ID {instance_id} not found"}
@@ -595,82 +629,96 @@ def create_report(instance_id, workspace_content):
             print("Report already exists, ignoring")
         else:
             # Create new report
-           
- 
-            # Step 1: Build QuantitativeCriterionModel
-            class QualitativeCriterionModel(BaseModel):
-                title: str = Field(title="Title", description="Title of the criterion")
-                description: str = Field(title="Description", description="Description of the candidate's performance on this criterion")
-
-            class QuantitativeCriterionModel(BaseModel):
-                score: int = Field(title="Score", description="Numerical score for this criterion")
-                explanation: str = Field(title="Explanation", description="Justification for the given score")
-
-            # Step 2: Build field definitions based on flags
             field_definitions = {}
 
             field_definitions['code_summary'] = (
                 str,
                 Field(title="Code Summary", description="Concise summary of the code architecture and implementation.")
             )
+            report_instructions += "- Code Summary, based on the content of <input_codebase>\n"
+            input_data += "<input_codebase>\n" + workspace_content + "\n</input_codebase>\n"
 
             if test_data['initial_prompt'] or test_data['final_prompt']:
-                chat_history = get_chat_history(instance_id)
-                print("chat_history:")
+                chat_history_list = get_chat_history(instance_id)
+                chat_history = ",\n".join(str(msg) for msg in chat_history_list)
                 print(chat_history)
+                input_data += "<input_chat_logs>\n" + chat_history + "\n/<input_chat_logs>\n"
 
             if test_data['initial_prompt']:
                 field_definitions['initial_interview_summary'] = (
                     str,
-                    Field(title="Initial Interview Summary", description="Summary of candidate's understanding and early design ideas in the initial interview chat logs.")
+                    Field(title="Initial Interview Summary", description="Summary of the initial interview chat logs.")
                 )
+                # initial_interview = "placeholder initial" 
+                # report_instructions += "- Initial Interview Summary, based on the content of <input_initial_interview>\n"
+                # input_data += "<input_initial_interview>\n" + initial_interview + "\n</input_initial_interview>\n"
+                report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> before 'PHASE_MARKER: initial'"
 
             if test_data['final_prompt']:
                 field_definitions['final_interview_summary'] = (
                     str,
-                    Field(title="Final Interview Summary", description="Summary of final design and implementation discussion in the final interview chat logs.")
+                    Field(title="Final Interview Summary", description="Summary of the final interview chat logs.")
                 )
+                # final_interview = "placeholder final" 
+                # report_instructions += "- Final Interview Summary, based on the content of <input_final_interview>\n"
+                # input_data += "<input_final_interview>\n" + final_interview + "\n</input_final_interview>\n"
+                report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> after 'PHASE_MARKER: final_started'"
 
             if test_data['qualitative_assessment_prompt'] != "[]":
-                # Build qualitative description
+                class QualitativeCriterionModel(BaseModel):
+                    title: str = Field(title="Title", description="Title of the criterion")
+                    description: str = Field(title="Description", description="Description of the candidate's performance on this criterion")
+                
                 qualitative_criteria_list = json.loads(test_data['qualitative_assessment_prompt'])
                 criteria_count = len(qualitative_criteria_list)
                 qualitative_desc = "Qualitative criteria performance assessments:\n"
                 qualitative_desc += f"The following {criteria_count} criteria are used to assess the candidate's performance on the project:\n"
+                
                 for qc in qualitative_criteria_list:
                     qualitative_desc += f"- {qc['title']}: {qc['description']}\n"
+
                 field_definitions['qualitative_criteria'] = (
                     list[QualitativeCriterionModel],
                     Field(title="Qualitative Criteria", description=qualitative_desc)
                 )
 
             if test_data['quantitative_assessment_prompt'] != "[]":
-                # Process quantitative criteria for validation
+                class QuantitativeCriterionModel(BaseModel):
+                    title: str = Field(title="Title", description="Title of the criterion")
+                    score: int = Field(title="Score", description="Numerical score for this criterion according to the scoring rubric")
+                    explanation: str = Field(title="Explanation", description="Justification for the given score")
+
                 quantitative_criteria_list = json.loads(test_data['quantitative_assessment_prompt'])
+                criteria_count = len(quantitative_criteria_list)
+                quantitative_desc = "Quantitative criteria performance assessments:\n"
+                quantitative_desc += f"The following {criteria_count} criteria are used to assess the candidate's performance on the project:\n"
+
                 quantitative_metadata = {}
+
                 for qc in quantitative_criteria_list:
                     title = qc["title"]
                     descriptors = {k: v for k, v in qc.items() if isinstance(k, (int, float))}
-                    min_score = min(descriptors)
-                    max_score = max(descriptors)
+                    min_score = min(descriptors.keys())
+                    max_score = max(descriptors.keys())
                     quantitative_metadata[title] = {
                         "min_score": min_score,
                         "max_score": max_score,
                         "descriptors": descriptors
                     }
                 
-                # Build quantitative description
-                quantitative_desc = "Quantitative criteria scores and explanations:\n"
-                for qc in quantitative_criteria_list:
-                    title = qc["title"]
-                    descriptors = quantitative_metadata[title]["descriptors"]
-                    quantitative_desc += f"- {title} (score range: {min(descriptors.keys())}-{max(descriptors.keys())}):\n"
+                    quantitative_desc += f"- {title} (score range: {min_score}-{max_score}):\n"
                     for k, v in sorted(descriptors.items()):
-                        quantitative_desc += f"  - {k}: {v}\n"
+                        quantitative_desc += f"  {k}: {v}\n"
+
                 field_definitions['quantitative_criteria'] = (
-                    Dict[str, QuantitativeCriterionModel],
+                    list[QuantitativeCriterionModel],
                     Field(title="Quantitative Criteria", description=quantitative_desc)
                 )
+            
+            field_definitions['report_warnings'] = (
+                str,
+                Field(title="Report Warnings", description="Any critical issues with report generation, such as missing required information, should be explained here.")
+            )
             print("added all fields")
             # Step 3: Create the base model dynamically
             DynamicModel = create_model('DynamicModel', **field_definitions)
@@ -714,17 +762,18 @@ def create_report(instance_id, workspace_content):
 
             print("schema created")
             # Prompt
-            user_prompt = user_instructions + input_data
             messages = []
             messages.append({"role": "developer",
-                             "content": developer_prompt})
+                             "content": developer_prompt + report_instructions})
             messages.append({"role": "user",
-                             "content": user_prompt})
-            report = create_report_completion(messages, ReportSchema)
+                             "content": input_data})
+            report = vars(create_report_completion(messages, ReportSchema))
             print("api returned")
+            print(report)
+            return report
             cursor.execute(
                 'INSERT INTO reports (instance_id, content) VALUES (?, ?)',
-                (instance_id, report)
+                (instance_id, json.dumps(report))
             )
         
         conn.commit()
