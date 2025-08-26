@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting simplified AI OA code-server container..."
+echo "[DEPRECATED] simple-startup.sh is deprecated. Use startup.sh instead."
 
 # Ensure project directory exists with correct permissions
 sudo mkdir -p /home/coder/project
@@ -70,19 +70,5 @@ echo "📡 Starting code-server on HTTP port 80..."
 
 # Start code-server directly on port 80 (nginx proxy handles HTTPS)
 # Pass environment variables needed by the VS Code extension
-exec sudo -u coder \
-    INSTANCE_ID="$INSTANCE_ID" \
-    INITIAL_PROMPT="$INITIAL_PROMPT" \
-    FINAL_PROMPT="$FINAL_PROMPT" \
-    ASSESSMENT_PROMPT="$ASSESSMENT_PROMPT" \
-    ENABLE_INITIAL_TIMER="$ENABLE_INITIAL_TIMER" \
-    INITIAL_DURATION_MINUTES="$INITIAL_DURATION_MINUTES" \
-    ENABLE_PROJECT_TIMER="$ENABLE_PROJECT_TIMER" \
-    PROJECT_DURATION_MINUTES="$PROJECT_DURATION_MINUTES" \
-    SERVER_URL="$SERVER_URL" \
-    code-server \
-    --auth none \
-    --bind-addr 0.0.0.0:80 \
-    --disable-telemetry \
-    --disable-update-check \
-    /home/coder/project
+exec /usr/local/bin/startup.sh
+

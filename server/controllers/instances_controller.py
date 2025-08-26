@@ -715,17 +715,17 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         container_name = f"instance-{instance_id}"
         print(f"Generated container name: {container_name}")
         
-        # Always use the public Docker image for instances
+        # Use the existing simple Docker image for instances
         try:
+            print(f"Using existing image for instance {instance_id}...")
+            
+            # Force usage of the public image (simple image deprecated)
             image_name = 'ectan/ai-oa-public:latest'
-            print(f"Using image for instance {instance_id}: {image_name}")
             image = client.images.get(image_name)
-        except docker.errors.ImageNotFound:
-            print(f"Image {image_name} not found locally. Attempting to pull...")
-            image = client.images.pull(image_name)
-            print(f"Pulled image: {image.tags}")
+            print(f"Using image for instance {instance_id}: {image_name}")
+                    
         except Exception as e:
-            print(f"Error ensuring Docker image {image_name}: {str(e)}")
+            print(f"Error with Docker image: {str(e)}")
             return None
         
         # Ensure the ai-oa-network exists

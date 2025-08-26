@@ -52,7 +52,7 @@ docker ps | grep instance-
 2. **Container Creation**: Updated `instances_controller.py` to:
    - Create containers named `instance-{id}` (matches nginx routing)
    - Connect to `ai-oa-network` (no port mapping needed)
-   - Build from `Dockerfile` (public image `ectan/ai-oa-public:latest`)
+   - Build from `simple.Dockerfile` (direct code-server)
    - Generate correct URLs like `https://instance-{id}.code.verihire.me`
 
 ## 📋 Next Steps

@@ -14,6 +14,28 @@ nginx-proxy (routes subdomains)
 
 ## Quick Start
 
+### On droplet restart:
+1. Ensure docker is running
+```bash
+systemctl enable docker
+systemctl start docker
+docker info | head -n 20
+```
+2. Go to deployment folder
+```bash
+cd ai-oa-docker
+```
+3. Create network for routing and start nginx proxy
+```bash
+docker network create ai-oa-network --driver bridge || echo "network exists"
+docker compose up -d nginx-proxy
+docker ps | grep ai-oa-nginx-proxy | cat
+```
+4. Pull latest docker instance image
+```bash
+docker pull ectan/ai-oa-public:latest
+```
+
 ### 1. Deploy the nginx proxy
 ```bash
 cd docker
@@ -34,8 +56,8 @@ cd docker
 
 - `nginx.conf` - Routes subdomains to containers
 - `nginx-proxy.Dockerfile` - Nginx proxy container
-- `Dockerfile` - Instance container (code-server + nginx) used by image `ectan/ai-oa-public:latest`
-- `startup.sh` - Startup script for instances
+- `simple.Dockerfile` - Instance container (code-server)
+- `simple-startup.sh` - Startup script for instances
 - `docker-compose.yml` - Proxy deployment configuration
 - `deploy-proxy.sh` - Deployment script
 - `manage-instances.sh` - Instance management utilities
@@ -73,7 +95,7 @@ cd docker
    - `verihire.me` → Shows placeholder (ready for Vercel redirect)
    - `instance-*.verihire.me` → Routes to appropriate container
 2. **ai-oa-network**: Docker bridge network for internal communication
-3. **Instance containers**: Each named `instance-{id}` running image `ectan/ai-oa-public:latest` on port 80
+3. **Instance containers**: Each named `instance-{id}` running code-server on port 80
 4. **Cloudflare**: Handles SSL termination and DNS for `*.verihire.me`
 
 ## Network Flow
