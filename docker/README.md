@@ -56,8 +56,8 @@ cd docker
 
 - `nginx.conf` - Routes subdomains to containers
 - `nginx-proxy.Dockerfile` - Nginx proxy container
-- `simple.Dockerfile` - Instance container (code-server)
-- `simple-startup.sh` - Startup script for instances
+- `Dockerfile` - Instance container (code-server + nginx) used by image `ectan/ai-oa-public:latest`
+- `startup.sh` - Startup script for instances
 - `docker-compose.yml` - Proxy deployment configuration
 - `deploy-proxy.sh` - Deployment script
 - `manage-instances.sh` - Instance management utilities
@@ -95,7 +95,7 @@ cd docker
    - `verihire.me` → Shows placeholder (ready for Vercel redirect)
    - `instance-*.verihire.me` → Routes to appropriate container
 2. **ai-oa-network**: Docker bridge network for internal communication
-3. **Instance containers**: Each named `instance-{id}` running code-server on port 80
+3. **Instance containers**: Each named `instance-{id}` running image `ectan/ai-oa-public:latest` on port 80
 4. **Cloudflare**: Handles SSL termination and DNS for `*.verihire.me`
 
 ## Network Flow

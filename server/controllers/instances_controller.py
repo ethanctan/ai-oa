@@ -715,31 +715,17 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
         container_name = f"instance-{instance_id}"
         print(f"Generated container name: {container_name}")
         
-        # Use the existing simple Docker image for instances
+        # Always use the public Docker image for instances
         try:
-            print(f"Using existing image for instance {instance_id}...")
-            
-            # First try to use the simple image that's already built on the droplet
-            image_name = 'ectan/ai-oa-simple:latest'
-            try:
-                image = client.images.get(image_name)
-                print(f"Using existing {image_name} image (ID: {image.id})")
-            except docker.errors.ImageNotFound:
-                print(f"Image {image_name} not found, trying alternative...")
-                # Try alternative naming
-                try:
-                    image = client.images.get('ai-oa-simple:latest')
-                    image_name = 'ai-oa-simple:latest'
-                    print(f"Using existing ai-oa-simple:latest image")
-                except docker.errors.ImageNotFound:
-                    # Fall back to public image
-                    print("No simple image found, using public image...")
-                    image = client.images.get('ectan/ai-oa-public:latest')
-                    image_name = 'ectan/ai-oa-public:latest'
-                    print(f"Using fallback image: {image_name}")
-                    
+            image_name = 'ectan/ai-oa-public:latest'
+            print(f"Using image for instance {instance_id}: {image_name}")
+            image = client.images.get(image_name)
+        except docker.errors.ImageNotFound:
+            print(f"Image {image_name} not found locally. Attempting to pull...")
+            image = client.images.pull(image_name)
+            print(f"Pulled image: {image.tags}")
         except Exception as e:
-            print(f"Error with Docker image: {str(e)}")
+            print(f"Error ensuring Docker image {image_name}: {str(e)}")
             return None
         
         # Ensure the ai-oa-network exists
