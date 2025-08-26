@@ -14,6 +14,28 @@ nginx-proxy (routes subdomains)
 
 ## Quick Start
 
+### On droplet restart:
+1. Ensure docker is running
+```bash
+systemctl enable docker
+systemctl start docker
+docker info | head -n 20
+```
+2. Go to deployment folder
+```bash
+cd ai-oa-docker
+```
+3. Create network for routing and start nginx proxy
+```bash
+docker network create ai-oa-network --driver bridge || echo "network exists"
+docker compose up -d nginx-proxy
+docker ps | grep ai-oa-nginx-proxy | cat
+```
+4. Pull latest docker instance image
+```bash
+docker pull ectan/ai-oa-public:latest
+```
+
 ### 1. Deploy the nginx proxy
 ```bash
 cd docker
