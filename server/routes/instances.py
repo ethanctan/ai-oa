@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, redirect, render_template_string
 from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github
 from controllers.reports_controller import get_report
 from controllers.email_controller import send_test_invitation
-from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url
+from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url, validate_instance_access
 
 # Create a Blueprint for instances routes
 instances_bp = Blueprint('instances', __name__)
@@ -129,9 +129,28 @@ def get_instances():
 @instances_bp.route('/', methods=['POST'])
 def instances_create():
     try:
-        data = request.json
-        instance = create_instance(data)
-        return jsonify(instance)
+        data = request.json or {}
+        # Accept both camelCase and snake_case
+        test_id = data.get('testId') or data.get('test_id')
+        candidate_id = data.get('candidateId') or data.get('candidate_id')
+        company_id = data.get('companyId') or data.get('company_id')
+
+        if not test_id or not candidate_id or not company_id:
+            return jsonify({'error': 'testId, candidateId, and companyId are required'}), 400
+
+        instance = create_instance(test_id, candidate_id, company_id)
+        response_data = {
+            'success': True,
+            'instanceId': instance['id'],
+            'accessUrl': instance.get('access_url'),
+            'instance': {
+                'id': instance['id'],
+                'port': instance.get('port'),
+                'testName': instance.get('test_name', 'Test'),
+                'dockerId': instance.get('docker_instance_id'),
+            }
+        }
+        return jsonify(response_data)
     except Exception as e:
         print(f'Error creating instance: {str(e)}')
         return jsonify({'error': str(e)}), 500
