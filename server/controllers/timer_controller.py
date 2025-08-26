@@ -276,9 +276,6 @@ def set_final_interview_started(instance_id, started=True):
     
     # Update the timer
     timers[instance_id]['finalInterviewStarted'] = started
-    # Ensure type remains 'project' when final starts
-    if timers[instance_id].get('timerType') != 'project':
-        timers[instance_id]['timerType'] = 'project'
     
     # Save to persistent storage
     save_timers()

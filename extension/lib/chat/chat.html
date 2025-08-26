@@ -707,27 +707,6 @@
           console.log(`Project timer end time set to: ${new Date(projectTimerEndTime).toISOString()}`);
         }
         
-        // If the final interview has already started, restore final phase immediately
-        if (data.finalInterviewStarted) {
-          console.log('Final interview already started according to server; restoring final phase UI.');
-          finalInterviewStarted = true;
-          currentInterviewPhase = 'final';
-          // Hide project timer UI and stop its interval if any
-          if (projectTimerInterval) {
-            clearInterval(projectTimerInterval);
-            projectTimerInterval = null;
-          }
-          projectTimerContainer.classList.remove('visible');
-          projectTimerContainer.style.display = 'none';
-          // Hide final-interview button container as we're already in final phase
-          finalInterviewContainer.classList.remove('visible');
-          // Enable chat input for final phase
-          chatInput.disabled = false;
-          chatSubmit.disabled = false;
-          updateInputStateBasedOnPhase();
-          return;
-        }
-
         // Show project timer container - ensure it's visible
         projectTimerContainer.classList.add('visible');
         console.log('Project timer container visibility:', 
@@ -755,6 +734,13 @@
         
         // Show final interview container to allow early submission
         finalInterviewContainer.classList.add('visible');
+        
+        // Check if the final interview has already started
+        if (data.finalInterviewStarted) {
+          console.log('Final interview already started according to server, not starting project timer interval.');
+          // State already handled by updateInputStateBasedOnPhase
+          return;
+        }
         
         // Set up project timer display updates
         updateProjectTimerDisplay(); // Call once immediately
@@ -1442,10 +1428,6 @@
 
       // Final interview button handler
       startFinalInterviewBtn.addEventListener('click', () => {
-        if (finalInterviewStarted) {
-          console.log('Final interview already started; ignoring click.');
-          return;
-        }
         console.log('Start final interview button clicked');
         
         // If we're in the project phase, make sure to handle the transition properly
