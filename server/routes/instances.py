@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, redirect, render_template_string
 from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github
+from controllers.timer_controller import delete_timer, load_timers
 from controllers.reports_controller import get_report
 from controllers.email_controller import send_test_invitation
 from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url
@@ -152,7 +153,13 @@ def get_single_instance(instance_id):
 @instances_bp.route('/<int:instance_id>/stop', methods=['POST'])
 def stop_instance_route(instance_id):
     try:
+        # Stop the container
         result = stop_instance(instance_id)
+        # Also delete timer state for this instance
+        try:
+            delete_timer(instance_id)
+        except Exception as e:
+            print(f"Warning: failed to delete timer for instance {instance_id}: {str(e)}")
         return jsonify(result)
     except Exception as e:
         print(f'Error stopping instance: {str(e)}')
@@ -216,5 +223,3 @@ def send_invitations():
     except Exception as e:
         print(f'Error sending invitations: {str(e)}')
         return jsonify({'error': str(e)}), 500
-
-# TODO: Route for uploading to gh. Should be separate from report submission route

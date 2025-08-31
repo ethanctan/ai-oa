@@ -1015,11 +1015,6 @@ async function getChatHistory(instanceId) {
           history: data.history,
           interviewStarted
         });
-        
-        // If there is chat history, ensure interview is marked as started
-        if (interviewStarted) {
-          await setInterviewStarted(instanceId);
-        }
       }
       
       return data.history;
@@ -1277,6 +1272,37 @@ async function submitWorkspaceContent(instanceId, content) {
     }
 
     console.log(`Project uploaded to GitHub successfully: ${JSON.stringify(githubUploadData)}`);
+
+    // Persist phase marker: final_completed
+    try {
+      const { SERVER_CHAT_URL } = getServerUrls();
+      await fetch(`${SERVER_CHAT_URL}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instanceId,
+          message: { role: 'system', content: 'PHASE_MARKER: final_completed', metadata: { phase: 'final_completed' } }
+        })
+      });
+      console.log('Wrote PHASE_MARKER: final_completed');
+    } catch (e) {
+      console.error(`Failed writing final_completed marker: ${e.message}`);
+    }
+
+    // 3. Wind down the instance to conserve resources
+    try {
+      console.log('Requesting instance shutdown...');
+      const stopResponse = await fetch(`${SERVER_URL}/instances/${instanceId}/stop`, { method: 'POST' });
+      const stopData = await stopResponse.json().catch(() => ({}));
+      if (!stopResponse.ok) {
+        console.error(`Failed to stop instance: ${stopResponse.status} - ${JSON.stringify(stopData)}`);
+      } else {
+        console.log(`Instance stop response: ${JSON.stringify(stopData)}`);
+      }
+    } catch (e) {
+      console.error(`Error calling stop instance: ${e.message}`);
+    }
+
     return githubUploadData; // Contains success and message from backend
 
   } catch (error) {

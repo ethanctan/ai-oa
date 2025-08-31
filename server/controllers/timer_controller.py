@@ -128,6 +128,7 @@ def get_timer_status(instance_id):
     """
     # Convert instance_id to string for dictionary lookup
     instance_id = str(instance_id)
+    print(f"[timer] get_timer_status requested for instance {instance_id}")
     
     timer = timers.get(instance_id)
     if not timer:
@@ -149,6 +150,14 @@ def get_timer_status(instance_id):
     
     if timer['timerType'] == 'project' and 'finalInterviewStarted' not in timer:
         timer['finalInterviewStarted'] = False
+
+    # Scrub stale flags: ensure project/final flags are not set during initial
+    if timer['timerType'] == 'initial':
+        timer['projectStarted'] = False
+        timer['finalInterviewStarted'] = False
+    # Ensure projectStarted is consistent in project type
+    if timer['timerType'] == 'project' and 'projectStarted' not in timer:
+        timer['projectStarted'] = True
     
     timer_status = {
         'instanceId': instance_id,
@@ -284,6 +293,21 @@ def set_final_interview_started(instance_id, started=True):
     save_timers()
     
     return get_timer_status(instance_id)
+
+def delete_timer(instance_id):
+    """Delete timer for an instance (cleanup on stop/create)."""
+    try:
+        instance_id = str(instance_id)
+        if instance_id in timers:
+            del timers[instance_id]
+            save_timers()
+            print(f"[timer] Deleted timer for instance {instance_id}")
+            return True
+        print(f"[timer] No timer to delete for instance {instance_id}")
+        return False
+    except Exception as e:
+        print(f"[timer] Error deleting timer for instance {instance_id}: {str(e)}")
+        return False
 
 # Load timers on module initialization
 load_timers()

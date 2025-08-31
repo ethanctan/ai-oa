@@ -520,6 +520,13 @@
           command: 'startInterview',
           instanceId
         });
+
+        // Persist phase marker: initial_started
+        vscode.postMessage({
+          command: 'saveInterviewPhase',
+          instanceId,
+          phase: 'initial_started'
+        });
         
         // Send an automatic first message
         setTimeout(() => {
@@ -623,8 +630,8 @@
           return;
         }
         
-        // Check if this is a project timer
-        if (data.timerType === 'project') {
+        // Only handle project UI when server reports project timer and final has not started
+        if (data.timerType === 'project' && !finalInterviewStarted) {
           handleProjectTimerStatus(data);
           return;
         }
@@ -636,7 +643,7 @@
         }
         
         // Check if interview is already marked as started
-        if (data.interviewStarted) {
+        if (data.interviewStarted && !finalInterviewStarted) {
           console.log('Interview already started according to server');
           initialInterviewStarted = true;
           
@@ -873,6 +880,54 @@
           return;
         }
         
+        // Reset phase flags
+        initialInterviewStarted = false;
+        initialInterviewEnded = false;
+        projectWorkStarted = false;
+        finalInterviewStarted = false;
+        finalInterviewTrulyEnded = false;
+        currentInterviewPhase = 'initial';
+
+        // Determine phase strictly from system markers in history
+        const determinePhaseFromHistory = (hist) => {
+          let phase = 'initial';
+          hist.forEach((m) => {
+            if (!m || !m.role || !m.content) return;
+            if (m.role === 'system' && typeof m.content === 'string' && m.content.startsWith('PHASE_MARKER:')) {
+              const marker = m.content.replace('PHASE_MARKER:', '').trim();
+              if (marker === 'initial_started') {
+                initialInterviewStarted = true;
+                phase = 'initial';
+              } else if (marker === 'initial_ended') {
+                initialInterviewEnded = true;
+                phase = 'project';
+              } else if (marker === 'project_started') {
+                projectWorkStarted = true;
+                phase = 'project';
+              } else if (marker === 'final_started') {
+                finalInterviewStarted = true;
+                phase = 'final';
+              } else if (marker === 'final_completed') {
+                finalInterviewTrulyEnded = true;
+                phase = 'final_completed';
+              }
+            }
+            // Also respect explicit END assistant messages
+            if (m.role === 'assistant' && typeof m.content === 'string' && m.content.trim() === 'END') {
+              if (!finalInterviewStarted) {
+                initialInterviewEnded = true;
+                phase = 'project';
+              } else {
+                finalInterviewTrulyEnded = true;
+                phase = 'final_completed';
+              }
+            }
+          });
+          currentInterviewPhase = phase === 'final_completed' ? 'final' : phase;
+        };
+
+        determinePhaseFromHistory(history);
+
         // Debug log entire history for diagnosis
         console.log('Full history object:', JSON.stringify(history));
         
@@ -1209,6 +1264,13 @@
           if (messageText.trim() === 'END') {
             console.log('AI has decided to end the initial interview');
             appendMessage('system', 'Initial interview complete. Beginning project phase...', true);
+
+            // Persist phase marker: initial_ended
+            vscode.postMessage({
+              command: 'saveInterviewPhase',
+              instanceId,
+              phase: 'initial_ended'
+            });
             
             // Start the project phase
             startProjectWork();
@@ -1616,7 +1678,7 @@
           // Hide project UI elements
           projectTimerContainer.classList.remove('visible');
           finalInterviewContainer.classList.remove('visible');
-        } else if (initialInterviewStarted && !initialInterviewEnded) {
+        } else if (initialInterviewStarted && !initialInterviewEnded && !finalInterviewStarted) {
           // Initial interview - enable chat
           console.log('ENABLING CHAT INPUT: In initial interview phase');
           chatInput.disabled = false;

@@ -7,6 +7,7 @@ import tempfile # For temporary directories and files
 import zipfile # For handling zip files
 from pathlib import Path
 from database.db_postgresql import get_connection
+from controllers.timer_controller import delete_timer, start_instance_timer
 from controllers.timer_controller import start_instance_timer
 
 # Base directory for project repositories
@@ -338,6 +339,13 @@ def create_instance(test_id, candidate_id, company_id):
         instance = dict(cursor.fetchone())
         print(f"Retrieved instance details: {instance}")
         
+        # Reset any stale timer state for this instance id
+        try:
+            if delete_timer(instance_id):
+                print(f"Deleted stale timer for instance {instance_id} before container creation")
+        except Exception as e:
+            print(f"Warning: could not delete stale timer for instance {instance_id}: {str(e)}")
+
         # Create the Docker container
         try:
             docker_info = create_docker_container(instance_id, test_id, candidate_id, company_id)
@@ -350,6 +358,15 @@ def create_instance(test_id, candidate_id, company_id):
                 )
                 conn.commit()
                 print(f"Updated instance with Docker info: {docker_info}")
+                # Initialize initial timer if enabled for the test
+                try:
+                    enable_initial = bool(test.get('enable_timer', 1))
+                    if enable_initial:
+                        initial_minutes = int(test.get('timer_duration', 10))
+                        start_instance_timer(instance_id, duration=initial_minutes * 60, timer_type='initial')
+                        print(f"Initialized initial timer for instance {instance_id} with {initial_minutes} minutes")
+                except Exception as e:
+                    print(f"Warning: could not initialize initial timer for instance {instance_id}: {str(e)}")
             else:
                 print("No Docker info returned from create_docker_container")
         except Exception as e:
