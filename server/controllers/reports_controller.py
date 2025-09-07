@@ -43,20 +43,8 @@ def get_report(instance_id):
             return dict(report)
         
         # No report exists yet, generate a placeholder
-        # In a real application, this would actually generate a report based on code and chat
         placeholder_content = f"""
-Assessment Report for Test: {instance['test_name']}
-
-This is a placeholder report. In a production environment, this would be a
-detailed assessment of the candidate's code and interview responses.
-
-The assessment would be based on criteria including:
-- Code quality and organization
-- Problem-solving approach
-- Communication skills
-- Technical understanding
-
-Time of assessment: {time.strftime('%Y-%m-%d %H:%M:%S')}
+        Report not found.
         """
         
         # Insert the placeholder report

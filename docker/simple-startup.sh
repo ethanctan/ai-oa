@@ -25,7 +25,7 @@ clone_repo_if_needed() {
                 else
                     REPO_URL_NO_PROTOCOL="$GITHUB_REPO"
                 fi
-                AUTHENTICATED_URL="https://${GITHUB_TOKEN}@${REPO_URL_NO_PROTOCOL}"
+                AUTHENTICATED_URL="https://x-access-token:${GITHUB_TOKEN}@${REPO_URL_NO_PROTOCOL}"
                 
                 if git clone "$AUTHENTICATED_URL" temp_repo; then
                     echo "✅ Successfully cloned repository with token"

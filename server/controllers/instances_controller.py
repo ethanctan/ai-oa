@@ -115,7 +115,7 @@ async def clone_repo(repo_url, target_folder, token=None, exec_fn=None):
         else:
             repo_url_without_protocol = repo_url
         
-        command = f"git clone https://{token}@{repo_url_without_protocol} {target_folder}"
+        command = f"git clone https://x-access-token:{token}@{repo_url_without_protocol} {target_folder}"
     else:
         command = f"git clone {repo_url} {target_folder}"
     
@@ -608,10 +608,10 @@ def upload_project_to_github(instance_id, file_storage):
                 repo_url_for_clone = target_repo_url
                 if target_repo_token:
                     if repo_url_for_clone.startswith('https://'):
-                        repo_url_for_clone = f"https://{target_repo_token}@{repo_url_for_clone[8:]}"
+                        repo_url_for_clone = f"https://x-access-token:{target_repo_token}@{repo_url_for_clone[8:]}"
                     else:
                         # Fallback or handle other protocols if necessary, for now assume https
-                        repo_url_for_clone = f"https://{target_repo_token}@{repo_url_for_clone}"
+                        repo_url_for_clone = f"https://x-access-token:{target_repo_token}@{repo_url_for_clone}"
                 
                 try:
                     exec_command(f"git clone --depth 1 {repo_url_for_clone} {str(clone_dir_path)}")
@@ -654,10 +654,10 @@ def upload_project_to_github(instance_id, file_storage):
                     push_url = target_repo_url
                     if target_repo_token:
                         if push_url.startswith('https://'):
-                            push_url = f"https://{target_repo_token}@{push_url[8:]}"
+                            push_url = f"https://x-access-token:{target_repo_token}@{push_url[8:]}"
                         else:
                             # Assuming https, adjust if other protocols are used for target_repo_url
-                            push_url = f"https://{target_repo_token}@{push_url}" 
+                            push_url = f"https://x-access-token:{target_repo_token}@{push_url}"
                     
                     push_command = f"git push {push_url} {current_branch}"
                     exec_command(push_command)
