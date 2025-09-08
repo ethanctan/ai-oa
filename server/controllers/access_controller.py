@@ -101,8 +101,12 @@ def validate_instance_access(token, instance_id):
         conn.close()
 
 def get_instance_url(port, instance_id, access_token):
-    """Get the instance URL from port with secure access token"""
-    return f"http://167.99.52.130:{port}/instance/{instance_id}?access_token={access_token}"
+    """Get the instance URL from port with secure access token.
+    Updated to direct to the folder param so code-server opens /home/coder/project on first load.
+    """
+    # For production, instances are routed via subdomains; however this legacy URL remains for direct access.
+    # Append folder query param to ensure initial workspace opens even if session restore is empty.
+    return f"http://167.99.52.130:{port}/instance/{instance_id}?access_token={access_token}&folder=/home/coder/project"
 
 def validate_access_token_for_redirect(token):
     """Validate an access token for redirect without marking it as used"""
