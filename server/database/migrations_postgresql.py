@@ -48,6 +48,9 @@ def run_migrations():
         
         # Add chat_history table
         create_chat_history_table(cursor)
+
+        # Add telemetry_events table
+        create_telemetry_events_table(cursor)
         
         conn.close()
         logger.info("✅ PostgreSQL migrations completed successfully.")
@@ -175,11 +178,32 @@ def create_chat_history_table(cursor):
     """)
     logger.info("✅ Added chat_history table")
 
+# Add telemetry_events table
+def create_telemetry_events_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS telemetry_events (
+            id SERIAL PRIMARY KEY,
+            instance_id INTEGER NOT NULL REFERENCES test_instances(id) ON DELETE CASCADE,
+            session_id VARCHAR(128) NOT NULL,
+            event_type VARCHAR(64) NOT NULL,
+            event_ts_ms BIGINT,
+            metadata JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_telemetry_events_instance ON telemetry_events(instance_id);
+        CREATE INDEX IF NOT EXISTS idx_telemetry_events_type ON telemetry_events(event_type);
+        CREATE INDEX IF NOT EXISTS idx_telemetry_events_created ON telemetry_events(created_at);
+        """
+    )
+    logger.info("✅ Added telemetry_events table")
+
 # List of all migrations
 migrations = [
     # ... existing migrations ...
     create_instance_access_tokens_table,
     create_chat_history_table,
+    create_telemetry_events_table,
 ]
 
 if __name__ == "__main__":

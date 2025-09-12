@@ -431,6 +431,20 @@
       let currentInterviewPhase = 'initial'; // 'initial', 'project', or 'final'
       let finalInterviewTrulyEnded = false; // Flag for permanent disable after final END
 
+      // Telemetry buffer
+      const telemetry = { buffer: [], lastFlush: Date.now() };
+      function pushEvent(type, metadata) {
+        telemetry.buffer.push({ type, ts: Date.now(), metadata });
+        if (telemetry.buffer.length >= 15 || (Date.now() - telemetry.lastFlush) > 10000) {
+          flushTelemetry();
+        }
+      }
+      function flushTelemetry() {
+        if (telemetry.buffer.length === 0) return;
+        vscode.postMessage({ command: 'telemetryBatch', events: telemetry.buffer.splice(0, telemetry.buffer.length) });
+        telemetry.lastFlush = Date.now();
+      }
+
       // Immediately request environment prompts
       vscode.postMessage({ command: 'getEnvironmentPrompts' });
 
@@ -1431,6 +1445,7 @@
         
         // Add user message to chat UI and history
         appendMessage('user', messageText);
+        pushEvent('submit', { target: 'chat-input', length: messageText.length });
         
         // Log the state of chatHistory
         console.log(`Chat history after adding message. Length: ${chatHistory.length}`);
@@ -1495,10 +1510,43 @@
         // Clear input
         chatInput.value = '';
       });
+
+      // Global paste/copy/cut and focus/visibility telemetry inside webview
+      document.addEventListener('paste', (e) => {
+        try {
+          const items = e.clipboardData?.items || [];
+          let size = 0; let types = [];
+          for (let i = 0; i < items.length; i++) {
+            const it = items[i];
+            types.push(it.type);
+          }
+          const text = e.clipboardData?.getData('text') || '';
+          size = (text && typeof text === 'string') ? text.length : 0;
+          const active = document.activeElement?.id || document.activeElement?.tagName || 'unknown';
+          pushEvent('webviewPaste', { target: active, types, length: size, isTrusted: e.isTrusted });
+        } catch(err) {}
+      });
+      document.addEventListener('copy', (e) => {
+        const sel = window.getSelection();
+        const len = sel ? (sel.toString() || '').length : 0;
+        const active = document.activeElement?.id || document.activeElement?.tagName || 'unknown';
+        pushEvent('webviewCopy', { target: active, length: len, isTrusted: e.isTrusted });
+      });
+      document.addEventListener('cut', (e) => {
+        const sel = window.getSelection();
+        const len = sel ? (sel.toString() || '').length : 0;
+        const active = document.activeElement?.id || document.activeElement?.tagName || 'unknown';
+        pushEvent('webviewCut', { target: active, length: len, isTrusted: e.isTrusted });
+      });
+      window.addEventListener('focus', () => pushEvent('webviewFocus', { focused: true }));
+      window.addEventListener('blur', () => pushEvent('webviewFocus', { focused: false }));
+      document.addEventListener('visibilitychange', () => pushEvent('webviewVisibility', { state: document.visibilityState }));
+      setInterval(() => flushTelemetry(), 10000);
       
       // Start interview button handler
       startInterviewBtn.addEventListener('click', () => {
         console.log('Start interview button clicked');
+        pushEvent('click', { target: 'start-interview' });
         startInitialInterview();
       });
 
@@ -1509,6 +1557,7 @@
           return;
         }
         console.log('Start final interview button clicked');
+        pushEvent('click', { target: 'start-final-interview' });
         
         // If we're in the project phase, make sure to handle the transition properly
         if (currentInterviewPhase === 'project') {

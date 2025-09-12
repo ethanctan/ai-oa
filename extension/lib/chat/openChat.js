@@ -4,6 +4,8 @@ const vscode = require('vscode');
 const { getChatHtml } = require('./getChatHtml');
 const { getWorkspaceContent } = require('../context/getWorkspaceContent');
 const JSZip = require('jszip'); // Added for zipping files
+const TELEMETRY_BATCH_SIZE = 20;
+let telemetryQueue = [];
 
 // Function to get SERVER_URL from environment variables with fallback
 function getServerUrl() {
@@ -20,6 +22,7 @@ function getServerUrls() {
   const SERVER_URL = getServerUrl();
   return {
     SERVER_URL,
+    SERVER_TELEMETRY_URL: `${SERVER_URL}/telemetry`,
     SERVER_TIMER_START_URL: `${SERVER_URL}/timer/start`,
     SERVER_TIMER_STATUS_URL: `${SERVER_URL}/timer/status`,
     SERVER_TIMER_INTERVIEW_STARTED_URL: `${SERVER_URL}/timer/interview-started`,
@@ -117,6 +120,26 @@ function openChat() {
 
   // Listen for messages from the webview.
   global.chatPanel.webview.onDidReceiveMessage(async message => {
+    // Telemetry passthrough from webview
+    if (message.command === 'telemetryBatch') {
+      try {
+        const { SERVER_TELEMETRY_URL } = getServerUrls();
+        const sessionId = (global.__aioa_sessionId || `vscode-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
+        global.__aioa_sessionId = sessionId;
+        const batch = Array.isArray(message.events) ? message.events : [];
+        telemetryQueue.push(...batch);
+        if (telemetryQueue.length >= TELEMETRY_BATCH_SIZE) {
+          const send = telemetryQueue.splice(0, telemetryQueue.length);
+          await fetch(SERVER_TELEMETRY_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ instanceId, sessionId, events: send })
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+      return;
+    }
     console.log(`Received message from webview: ${message.command}`);
     
     // Get server URLs dynamically

@@ -18,6 +18,18 @@
       {
         "command": "ai-oa.openChat",
         "title": "AI OA: Open Interviewer"
+      },
+      {
+        "command": "ai-oa.telemetry.paste",
+        "title": "AI OA: Telemetry Paste Wrapper"
+      },
+      {
+        "command": "ai-oa.telemetry.copy",
+        "title": "AI OA: Telemetry Copy Wrapper"
+      },
+      {
+        "command": "ai-oa.telemetry.cut",
+        "title": "AI OA: Telemetry Cut Wrapper"
       }
     ],
     "viewsContainers": {
@@ -36,7 +48,74 @@
           "name": "Interviewer"
         }
       ]
-    }
+    },
+    "keybindings": [
+      {
+        "command": "ai-oa.telemetry.paste",
+        "key": "cmd+v",
+        "mac": "cmd+v",
+        "when": "editorTextFocus",
+        "args": { "target": "editor" }
+      },
+      {
+        "command": "ai-oa.telemetry.paste",
+        "key": "ctrl+v",
+        "when": "editorTextFocus && !isMac",
+        "args": { "target": "editor" }
+      },
+      {
+        "command": "ai-oa.telemetry.paste",
+        "key": "cmd+v",
+        "mac": "cmd+v",
+        "when": "terminalFocus",
+        "args": { "target": "terminal" }
+      },
+      {
+        "command": "ai-oa.telemetry.paste",
+        "key": "ctrl+v",
+        "when": "terminalFocus && !isMac",
+        "args": { "target": "terminal" }
+      },
+      {
+        "command": "ai-oa.telemetry.copy",
+        "key": "cmd+c",
+        "mac": "cmd+c",
+        "when": "editorTextFocus",
+        "args": { "target": "editor" }
+      },
+      {
+        "command": "ai-oa.telemetry.copy",
+        "key": "ctrl+c",
+        "when": "editorTextFocus && !isMac",
+        "args": { "target": "editor" }
+      },
+      {
+        "command": "ai-oa.telemetry.copy",
+        "key": "cmd+c",
+        "mac": "cmd+c",
+        "when": "terminalFocus",
+        "args": { "target": "terminal" }
+      },
+      {
+        "command": "ai-oa.telemetry.copy",
+        "key": "ctrl+c",
+        "when": "terminalFocus && !isMac",
+        "args": { "target": "terminal" }
+      },
+      {
+        "command": "ai-oa.telemetry.cut",
+        "key": "cmd+x",
+        "mac": "cmd+x",
+        "when": "editorTextFocus",
+        "args": { "target": "editor" }
+      },
+      {
+        "command": "ai-oa.telemetry.cut",
+        "key": "ctrl+x",
+        "when": "editorTextFocus && !isMac",
+        "args": { "target": "editor" }
+      }
+    ]
   },
   "scripts": {
     "lint": "eslint .",

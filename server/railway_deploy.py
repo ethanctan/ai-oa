@@ -182,6 +182,13 @@ try:
     except Exception as e:
         logger.error(f"❌ PRODUCTION: Failed to import auth_bp: {str(e)}")
         auth_bp = None
+
+    try:
+        from routes.telemetry import telemetry_bp
+        logger.info("✅ PRODUCTION: telemetry_bp imported successfully")
+    except Exception as e:
+        logger.error(f"❌ PRODUCTION: Failed to import telemetry_bp: {str(e)}")
+        telemetry_bp = None
     
     # Register blueprints if they were imported successfully
     logger.info("🔗 PRODUCTION: Registering blueprints with app...")
@@ -213,6 +220,10 @@ try:
     if auth_bp:
         app.register_blueprint(auth_bp, url_prefix='/auth')
         logger.info("✅ PRODUCTION: auth_bp registered")
+    
+    if telemetry_bp:
+        app.register_blueprint(telemetry_bp, url_prefix='/telemetry')
+        logger.info("✅ PRODUCTION: telemetry_bp registered")
     
     # Log all registered routes
     logger.info("📋 PRODUCTION: All registered routes:")

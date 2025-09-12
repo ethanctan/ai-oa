@@ -9,6 +9,7 @@ from routes.instances import instances_bp
 from routes.timer import timer_bp
 from routes.reports import reports_bp
 from routes.auth import auth_bp
+from routes.telemetry import telemetry_bp
 from database.db_postgresql import init_database, test_connection
 from database.migrations_postgresql import run_migrations
 import logging
@@ -49,6 +50,7 @@ app.register_blueprint(instances_bp, url_prefix='/instances')
 app.register_blueprint(timer_bp, url_prefix='/timer')
 app.register_blueprint(reports_bp, url_prefix='/reports')
 app.register_blueprint(auth_bp, url_prefix='/auth')
+app.register_blueprint(telemetry_bp, url_prefix='/telemetry')
 logger.info("✅ STARTUP: All blueprints registered")
 
 # Log environment variables (safely)
