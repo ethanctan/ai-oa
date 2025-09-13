@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify, redirect, render_template_string
-from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github
+from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github, get_report, create_report
 from controllers.timer_controller import delete_timer, load_timers
 from controllers.reports_controller import get_report
 from controllers.email_controller import send_test_invitations
-from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url
+from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url, validate_instance_access
 
 # Create a Blueprint for instances routes
 instances_bp = Blueprint('instances', __name__)
