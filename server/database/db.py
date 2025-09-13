@@ -2,6 +2,10 @@ import sqlite3
 import os
 from pathlib import Path
 
+'''
+Deprecated. This is the old SQLite local db
+'''
+
 # Database file path
 DB_PATH = Path(__file__).parent / 'data.sqlite'
 
