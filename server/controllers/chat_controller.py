@@ -242,5 +242,71 @@ async def get_chat_response(messages):
         
         raise Exception(f"Error calling Azure OpenAI: {str(e)}")
 
+def create_report_completion(messages, report_schema):
+    """
+    Calls the Azure OpenAI API to get a chat response.
+    Args:
+        messages (list): List of message dictionaries.
+          Expected format:
+            [
+              { "role": "developer", "content": "<System prompt and report generation instructions>" },
+              { "role": "user", "content": "<user input data: codebase and chatlogs>" },
+            ]
+        report_schema: The report schema.
+    Returns:
+        dict: The generated report.
+    """
+    
+    try:
+        print(f"Creating OpenAI client with endpoint: {endpoint}, api_version: {api_version}")
+        
+        # Create an AzureOpenAI client with the given configuration.
+        # Use a try-except block to handle both newer and older versions of the API
+        try:
+            # Newer version API approach
+            client = AzureOpenAI(
+                api_key=api_key,
+                api_version=api_version,
+                azure_endpoint=endpoint
+            )
+        except TypeError as e:
+            print(f"TypeError creating OpenAI client: {e}. Trying alternative initialization...")
+            # Fallback for older versions
+            from openai import OpenAI
+            client = OpenAI(
+                api_key=api_key
+            )
+
+        # Print the model being used for debugging
+        print(f"Using deployment model: {deployment}")
+
+
+        # Call the chat completions API with the provided messages.
+        result = client.beta.chat.completions.parse(
+            model=deployment,
+            messages=messages,
+            response_format=report_schema,
+            # Pass additional parameters such as temperature, top_p, max_tokens if needed
+        )
+        print(result.model_dump_json(indent=2))
+
+
+        # Check if the result contains choices and return the first reply.
+        if result.choices and len(result.choices) > 0:
+            response = result.choices[0].message.parsed
+            print("Successfully received response from OpenAI")
+            return response
+        else:
+            raise ValueError("No choices returned from Azure OpenAI")
+    except Exception as e:
+        print(f"Detailed error from OpenAI: {str(e)}")
+        
+        # Return a fallback response for development/testing
+        if not endpoint or not api_key:
+            print("Using fallback response due to missing OpenAI credentials")
+            return "I'm a simulated AI response since no valid OpenAI credentials were provided. In a real environment, I would respond to your message based on the content provided."
+        
+        raise Exception(f"Error calling Azure OpenAI: {str(e)}")
+
 # Load chat histories on module initialization
 load_chat_histories() 
