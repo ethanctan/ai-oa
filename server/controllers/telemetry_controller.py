@@ -1,5 +1,6 @@
 from database.db_postgresql import get_connection
 from typing import List, Dict, Any
+from psycopg2.extras import Json
 
 
 def insert_telemetry_events(instance_id: int, session_id: str, events: List[Dict[str, Any]]):
@@ -16,17 +17,25 @@ def insert_telemetry_events(instance_id: int, session_id: str, events: List[Dict
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        rows = [
-            (
-                instance_id,
-                session_id,
-                e.get('type'),
-                e.get('ts'),
-                e.get('metadata', {})
+        rows = []
+        for e in events:
+            if not isinstance(e, dict) or not e.get('type'):
+                continue
+            ts_val = e.get('ts')
+            try:
+                ts_val = int(ts_val) if ts_val is not None else None
+            except Exception:
+                ts_val = None
+            metadata = e.get('metadata') or {}
+            rows.append(
+                (
+                    instance_id,
+                    session_id,
+                    e.get('type'),
+                    ts_val,
+                    Json(metadata)
+                )
             )
-            for e in events
-            if isinstance(e, dict) and e.get('type')
-        ]
         if not rows:
             return 0
 
