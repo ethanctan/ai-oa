@@ -196,6 +196,29 @@ def upload_to_github_route(instance_id):
         print(f'Error uploading to GitHub: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
+# GET/POST /instances/:id/report - Get or create a report for an instance
+@instances_bp.route('/<int:instance_id>/report', methods=['GET', 'POST'])
+def instance_report(instance_id):
+    if request.method == 'GET':
+        try:
+            report = get_report(instance_id)
+            return jsonify(report)
+        except Exception as e:
+            print(f'Error getting report: {str(e)}')
+            return jsonify({'error': str(e)}), 500
+    else:  # POST
+        try:
+            data = request.json
+            print(f'Received report create request: {data}')
+            if not data:
+                return jsonify({'error': 'Instance content is required to generate a report'}), 400
+            workspace_content = data['workspaceContent']
+            report = create_report(instance_id, workspace_content)
+            return jsonify(report)
+        except Exception as e:
+            print(f'Error creating report: {str(e)}')
+            return jsonify({'error': str(e)}), 500
+
 # POST /instances/send-invitations - Send test invitations via email
 @instances_bp.route('/send-invitations', methods=['POST'])
 def send_invitations():
