@@ -7,6 +7,7 @@ import secrets
 import hashlib
 from database.db_postgresql import get_connection
 from controllers.instances_controller import create_instance
+from typing import List
 
 """
 More routes under /instances.
@@ -14,7 +15,7 @@ Placed in a separate file for better organization.
 """
 
 def send_test_invitation(test_id, candidate_id, company_id):
-    """Send a test invitation email to a candidate"""
+    """Send a test invitation email to a candidate (single)."""
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -60,6 +61,35 @@ def send_test_invitation(test_id, candidate_id, company_id):
     except Exception as e:
         conn.rollback()
         raise e
+    finally:
+        conn.close()
+
+
+def send_test_invitations(test_id: int, candidate_ids: List[int], deadline: str = None):
+    """Send invitations to multiple candidates; returns summary with successes/errors.
+
+    Uses the test's company_id for instance creation.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    results = { 'success': [], 'errors': [] }
+    try:
+        # Fetch test once to get company_id and details
+        cursor.execute('SELECT * FROM tests WHERE id = %s', (test_id,))
+        test = cursor.fetchone()
+        if not test:
+            raise ValueError('Test not found')
+        company_id = test.get('company_id') if isinstance(test, dict) else test['company_id']
+
+        for cid in candidate_ids:
+            try:
+                # Ensure integer id
+                candidate_id = int(cid)
+                instance = send_test_invitation(test_id, candidate_id, company_id)
+                results['success'].append({ 'candidateId': candidate_id, 'instanceId': instance['id'] })
+            except Exception as e:
+                results['errors'].append({ 'candidateId': cid, 'error': str(e) })
+        return results
     finally:
         conn.close()
 

@@ -56,22 +56,72 @@ function activate(context) {
     enqueueTelemetry({ type, ts: now(), metadata });
   }
 
+  // Heuristic paste detection in editors (independent of keybindings)
+  context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((event) => {
+    try {
+      const doc = event.document;
+      for (const change of event.contentChanges) {
+        const inserted = change.text || '';
+        const isPureInsert = change.rangeLength === 0 && inserted.length > 0;
+        const looksLikePaste = isPureInsert && (inserted.includes('\n') || inserted.length >= 20);
+        if (looksLikePaste) {
+          recordEvent('pasteHeuristic', {
+            target: 'editor',
+            file: doc?.uri?.toString() || 'unknown',
+            length: inserted.length,
+            content: inserted,
+            position: { line: change.range.start.line, character: change.range.start.character }
+          });
+        }
+      }
+    } catch {}
+  }));
+
+  // Clipboard polling fallback (log on any clipboard change)
+  let lastClipboardText = undefined;
+  const CLIPBOARD_POLL_MS = 750;
+  const clipboardPoll = setInterval(async () => {
+    try {
+      const text = await vscode.env.clipboard.readText();
+      if (text !== lastClipboardText) {
+        lastClipboardText = text;
+        recordEvent('copy', { target: 'clipboardPoll', content: text, length: (text || '').length });
+      }
+    } catch {}
+  }, CLIPBOARD_POLL_MS);
+  context.subscriptions.push({ dispose: () => clearInterval(clipboardPoll) });
+
   // Wrapped paste/copy/cut commands: forward to default after logging
   context.subscriptions.push(vscode.commands.registerCommand('ai-oa.telemetry.paste', async (args) => {
-    recordEvent('paste', { target: args?.target || 'unknown' });
+    try {
+      const text = await vscode.env.clipboard.readText();
+      recordEvent('paste', { target: args?.target || 'unknown', content: text, length: (text || '').length });
+    } catch {
+      recordEvent('paste', { target: args?.target || 'unknown' });
+    }
     try { await vscode.commands.executeCommand('editor.action.clipboardPasteAction'); } catch {}
     try { await vscode.commands.executeCommand('workbench.action.terminal.paste'); } catch {}
   }));
 
   context.subscriptions.push(vscode.commands.registerCommand('ai-oa.telemetry.copy', async (args) => {
-    recordEvent('copy', { target: args?.target || 'unknown' });
     try { await vscode.commands.executeCommand('editor.action.clipboardCopyAction'); } catch {}
     try { await vscode.commands.executeCommand('workbench.action.terminal.copySelection'); } catch {}
+    try {
+      const text = await vscode.env.clipboard.readText();
+      recordEvent('copy', { target: args?.target || 'unknown', content: text, length: (text || '').length });
+    } catch {
+      recordEvent('copy', { target: args?.target || 'unknown' });
+    }
   }));
 
   context.subscriptions.push(vscode.commands.registerCommand('ai-oa.telemetry.cut', async (args) => {
-    recordEvent('cut', { target: args?.target || 'unknown' });
     try { await vscode.commands.executeCommand('editor.action.clipboardCutAction'); } catch {}
+    try {
+      const text = await vscode.env.clipboard.readText();
+      recordEvent('cut', { target: args?.target || 'unknown', content: text, length: (text || '').length });
+    } catch {
+      recordEvent('cut', { target: args?.target || 'unknown' });
+    }
   }));
 
   // Window focus activity

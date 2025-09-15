@@ -1515,28 +1515,24 @@
       document.addEventListener('paste', (e) => {
         try {
           const items = e.clipboardData?.items || [];
-          let size = 0; let types = [];
-          for (let i = 0; i < items.length; i++) {
-            const it = items[i];
-            types.push(it.type);
-          }
+          let types = [];
+          for (let i = 0; i < items.length; i++) { types.push(items[i].type); }
           const text = e.clipboardData?.getData('text') || '';
-          size = (text && typeof text === 'string') ? text.length : 0;
           const active = document.activeElement?.id || document.activeElement?.tagName || 'unknown';
-          pushEvent('webviewPaste', { target: active, types, length: size, isTrusted: e.isTrusted });
+          pushEvent('webviewPaste', { target: active, types, length: text.length, content: text, isTrusted: e.isTrusted });
         } catch(err) {}
       });
       document.addEventListener('copy', (e) => {
         const sel = window.getSelection();
-        const len = sel ? (sel.toString() || '').length : 0;
+        const content = sel ? (sel.toString() || '') : '';
         const active = document.activeElement?.id || document.activeElement?.tagName || 'unknown';
-        pushEvent('webviewCopy', { target: active, length: len, isTrusted: e.isTrusted });
+        pushEvent('webviewCopy', { target: active, length: content.length, content, isTrusted: e.isTrusted });
       });
       document.addEventListener('cut', (e) => {
         const sel = window.getSelection();
-        const len = sel ? (sel.toString() || '').length : 0;
+        const content = sel ? (sel.toString() || '') : '';
         const active = document.activeElement?.id || document.activeElement?.tagName || 'unknown';
-        pushEvent('webviewCut', { target: active, length: len, isTrusted: e.isTrusted });
+        pushEvent('webviewCut', { target: active, length: content.length, content, isTrusted: e.isTrusted });
       });
       window.addEventListener('focus', () => pushEvent('webviewFocus', { focused: true }));
       window.addEventListener('blur', () => pushEvent('webviewFocus', { focused: false }));

@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, redirect, render_template_string
 from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github
 from controllers.timer_controller import delete_timer, load_timers
 from controllers.reports_controller import get_report
-from controllers.email_controller import send_test_invitation
+from controllers.email_controller import send_test_invitations
 from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url
 
 # Create a Blueprint for instances routes
@@ -211,8 +211,8 @@ def send_invitations():
         if not candidate_ids:
             return jsonify({'error': 'At least one candidate ID is required'}), 400
         
-        # Send invitations
-        results = send_test_invitation(test_id, candidate_ids, deadline)
+        # Send invitations (candidate_ids is a list of ints)
+        results = send_test_invitations(test_id, candidate_ids, deadline)
         
         return jsonify({
             'success': True,
