@@ -358,15 +358,7 @@ def create_instance(test_id, candidate_id, company_id):
                 )
                 conn.commit()
                 print(f"Updated instance with Docker info: {docker_info}")
-                # Initialize initial timer if enabled for the test
-                try:
-                    enable_initial = bool(test.get('enable_timer', 1))
-                    if enable_initial:
-                        initial_minutes = int(test.get('timer_duration', 10))
-                        start_instance_timer(instance_id, duration=initial_minutes * 60, timer_type='initial')
-                        print(f"Initialized initial timer for instance {instance_id} with {initial_minutes} minutes")
-                except Exception as e:
-                    print(f"Warning: could not initialize initial timer for instance {instance_id}: {str(e)}")
+                # Do not start initial timer here; start after extension loads/consent screen redirect
             else:
                 print("No Docker info returned from create_docker_container")
         except Exception as e:
