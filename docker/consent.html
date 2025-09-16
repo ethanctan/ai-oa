@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pre-Assessment Consent</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; background:#0b0f17; color:#e6e6e6; margin:0; height:100vh; display:flex; align-items:center; justify-content:center; }
+    .card { background:#121826; border:1px solid #1f2a44; border-radius:12px; padding:24px; max-width:640px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,0.3); }
+    h1 { margin:0 0 8px; font-size:20px; }
+    p { color:#aeb8c4; line-height:1.5; }
+    .section { margin-top:16px; }
+    .btn { appearance:none; border:0; background:#2563eb; color:white; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600; }
+    .btn:disabled { background:#3b4252; cursor:not-allowed; }
+    .row { display:flex; gap:10px; align-items:center; }
+    code { background:#0f172a; color:#e5e7eb; padding:2px 6px; border-radius:6px; }
+    .ok { color:#16a34a; }
+    .warn { color:#f59e0b; }
+    .err { color:#ef4444; }
+  </style>
+  <script>
+    async function requestClipboard() {
+      try {
+        // Write and read to trigger permission prompt where applicable
+        await navigator.clipboard.writeText("test");
+        const txt = await navigator.clipboard.readText();
+        document.getElementById('clipboardStatus').textContent = 'granted';
+        document.getElementById('clipboardStatus').className = 'ok';
+        maybeEnable();
+      } catch (e) {
+        document.getElementById('clipboardStatus').textContent = 'denied';
+        document.getElementById('clipboardStatus').className = 'err';
+      }
+    }
+
+    async function requestScreen() {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        // immediately stop to avoid sharing preview
+        stream.getTracks().forEach(t => t.stop());
+        document.getElementById('screenStatus').textContent = 'granted';
+        document.getElementById('screenStatus').className = 'ok';
+        maybeEnable();
+      } catch (e) {
+        document.getElementById('screenStatus').textContent = 'denied';
+        document.getElementById('screenStatus').className = 'err';
+      }
+    }
+
+    function setConsentCookie() {
+      const ret = new URLSearchParams(window.location.search).get('return') || '/?folder=/home/coder/project';
+      // Set cookie for proxy to detect, 30 minutes
+      const expires = new Date(Date.now() + 30*60*1000).toUTCString();
+      document.cookie = 'aoa_consent=1; Path=/; Expires=' + expires + '; SameSite=None; Secure';
+      window.location.href = ret;
+    }
+
+    function maybeEnable() {
+      const clip = document.getElementById('clipboardStatus').textContent === 'granted';
+      const scr = document.getElementById('screenStatus').textContent === 'granted';
+      document.getElementById('continueBtn').disabled = !(clip && scr);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      maybeEnable();
+    });
+  </script>
+</head>
+<body>
+  <div class="card">
+    <h1>Before you begin</h1>
+    <p>To start your assessment, please grant the following permissions. This allows us to validate proper assessment conditions.</p>
+
+    <div class="section">
+      <div class="row">
+        <strong>Clipboard Access:</strong>
+        <span id="clipboardStatus" class="warn">pending</span>
+      </div>
+      <p>We log copy/paste activity to ensure assessment integrity.</p>
+      <button class="btn" onclick="requestClipboard()">Grant Clipboard Access</button>
+    </div>
+
+    <div class="section">
+      <div class="row">
+        <strong>Screen Recording Permission:</strong>
+        <span id="screenStatus" class="warn">pending</span>
+      </div>
+      <p>Your browser will prompt you to allow screen recording (no recording is stored; permission is required by policy).</p>
+      <button class="btn" onclick="requestScreen()">Grant Screen Permission</button>
+    </div>
+
+    <div class="section">
+      <button id="continueBtn" class="btn" disabled onclick="setConsentCookie()">Continue to Assessment</button>
+    </div>
+
+    <p class="section"><small>If a prompt does not appear, your browser may have blocked popups. Try the buttons again.</small></p>
+  </div>
+</body>
+</html>
+

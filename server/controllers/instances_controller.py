@@ -358,7 +358,8 @@ def create_instance(test_id, candidate_id, company_id):
                 )
                 conn.commit()
                 print(f"Updated instance with Docker info: {docker_info}")
-                # Do not start initial timer here; start after extension loads/consent screen redirect
+                # Do not auto-start initial timer; the client will explicitly start it on first load
+                print(f"Initial timer will be started explicitly by the client for instance {instance_id}")
             else:
                 print("No Docker info returned from create_docker_container")
         except Exception as e:

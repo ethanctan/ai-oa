@@ -184,12 +184,6 @@ try:
         auth_bp = None
 
     try:
-        from routes.welcome import welcome_bp
-        logger.info("✅ PRODUCTION: welcome_bp imported successfully")
-    except Exception as e:
-        logger.error(f"❌ PRODUCTION: Failed to import welcome_bp: {str(e)}")
-        welcome_bp = None
-    try:
         from routes.telemetry import telemetry_bp
         logger.info("✅ PRODUCTION: telemetry_bp imported successfully")
     except Exception as e:
@@ -226,10 +220,6 @@ try:
     if auth_bp:
         app.register_blueprint(auth_bp, url_prefix='/auth')
         logger.info("✅ PRODUCTION: auth_bp registered")
-    
-    if welcome_bp:
-        app.register_blueprint(welcome_bp, url_prefix='/')
-        logger.info("✅ PRODUCTION: welcome_bp registered")
     
     if telemetry_bp:
         app.register_blueprint(telemetry_bp, url_prefix='/telemetry')
