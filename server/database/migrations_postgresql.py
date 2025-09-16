@@ -101,22 +101,6 @@ def ensure_all_columns_exist(cursor, conn):
         cursor.execute("ALTER TABLE tests ADD COLUMN created_by_user_id BIGINT REFERENCES users(id)")
         logger.info("✅ Added created_by_user_id to tests table")
     
-    # Ensure access_tokens columns exist (expires_at, used)
-    cursor.execute(
-        """
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'access_tokens' AND table_schema = 'public'
-        """
-    )
-    access_tokens_cols = [row['column_name'] for row in cursor.fetchall()]
-    if 'expires_at' not in access_tokens_cols:
-        cursor.execute("ALTER TABLE access_tokens ADD COLUMN expires_at TIMESTAMP WITH TIME ZONE NULL")
-        logger.info("✅ Added expires_at to access_tokens table")
-    if 'used' not in access_tokens_cols:
-        cursor.execute("ALTER TABLE access_tokens ADD COLUMN used BOOLEAN DEFAULT FALSE")
-        logger.info("✅ Added used to access_tokens table")
-
     conn.commit()
 
 def set_default_values(cursor, conn):
