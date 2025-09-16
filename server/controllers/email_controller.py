@@ -19,35 +19,24 @@ def send_test_invitation(test_id, candidate_id, company_id, deadline=None):
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        # Get test details
+        # Get test and candidate details
         cursor.execute('SELECT * FROM tests WHERE id = %s', (test_id,))
         test = cursor.fetchone()
         if not test:
             raise ValueError('Test not found')
-        
-        # Get candidate details
         cursor.execute('SELECT * FROM candidates WHERE id = %s', (candidate_id,))
         candidate = cursor.fetchone()
         if not candidate:
             raise ValueError('Candidate not found')
-        
-        # Create test instance
-        cursor.execute(
-            '''INSERT INTO test_instances (test_id, candidate_id, company_id, created_at, updated_at)
-               VALUES (%s, %s, %s, NOW(), NOW())''',
-            (test_id, candidate_id, company_id)
-        )
-        conn.commit()
-        
-        # Get the created instance
-        instance_id = cursor.lastrowid
-        cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
-        instance = cursor.fetchone()
-        
-        # Build access URL (tokenized flow can be added later)
-        access_url = f"https://instance-{instance_id}.verihire.me"
 
-        # Send email using current send_email signature
+        # Create instance (also provisions Docker container)
+        instance_data = create_instance(test_id, candidate_id, company_id)
+        instance_id = instance_data.get('id')
+
+        # Compose access URL (prefer value from instance creation)
+        access_url = instance_data.get('access_url') or f"https://instance-{instance_id}.verihire.me"
+
+        # Send email invitation
         send_email(
             candidate['email'],
             candidate.get('name') or '',
@@ -55,11 +44,8 @@ def send_test_invitation(test_id, candidate_id, company_id, deadline=None):
             access_url,
             deadline
         )
-        
-        return dict(instance)
-    except Exception as e:
-        conn.rollback()
-        raise e
+
+        return instance_data
     finally:
         conn.close()
 
@@ -73,22 +59,25 @@ def send_test_invitations(test_id: int, candidate_ids: List[int], deadline: str 
     cursor = conn.cursor()
     results = { 'success': [], 'errors': [] }
     try:
-        # Fetch test once to get company_id and details
+        # Fetch test once to get company_id
         cursor.execute('SELECT * FROM tests WHERE id = %s', (test_id,))
         test = cursor.fetchone()
         if not test:
             raise ValueError('Test not found')
         company_id = test.get('company_id') if isinstance(test, dict) else test['company_id']
 
-        for cid in candidate_ids:
+        for cid in candidate_ids or []:
             try:
-                # Ensure integer id
                 candidate_id = int(cid)
-                # Fetch candidate for name/email
                 cursor.execute('SELECT name, email FROM candidates WHERE id = %s', (candidate_id,))
                 cand = cursor.fetchone() or {'name': '', 'email': ''}
                 instance = send_test_invitation(test_id, candidate_id, company_id, deadline)
-                results['success'].append({ 'candidateId': candidate_id, 'instanceId': instance['id'], 'candidate_name': cand.get('name'), 'candidate_email': cand.get('email') })
+                results['success'].append({
+                    'candidateId': candidate_id,
+                    'instanceId': instance.get('id'),
+                    'candidate_name': cand.get('name'),
+                    'candidate_email': cand.get('email')
+                })
             except Exception as e:
                 results['errors'].append({ 'candidateId': cid, 'error': str(e) })
         return results
