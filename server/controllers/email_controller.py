@@ -14,7 +14,7 @@ More routes under /instances.
 Placed in a separate file for better organization.
 """
 
-def send_test_invitation(test_id, candidate_id, company_id):
+def send_test_invitation(test_id, candidate_id, company_id, deadline=None):
     """Send a test invitation email to a candidate (single)."""
     conn = get_connection()
     cursor = conn.cursor()
@@ -44,17 +44,16 @@ def send_test_invitation(test_id, candidate_id, company_id):
         cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
         instance = cursor.fetchone()
         
-        # Send email
+        # Build access URL (tokenized flow can be added later)
+        access_url = f"https://instance-{instance_id}.verihire.me"
+
+        # Send email using current send_email signature
         send_email(
-            to_email=candidate['email'],
-            subject=f"Invitation to take {test['name']}",
-            template_name="test_invitation",
-            template_data={
-                'candidate_name': candidate['name'],
-                'test_name': test['name'],
-                'test_description': test['description'],
-                'instance_id': instance_id
-            }
+            candidate['email'],
+            candidate.get('name') or '',
+            test.get('name') or 'Assessment',
+            access_url,
+            deadline
         )
         
         return dict(instance)
@@ -85,8 +84,11 @@ def send_test_invitations(test_id: int, candidate_ids: List[int], deadline: str 
             try:
                 # Ensure integer id
                 candidate_id = int(cid)
-                instance = send_test_invitation(test_id, candidate_id, company_id)
-                results['success'].append({ 'candidateId': candidate_id, 'instanceId': instance['id'] })
+                # Fetch candidate for name/email
+                cursor.execute('SELECT name, email FROM candidates WHERE id = %s', (candidate_id,))
+                cand = cursor.fetchone() or {'name': '', 'email': ''}
+                instance = send_test_invitation(test_id, candidate_id, company_id, deadline)
+                results['success'].append({ 'candidateId': candidate_id, 'instanceId': instance['id'], 'candidate_name': cand.get('name'), 'candidate_email': cand.get('email') })
             except Exception as e:
                 results['errors'].append({ 'candidateId': cid, 'error': str(e) })
         return results
