@@ -49,6 +49,9 @@ def run_migrations():
         # Add chat_history table
         create_chat_history_table(cursor)
 
+        # Add access_tokens table (invite links)
+        create_access_tokens_table(cursor)
+
         # Add telemetry_events table
         create_telemetry_events_table(cursor)
         
@@ -178,6 +181,24 @@ def create_chat_history_table(cursor):
     """)
     logger.info("✅ Added chat_history table")
 
+# Add access_tokens table (invite tokens)
+def create_access_tokens_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS access_tokens (
+            id SERIAL PRIMARY KEY,
+            instance_id INTEGER NOT NULL REFERENCES test_instances(id) ON DELETE CASCADE,
+            token VARCHAR(255) NOT NULL UNIQUE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP WITH TIME ZONE NULL,
+            used BOOLEAN DEFAULT FALSE
+        );
+        CREATE INDEX IF NOT EXISTS idx_access_tokens_token ON access_tokens(token);
+        CREATE INDEX IF NOT EXISTS idx_access_tokens_instance ON access_tokens(instance_id);
+        """
+    )
+    logger.info("✅ Added access_tokens table")
+
 # Add telemetry_events table
 def create_telemetry_events_table(cursor):
     cursor.execute(
@@ -203,6 +224,7 @@ migrations = [
     # ... existing migrations ...
     create_instance_access_tokens_table,
     create_chat_history_table,
+    create_access_tokens_table,
     create_telemetry_events_table,
 ]
 

@@ -7,6 +7,7 @@ import secrets
 import hashlib
 from database.db_postgresql import get_connection
 from controllers.instances_controller import create_instance
+from controllers.access_controller import generate_instance_access_token, get_instance_url
 from typing import List
 
 """
@@ -33,8 +34,9 @@ def send_test_invitation(test_id, candidate_id, company_id, deadline=None):
         instance_data = create_instance(test_id, candidate_id, company_id)
         instance_id = instance_data.get('id')
 
-        # Compose access URL (prefer value from instance creation)
-        access_url = instance_data.get('access_url') or f"https://instance-{instance_id}.verihire.me"
+        # Compose access URL with unique access token
+        access_token = generate_instance_access_token(instance_id, candidate_id, deadline)
+        access_url = get_instance_url(80, instance_id, access_token)
 
         # Send email invitation
         send_email(

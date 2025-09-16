@@ -64,21 +64,12 @@ def revoke_access_token(token):
     finally:
         conn.close()
 
-def generate_instance_access_token(instance_id, candidate_id):
+def generate_instance_access_token(instance_id, candidate_id, expires_at=None):
     """Generate a secure token for instance access"""
     token = secrets.token_urlsafe(32)
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        # Store the token with instance and candidate info
-        cursor.execute('''
-            INSERT INTO instance_access_tokens (token, instance_id, candidate_id, created_at)
-            VALUES (%s, %s, %s, NOW())
-        ''', (token, instance_id, candidate_id))
-        conn.commit()
-        return token
-    finally:
-        conn.close()
+    # Store in access_tokens for routing usage
+    store_access_token(instance_id, token, expires_at)
+    return token
 
 def validate_instance_access(token, instance_id):
     """Validate instance access token"""
@@ -106,7 +97,7 @@ def get_instance_url(port, instance_id, access_token):
     """
     # For production, instances are routed via subdomains; however this legacy URL remains for direct access.
     # Append folder query param to ensure initial workspace opens even if session restore is empty.
-    return f"http://167.99.52.130:{port}/instance/{instance_id}?access_token={access_token}&folder=/home/coder/project"
+    return f"https://instance-{instance_id}.verihire.me/?access_token={access_token}&folder=/home/coder/project"
 
 def validate_access_token_for_redirect(token):
     """Validate an access token for redirect without marking it as used"""
