@@ -219,6 +219,25 @@ def create_telemetry_events_table(cursor):
     )
     logger.info("✅ Added telemetry_events table")
 
+# Add reports table
+def create_reports_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reports (
+            id SERIAL PRIMARY KEY,
+            instance_id INTEGER NOT NULL REFERENCES test_instances(id) ON DELETE CASCADE,
+            company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            content JSONB NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_reports_instance ON reports(instance_id);
+        CREATE INDEX IF NOT EXISTS idx_reports_company ON reports(company_id);
+        CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at);
+        CREATE INDEX IF NOT EXISTS idx_reports_updated_at ON reports(updated_at);
+        """
+    )
+    logger.info("✅ Added telemetry_events table")
 # List of all migrations
 migrations = [
     # ... existing migrations ...
