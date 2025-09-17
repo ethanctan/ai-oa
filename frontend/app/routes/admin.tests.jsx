@@ -33,7 +33,7 @@ export default function TestsAdmin() {
   const [initialPromptEnabled, setInitialPromptEnabled] = useState(true);
   const [finalPromptEnabled, setFinalPromptEnabled] = useState(true);
   const [assessmentType, setAssessmentType] = useState('qualitative');
-  const [qualitativeCriteria, setQualitativeCriteria] = useState(['']);
+  const [qualitativeCriteria, setQualitativeCriteria] = useState([{ title: '', description: '' }]);
   const [quantitativeCriteria, setQuantitativeCriteria] = useState([['', '']]);
   
   // Separate state for candidates in different contexts
@@ -956,8 +956,13 @@ export default function TestsAdmin() {
                     <h5 className="font-medium text-md mb-2">Qualitative Criteria</h5>
                     {parsedQualitativeCriteria.length > 0 ? (
                       parsedQualitativeCriteria.map((criterion, index) => (
-                        <div key={index} className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-600">
-                          {criterion || `Criterion ${index + 1} (empty)`}
+                        <div key={index} className="space-y-2 p-3 border border-gray-100 rounded-md bg-white">
+                          <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-medium text-gray-700">
+                            {criterion.title || `Criterion ${index + 1} Title (empty)`}
+                          </div>
+                          <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 ml-4">
+                            {criterion.description || `Criterion ${index + 1} Description (empty)`}
+                          </div>
                         </div>
                       ))
                     ) : (
@@ -1159,7 +1164,10 @@ export default function TestsAdmin() {
 
                   // Add assessment criteria based on type
                   if (assessmentType === 'qualitative' || assessmentType === 'both') {
-                    const activeQualitativeCriteria = qualitativeCriteria.filter(criterion => criterion.trim() !== '');
+                    // Filter out empty criteria before stringifying
+                    const activeQualitativeCriteria = qualitativeCriteria.filter(criterion => 
+                      criterion.title.trim() !== '' || criterion.description.trim() !== ''
+                    );
                     payload.qualitativeAssessmentPrompt = JSON.stringify(activeQualitativeCriteria.length > 0 ? activeQualitativeCriteria : []);
                   } else {
                     payload.qualitativeAssessmentPrompt = JSON.stringify([]);
@@ -1534,33 +1542,46 @@ export default function TestsAdmin() {
                   <div className="space-y-3 p-4 border border-gray-200 rounded-md">
                     <h5 className="font-medium text-md mb-2">Qualitative Criteria</h5>
                     {qualitativeCriteria.map((criterion, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          value={criterion}
+                      <div key={index} className="space-y-2 p-3 border border-gray-100 rounded-md bg-gray-50">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={criterion.title}
+                            onChange={(e) => {
+                              const newCriteria = [...qualitativeCriteria];
+                              newCriteria[index] = { ...newCriteria[index], title: e.target.value };
+                              setQualitativeCriteria(newCriteria);
+                            }}
+                            placeholder={`Criterion ${index + 1} Title`}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-medium"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              const newCriteria = qualitativeCriteria.filter((_, i) => i !== index);
+                              setQualitativeCriteria(newCriteria.length > 0 ? newCriteria : [{ title: '', description: '' }]);
+                            }}
+                            className="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <textarea
+                          value={criterion.description}
                           onChange={(e) => {
                             const newCriteria = [...qualitativeCriteria];
-                            newCriteria[index] = e.target.value;
+                            newCriteria[index] = { ...newCriteria[index], description: e.target.value };
                             setQualitativeCriteria(newCriteria);
                           }}
-                          placeholder={`Criterion ${index + 1}`}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder={`Criterion ${index + 1} Description`}
+                          rows="2"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
                         />
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            const newCriteria = qualitativeCriteria.filter((_, i) => i !== index);
-                            setQualitativeCriteria(newCriteria.length > 0 ? newCriteria : ['']);
-                          }}
-                          className="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
-                        >
-                          -
-                        </button>
                       </div>
                     ))}
                     <button 
                       type="button" 
-                      onClick={() => setQualitativeCriteria([...qualitativeCriteria, ''])}
+                      onClick={() => setQualitativeCriteria([...qualitativeCriteria, { title: '', description: '' }])}
                       className="px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm mt-2"
                     >
                       + Add Criterion
@@ -1570,7 +1591,7 @@ export default function TestsAdmin() {
 
                 {/* Quantitative Criteria (Rubric) UI */}
                 {(assessmentType === 'quantitative' || assessmentType === 'both') && (
-                  <div className="space-y-4 p-4 border border-gray-200 rounded-md">
+                  <div className="space-y-4 p-4 border border-gray-200 rounded-md bg-gray-50">
                     <h5 className="font-medium text-md mb-3">Quantitative Criteria (Rubric)</h5>
                     {quantitativeCriteria.map((row, rowIndex) => (
                       <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-gray-50">
