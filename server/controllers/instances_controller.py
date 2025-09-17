@@ -1001,7 +1001,7 @@ def create_report(instance_id, workspace_content):
     try:
         # Check if instance exists and get test data
         cursor.execute('''
-            SELECT t.initial_prompt, t.final_prompt, t.qualitative_assessment_prompt, t.quantitative_assessment_prompt   
+            SELECT t.initial_prompt, t.final_prompt, t.qualitative_assessment_prompt, t.quantitative_assessment_prompt, ti.company_id   
             FROM test_instances ti
             JOIN tests t ON ti.test_id = t.id
             WHERE ti.id = ?
@@ -1169,11 +1169,13 @@ def create_report(instance_id, workspace_content):
             messages.append({"role": "user",
                              "content": input_data})
             report = vars(create_report_completion(messages, ReportSchema))
+
             print("api returned")
             print(report)
+            
             cursor.execute(
-                'INSERT INTO reports (instance_id, content) VALUES (?, ?)',
-                (instance_id, json.dumps(report))
+                'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+                (instance_id, test_data['company_id'], report, 'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP')
             )
             return report
         
