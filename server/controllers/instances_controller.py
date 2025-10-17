@@ -1110,6 +1110,9 @@ def create_report(instance_id, workspace_content):
                     for k, v in sorted(descriptors.items()):
                         quantitative_desc += f"  {k}: {v}\n"
 
+                # Build a case-insensitive lookup map for quantitative criteria titles
+                quantitative_metadata_ci = {title.casefold(): meta for title, meta in quantitative_metadata.items()}
+
                 field_definitions['quantitative_criteria'] = (
                     list[QuantitativeCriterionModel],
                     Field(title="Quantitative Criteria", description=quantitative_desc)
@@ -1132,18 +1135,18 @@ def create_report(instance_id, workspace_content):
                 if test_data['qualitative_assessment_prompt'] != "[]":
                     @validator('qualitative_criteria')
                     def validate_qualitative_keys(cls, v):
-                        expected_keys = {qc['title'] for qc in qualitative_criteria_list}
-                        v_keys = set([qc.title for qc in v])
+                        expected_keys_ci = {qc['title'].casefold() for qc in qualitative_criteria_list}
+                        v_keys_ci = {qc.title.casefold() for qc in v}
                         print(v)
-                        print("v_keys:", v_keys)
-                        if v_keys != expected_keys:
-                            missing = expected_keys - v_keys
-                            extra = v_keys - expected_keys
+                        print("v_keys (ci):", v_keys_ci)
+                        if v_keys_ci != expected_keys_ci:
+                            missing_ci = expected_keys_ci - v_keys_ci
+                            extra_ci = v_keys_ci - expected_keys_ci
                             error_parts = []
-                            if missing:
-                                error_parts.append(f"Missing keys: {missing}")
-                            if extra:
-                                error_parts.append(f"Extra keys: {extra}")
+                            if missing_ci:
+                                error_parts.append(f"Missing keys (case-insensitive): {missing_ci}")
+                            if extra_ci:
+                                error_parts.append(f"Extra keys (case-insensitive): {extra_ci}")
                             raise ValueError(", ".join(error_parts))
                         return v
 
@@ -1152,9 +1155,10 @@ def create_report(instance_id, workspace_content):
                     @validator('quantitative_criteria')
                     def validate_quantitative_scores(cls, v):
                         for criterion in v:
-                            if criterion.title not in quantitative_metadata:
+                            key_ci = criterion.title.casefold()
+                            if key_ci not in quantitative_metadata_ci:
                                 raise ValueError(f"Unexpected criterion: {criterion.title}")
-                            meta = quantitative_metadata[criterion.title]
+                            meta = quantitative_metadata_ci[key_ci]
                             score = criterion.score
                             if not (meta["min_score"] <= score <= meta["max_score"]):
                                 raise ValueError(
