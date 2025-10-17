@@ -910,7 +910,7 @@ def get_report(instance_id):
             SELECT ti.*, t.name as test_name, t.assessment_prompt
             FROM test_instances ti
             LEFT JOIN tests t ON ti.test_id = t.id
-            WHERE ti.id = ?
+            WHERE ti.id = %s
             ''',
             (instance_id,)
         )
@@ -922,7 +922,7 @@ def get_report(instance_id):
         
         # Check if a report already exists
         cursor.execute(
-            'SELECT * FROM reports WHERE instance_id = ?',
+            'SELECT * FROM reports WHERE instance_id = %s',
             (instance_id,)
         )
         
@@ -1018,13 +1018,13 @@ def create_report(instance_id, workspace_content):
         
         
         # Check if a report already exists
-        cursor.execute('SELECT * FROM reports WHERE instance_id = ?', (instance_id,))
+        cursor.execute('SELECT * FROM reports WHERE instance_id = %s', (instance_id,))
         existing_report = cursor.fetchone()
         
         if existing_report:
             # Update existing report
             # cursor.execute(
-            #     'UPDATE reports SET content = ? WHERE instance_id = ?',
+            #     'UPDATE reports SET content = %s WHERE instance_id = %s',
             #     (content, instance_id)
             # )
             print("Report already exists, ignoring")
@@ -1175,7 +1175,7 @@ def create_report(instance_id, workspace_content):
             print(report)
             
             cursor.execute(
-                'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+                'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (%s, %s, %s, %s, %s)',
                 (instance_id, test_data['company_id'], report, 'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP')
             )
             return report
@@ -1183,7 +1183,7 @@ def create_report(instance_id, workspace_content):
         conn.commit()
         
         # Get the report
-        cursor.execute('SELECT * FROM reports WHERE instance_id = ?', (instance_id,))
+        cursor.execute('SELECT * FROM reports WHERE instance_id = %s', (instance_id,))
         report = dict(cursor.fetchone())
         
         # Convert content back to JSON for the response
