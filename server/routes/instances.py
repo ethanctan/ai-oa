@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, redirect, render_template_string
-from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github, get_report, create_report
+from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github, get_report, create_report, resolve_instance_id_by_test_and_candidate
 from controllers.timer_controller import delete_timer, load_timers
 from controllers.email_controller import send_test_invitations
 from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url, validate_instance_access
@@ -207,6 +207,23 @@ def instance_report(instance_id):
         except Exception as e:
             print(f'Error creating report: {str(e)}')
             return jsonify({'error': str(e)}), 500
+
+# GET /instances/resolve?test_id=...&candidate_id=... - resolve instance id by test and candidate
+@instances_bp.route('/resolve', methods=['GET'])
+def resolve_instance_id():
+    try:
+        test_id = request.args.get('test_id', type=int)
+        candidate_id = request.args.get('candidate_id', type=int)
+        if not test_id or not candidate_id:
+            return jsonify({'error': 'test_id and candidate_id are required'}), 400
+
+        instance_id = resolve_instance_id_by_test_and_candidate(test_id, candidate_id)
+        if not instance_id:
+            return jsonify({'error': 'Instance not found for test and candidate'}), 404
+        return jsonify({'id': instance_id})
+    except Exception as e:
+        print(f'Error resolving instance id: {str(e)}')
+        return jsonify({'error': str(e)}), 500
 
 # POST /instances/send-invitations - Send test invitations via email
 @instances_bp.route('/send-invitations', methods=['POST'])

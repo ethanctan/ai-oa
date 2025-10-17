@@ -258,6 +258,20 @@ def get_instance(instance_id, company_id=None):
     finally:
         conn.close()
 
+def resolve_instance_id_by_test_and_candidate(test_id: int, candidate_id: int):
+    """Resolve latest test_instances.id by test_id and candidate_id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            'SELECT id FROM test_instances WHERE test_id = %s AND candidate_id = %s ORDER BY id DESC LIMIT 1',
+            (test_id, candidate_id)
+        )
+        row = cursor.fetchone()
+        return row['id'] if row else None
+    finally:
+        conn.close()
+
 def cleanup_admin_test_candidates():
     """Clean up temporary admin test candidates and their instances"""
     conn = get_connection()

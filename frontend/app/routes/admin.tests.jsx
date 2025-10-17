@@ -2079,12 +2079,25 @@ export default function TestsAdmin() {
                                   }
                                   return (
                                     <button
-                                      onClick={() => {
-                                        if (instanceId) {
-                                          handleViewReport(instanceId);
-                                        } else {
+                                      onClick={async () => {
+                                        try {
+                                          if (instanceId) {
+                                            handleViewReport(instanceId);
+                                            return;
+                                          }
+                                          const resp = await api.get(`/instances/resolve?test_id=${currentTestNum}&candidate_id=${candidateNum}`);
+                                          if (resp.ok) {
+                                            const data = await resp.json();
+                                            if (data && data.id) {
+                                              handleViewReport(data.id);
+                                              return;
+                                            }
+                                          }
                                           console.log('[ManageCandidates][Report] No instance for candidate', { currentTestId, candidateId: candidate.id, instances });
                                           alert('No instance/report available yet for this candidate.');
+                                        } catch (err) {
+                                          console.error('[ManageCandidates][Report] resolve error', err);
+                                          alert('Error resolving report.');
                                         }
                                       }}
                                       className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-purple-600 hover:text-purple-800 bg-transparent"
