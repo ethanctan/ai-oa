@@ -1149,14 +1149,14 @@ def create_report(instance_id, workspace_content):
                 if test_data['quantitative_assessment_prompt'] != "[]":
                     @validator('quantitative_criteria')
                     def validate_quantitative_scores(cls, v):
-                        for key, value in v.items():
-                            if key not in quantitative_metadata:
-                                raise ValueError(f"Unexpected criterion: {key}")
-                            meta = quantitative_metadata[key]
-                            score = value.score
+                        for criterion in v:
+                            if criterion.title not in quantitative_metadata:
+                                raise ValueError(f"Unexpected criterion: {criterion.title}")
+                            meta = quantitative_metadata[criterion.title]
+                            score = criterion.score
                             if not (meta["min_score"] <= score <= meta["max_score"]):
                                 raise ValueError(
-                                    f"Score for '{key}' must be between {meta['min_score']} and {meta['max_score']}"
+                                    f"Score for '{criterion.title}' must be between {meta['min_score']} and {meta['max_score']}"
                                 )
                         return v
 
