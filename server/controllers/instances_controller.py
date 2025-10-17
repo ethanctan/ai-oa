@@ -1000,13 +1000,14 @@ def create_report(instance_id, workspace_content):
     
     try:
         # Check if instance exists and get test data
+        print("test data query")
         cursor.execute('''
-            SELECT t.initial_prompt, t.final_prompt, t.qualitative_assessment_prompt, t.quantitative_assessment_prompt, ti.company_id   
+            SELECT t.initial_prompt, t.final_prompt, t.qualitative_assessment_prompt, t.quantitative_assessment_prompt, ti.company_id
             FROM test_instances ti
             JOIN tests t ON ti.test_id = t.id
             WHERE ti.id = ?
         ''', (instance_id,))
-        
+        print("test data fetched")        
         test_record = cursor.fetchone()
         if not test_record:
             print(f"instance with ID {instance_id} not found")
