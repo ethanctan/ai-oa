@@ -1134,6 +1134,8 @@ def create_report(instance_id, workspace_content):
                     def validate_qualitative_keys(cls, v):
                         expected_keys = {qc['title'] for qc in qualitative_criteria_list}
                         v_keys = set([qc.title for qc in v])
+                        print(v)
+                        print("v_keys:", v_keys)
                         if v_keys != expected_keys:
                             missing = expected_keys - v_keys
                             extra = v_keys - expected_keys
