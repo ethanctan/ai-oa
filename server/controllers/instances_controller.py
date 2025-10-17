@@ -1097,9 +1097,9 @@ def create_report(instance_id, workspace_content):
 
                 for qc in quantitative_criteria_list:
                     title = qc["title"]
-                    descriptors = {k: v for k, v in qc.items() if isinstance(k, (int, float))}
-                    min_score = min(descriptors.keys())
-                    max_score = max(descriptors.keys())
+                    descriptors = {k: v for k, v in qc.items() if k != "title" and str(k).isdigit()}
+                    min_score = min(int(k) for k in descriptors.keys())
+                    max_score = max(int(k) for k in descriptors.keys())
                     quantitative_metadata[title] = {
                         "min_score": min_score,
                         "max_score": max_score,
