@@ -2425,16 +2425,86 @@ export default function TestsAdmin() {
               <p className="text-gray-500">{currentReport.message}</p>
             ) : (
               <div>
-                <div className="mb-4">
-                  <p className="text-sm text-gray-500">
-                    Created at: {currentReport && new Date(currentReport.created_at).toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <pre className="whitespace-pre-wrap font-sans">
-                    {currentReport && currentReport.content}
-                  </pre>
-                </div>
+                {currentReport && currentReport.created_at && !isNaN(new Date(currentReport.created_at)) && (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500">
+                      Created at: {new Date(currentReport.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
+                {/* Legacy plain content rendering */}
+                {currentReport && currentReport.content ? (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <pre className="whitespace-pre-wrap font-sans">
+                      {currentReport.content}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {currentReport && currentReport.code_summary && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Code Summary</h4>
+                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.code_summary}</p>
+                      </div>
+                    )}
+
+                    {currentReport && currentReport.initial_interview_summary && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Initial Interview Summary</h4>
+                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.initial_interview_summary}</p>
+                      </div>
+                    )}
+
+                    {currentReport && currentReport.final_interview_summary && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Final Interview Summary</h4>
+                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.final_interview_summary}</p>
+                      </div>
+                    )}
+
+                    {currentReport && Array.isArray(currentReport.qualitative_criteria) && currentReport.qualitative_criteria.length > 0 && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Qualitative Criteria</h4>
+                        <div className="space-y-3">
+                          {currentReport.qualitative_criteria.map((criterion, idx) => (
+                            <div key={`qual-${idx}`} className="bg-gray-50 p-3 rounded">
+                              <div className="font-medium">{criterion.title}</div>
+                              <p className="text-gray-800 text-sm whitespace-pre-wrap">{criterion.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {currentReport && Array.isArray(currentReport.quantitative_criteria) && currentReport.quantitative_criteria.length > 0 && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Quantitative Criteria</h4>
+                        <div className="space-y-3">
+                          {currentReport.quantitative_criteria.map((criterion, idx) => (
+                            <div key={`quant-${idx}`} className="bg-gray-50 p-3 rounded">
+                              <div className="font-medium">
+                                {criterion.title} {typeof criterion.score !== 'undefined' && (
+                                  <span className="text-gray-600 font-normal">- Score: {criterion.score}</span>
+                                )}
+                              </div>
+                              {criterion.explanation && (
+                                <p className="text-gray-800 text-sm whitespace-pre-wrap">{criterion.explanation}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {currentReport && currentReport.report_warnings && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Warnings</h4>
+                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.report_warnings}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
