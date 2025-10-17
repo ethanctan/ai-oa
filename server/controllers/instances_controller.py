@@ -939,7 +939,7 @@ def get_report(instance_id):
         if not report_row:
             return {"message": f"No report exists for instance {instance_id}"}
         
-        return json.loads(report_row['content'])
+        return report_row['content']
         
     
     except Exception as e:
