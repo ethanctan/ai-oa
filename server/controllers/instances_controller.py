@@ -1021,184 +1021,176 @@ def create_report(instance_id, workspace_content):
             #     (content, instance_id)
             # )
             print("Report already exists, ignoring")
-        else:
-            # Create new report
-            print("Creating new report")
-            field_definitions = {}
-            
-            field_definitions['code_summary'] = (
+            return json.loads(existing_report)
+        
+        # Create new report
+        print("Creating new report")
+        field_definitions = {}
+        
+        field_definitions['code_summary'] = (
+            str,
+            Field(title="Code Summary", description="Concise summary of the code architecture and implementation.")
+        )
+        report_instructions += "- Code Summary, based on the content of <input_codebase>\n"
+        input_data += "<input_codebase>\n" + workspace_content + "\n</input_codebase>\n"
+        
+        if test_data['initial_prompt'] or test_data['final_prompt']:
+            chat_history_list = get_chat_history(instance_id)
+            chat_history = ",\n".join(str(msg) for msg in chat_history_list)
+            print(chat_history)
+            input_data += "<input_chat_logs>\n" + chat_history + "\n/<input_chat_logs>\n"
+        
+        if test_data['initial_prompt']:
+            field_definitions['initial_interview_summary'] = (
                 str,
-                Field(title="Code Summary", description="Concise summary of the code architecture and implementation.")
+                Field(title="Initial Interview Summary", description="Summary of the initial interview chat logs.")
             )
-            report_instructions += "- Code Summary, based on the content of <input_codebase>\n"
-            input_data += "<input_codebase>\n" + workspace_content + "\n</input_codebase>\n"
-            
-            if test_data['initial_prompt'] or test_data['final_prompt']:
-                chat_history_list = get_chat_history(instance_id)
-                chat_history = ",\n".join(str(msg) for msg in chat_history_list)
-                print(chat_history)
-                input_data += "<input_chat_logs>\n" + chat_history + "\n/<input_chat_logs>\n"
-            
-            if test_data['initial_prompt']:
-                field_definitions['initial_interview_summary'] = (
-                    str,
-                    Field(title="Initial Interview Summary", description="Summary of the initial interview chat logs.")
-                )
-                # initial_interview = "placeholder initial" 
-                # report_instructions += "- Initial Interview Summary, based on the content of <input_initial_interview>\n"
-                # input_data += "<input_initial_interview>\n" + initial_interview + "\n</input_initial_interview>\n"
-                report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> before 'PHASE_MARKER: initial'"
-            
-            if test_data['final_prompt']:
-                field_definitions['final_interview_summary'] = (
-                    str,
-                    Field(title="Final Interview Summary", description="Summary of the final interview chat logs.")
-                )
-                # final_interview = "placeholder final" 
-                # report_instructions += "- Final Interview Summary, based on the content of <input_final_interview>\n"
-                # input_data += "<input_final_interview>\n" + final_interview + "\n</input_final_interview>\n"
-                report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> after 'PHASE_MARKER: final_started'"
+            # initial_interview = "placeholder initial" 
+            # report_instructions += "- Initial Interview Summary, based on the content of <input_initial_interview>\n"
+            # input_data += "<input_initial_interview>\n" + initial_interview + "\n</input_initial_interview>\n"
+            report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> before 'PHASE_MARKER: initial'"
+        
+        if test_data['final_prompt']:
+            field_definitions['final_interview_summary'] = (
+                str,
+                Field(title="Final Interview Summary", description="Summary of the final interview chat logs.")
+            )
+            # final_interview = "placeholder final" 
+            # report_instructions += "- Final Interview Summary, based on the content of <input_final_interview>\n"
+            # input_data += "<input_final_interview>\n" + final_interview + "\n</input_final_interview>\n"
+            report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> after 'PHASE_MARKER: final_started'"
 
+        if test_data['qualitative_assessment_prompt'] != "[]":
+            class QualitativeCriterionModel(BaseModel):
+                title: str = Field(title="Title", description="Title of the criterion")
+                description: str = Field(title="Description", description="Description of the candidate's performance on this criterion")
+            
+            qualitative_criteria_list = json.loads(test_data['qualitative_assessment_prompt'])
+            criteria_count = len(qualitative_criteria_list)
+            qualitative_desc = "Qualitative criteria performance assessments:\n"
+            qualitative_desc += f"The following {criteria_count} criteria are used to assess the candidate's performance on the project:\n"
+            
+            for qc in qualitative_criteria_list:
+                qualitative_desc += f"- {qc['title']}: {qc['description']}\n"
+
+            field_definitions['qualitative_criteria'] = (
+                list[QualitativeCriterionModel],
+                Field(title="Qualitative Criteria", description=qualitative_desc)
+            )
+        
+        if test_data['quantitative_assessment_prompt'] != "[]":
+            class QuantitativeCriterionModel(BaseModel):
+                title: str = Field(title="Title", description="Title of the criterion")
+                score: int = Field(title="Score", description="Numerical score for this criterion according to the scoring rubric")
+                explanation: str = Field(title="Explanation", description="Justification for the given score")
+
+            quantitative_criteria_list = json.loads(test_data['quantitative_assessment_prompt'])
+            criteria_count = len(quantitative_criteria_list)
+            quantitative_desc = "Quantitative criteria performance assessments:\n"
+            quantitative_desc += f"The following {criteria_count} criteria are used to assess the candidate's performance on the project:\n"
+
+            quantitative_metadata = {}
+
+            for qc in quantitative_criteria_list:
+                title = qc["title"]
+                descriptors = {k: v for k, v in qc.items() if k != "title" and str(k).isdigit()}
+                min_score = min(int(k) for k in descriptors.keys())
+                max_score = max(int(k) for k in descriptors.keys())
+                quantitative_metadata[title] = {
+                    "min_score": min_score,
+                    "max_score": max_score,
+                    "descriptors": descriptors
+                }
+            
+                quantitative_desc += f"- {title} (score range: {min_score}-{max_score}):\n"
+                for k, v in sorted(descriptors.items()):
+                    quantitative_desc += f"  {k}: {v}\n"
+
+            # Build a case-insensitive lookup map for quantitative criteria titles
+            quantitative_metadata_ci = {title.casefold(): meta for title, meta in quantitative_metadata.items()}
+
+            field_definitions['quantitative_criteria'] = (
+                list[QuantitativeCriterionModel],
+                Field(title="Quantitative Criteria", description=quantitative_desc)
+            )
+        
+        field_definitions['report_warnings'] = (
+            str,
+            Field(title="Report Warnings", description="Any critical issues with report generation, such as missing required information, should be explained here.")
+        )
+        print("added all fields")
+        # Step 3: Create the base model dynamically
+        DynamicModel = create_model('DynamicModel', **field_definitions)
+        print("dynamic model created")
+        # Step 4: Define the model with validators (conditional)
+        class ReportSchema(DynamicModel):
+            class Config:
+                extra = 'forbid'
+
+            # Conditional validator for qualitative_criteria
             if test_data['qualitative_assessment_prompt'] != "[]":
-                class QualitativeCriterionModel(BaseModel):
-                    title: str = Field(title="Title", description="Title of the criterion")
-                    description: str = Field(title="Description", description="Description of the candidate's performance on this criterion")
-                
-                qualitative_criteria_list = json.loads(test_data['qualitative_assessment_prompt'])
-                criteria_count = len(qualitative_criteria_list)
-                qualitative_desc = "Qualitative criteria performance assessments:\n"
-                qualitative_desc += f"The following {criteria_count} criteria are used to assess the candidate's performance on the project:\n"
-                
-                for qc in qualitative_criteria_list:
-                    qualitative_desc += f"- {qc['title']}: {qc['description']}\n"
-
-                field_definitions['qualitative_criteria'] = (
-                    list[QualitativeCriterionModel],
-                    Field(title="Qualitative Criteria", description=qualitative_desc)
-                )
-            
+                @validator('qualitative_criteria')
+                def validate_qualitative_keys(cls, v):
+                    expected_keys_ci = {qc['title'].casefold() for qc in qualitative_criteria_list}
+                    v_keys_ci = {qc.title.casefold() for qc in v}
+                    print(v)
+                    print("v_keys (ci):", v_keys_ci)
+                    if v_keys_ci != expected_keys_ci:
+                        missing_ci = expected_keys_ci - v_keys_ci
+                        extra_ci = v_keys_ci - expected_keys_ci
+                        error_parts = []
+                        if missing_ci:
+                            error_parts.append(f"Missing keys (case-insensitive): {missing_ci}")
+                        if extra_ci:
+                            error_parts.append(f"Extra keys (case-insensitive): {extra_ci}")
+                        raise ValueError(", ".join(error_parts))
+                    return v
+                    
+            # Conditional validator for quantitative_criteria
             if test_data['quantitative_assessment_prompt'] != "[]":
-                class QuantitativeCriterionModel(BaseModel):
-                    title: str = Field(title="Title", description="Title of the criterion")
-                    score: int = Field(title="Score", description="Numerical score for this criterion according to the scoring rubric")
-                    explanation: str = Field(title="Explanation", description="Justification for the given score")
+                @validator('quantitative_criteria')
+                def validate_quantitative_scores(cls, v):
+                    for criterion in v:
+                        key_ci = criterion.title.casefold()
+                        if key_ci not in quantitative_metadata_ci:
+                            raise ValueError(f"Unexpected criterion: {criterion.title}")
+                        meta = quantitative_metadata_ci[key_ci]
+                        score = criterion.score
+                        if not (meta["min_score"] <= score <= meta["max_score"]):
+                            raise ValueError(
+                                f"Score for '{criterion.title}' must be between {meta['min_score']} and {meta['max_score']}"
+                            )
+                    return v
 
-                quantitative_criteria_list = json.loads(test_data['quantitative_assessment_prompt'])
-                criteria_count = len(quantitative_criteria_list)
-                quantitative_desc = "Quantitative criteria performance assessments:\n"
-                quantitative_desc += f"The following {criteria_count} criteria are used to assess the candidate's performance on the project:\n"
+        print("schema created")
+        # Prompt
+        messages = []
+        messages.append({"role": "developer",
+                         "content": developer_prompt + report_instructions})
+        messages.append({"role": "user",
+                         "content": input_data})
+        report_obj = create_report_completion(messages, ReportSchema)
+        # Convert Pydantic model to dictionary for JSON serialization
+        if hasattr(report_obj, 'model_dump'):
+            report = report_obj.model_dump()
+        elif hasattr(report_obj, 'dict'):
+            report = report_obj.dict()
+        else:
+            # Fallback to vars if it's not a Pydantic model
+            report = vars(report_obj)
 
-                quantitative_metadata = {}
-
-                for qc in quantitative_criteria_list:
-                    title = qc["title"]
-                    descriptors = {k: v for k, v in qc.items() if k != "title" and str(k).isdigit()}
-                    min_score = min(int(k) for k in descriptors.keys())
-                    max_score = max(int(k) for k in descriptors.keys())
-                    quantitative_metadata[title] = {
-                        "min_score": min_score,
-                        "max_score": max_score,
-                        "descriptors": descriptors
-                    }
-                
-                    quantitative_desc += f"- {title} (score range: {min_score}-{max_score}):\n"
-                    for k, v in sorted(descriptors.items()):
-                        quantitative_desc += f"  {k}: {v}\n"
-
-                # Build a case-insensitive lookup map for quantitative criteria titles
-                quantitative_metadata_ci = {title.casefold(): meta for title, meta in quantitative_metadata.items()}
-
-                field_definitions['quantitative_criteria'] = (
-                    list[QuantitativeCriterionModel],
-                    Field(title="Quantitative Criteria", description=quantitative_desc)
-                )
-            
-            field_definitions['report_warnings'] = (
-                str,
-                Field(title="Report Warnings", description="Any critical issues with report generation, such as missing required information, should be explained here.")
-            )
-            print("added all fields")
-            # Step 3: Create the base model dynamically
-            DynamicModel = create_model('DynamicModel', **field_definitions)
-            print("dynamic model created")
-            # Step 4: Define the model with validators (conditional)
-            class ReportSchema(DynamicModel):
-                class Config:
-                    extra = 'forbid'
-
-                # Conditional validator for qualitative_criteria
-                if test_data['qualitative_assessment_prompt'] != "[]":
-                    @validator('qualitative_criteria')
-                    def validate_qualitative_keys(cls, v):
-                        expected_keys_ci = {qc['title'].casefold() for qc in qualitative_criteria_list}
-                        v_keys_ci = {qc.title.casefold() for qc in v}
-                        print(v)
-                        print("v_keys (ci):", v_keys_ci)
-                        if v_keys_ci != expected_keys_ci:
-                            missing_ci = expected_keys_ci - v_keys_ci
-                            extra_ci = v_keys_ci - expected_keys_ci
-                            error_parts = []
-                            if missing_ci:
-                                error_parts.append(f"Missing keys (case-insensitive): {missing_ci}")
-                            if extra_ci:
-                                error_parts.append(f"Extra keys (case-insensitive): {extra_ci}")
-                            raise ValueError(", ".join(error_parts))
-                        return v
-
-                # Conditional validator for quantitative_criteria
-                if test_data['quantitative_assessment_prompt'] != "[]":
-                    @validator('quantitative_criteria')
-                    def validate_quantitative_scores(cls, v):
-                        for criterion in v:
-                            key_ci = criterion.title.casefold()
-                            if key_ci not in quantitative_metadata_ci:
-                                raise ValueError(f"Unexpected criterion: {criterion.title}")
-                            meta = quantitative_metadata_ci[key_ci]
-                            score = criterion.score
-                            if not (meta["min_score"] <= score <= meta["max_score"]):
-                                raise ValueError(
-                                    f"Score for '{criterion.title}' must be between {meta['min_score']} and {meta['max_score']}"
-                                )
-                        return v
-
-            print("schema created")
-            # Prompt
-            messages = []
-            messages.append({"role": "developer",
-                             "content": developer_prompt + report_instructions})
-            messages.append({"role": "user",
-                             "content": input_data})
-            report_obj = create_report_completion(messages, ReportSchema)
-            # Convert Pydantic model to dictionary for JSON serialization
-            if hasattr(report_obj, 'model_dump'):
-                report = report_obj.model_dump()
-            elif hasattr(report_obj, 'dict'):
-                report = report_obj.dict()
-            else:
-                # Fallback to vars if it's not a Pydantic model
-                report = vars(report_obj)
-
-            print("api returned")
-            print(report)
-            
-            cursor.execute(
-                'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())',
-                (instance_id, test_data['company_id'], json.dumps(report))
-            ) #TODO: no way to update reports, updated and created are the same
-            conn.commit()
-            print("report inserted")
-
-            return report
+        print("api returned")
+        print(report)
         
+        cursor.execute(
+            'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())',
+            (instance_id, test_data['company_id'], json.dumps(report))
+        ) #TODO: no way to update reports, updated and created are the same
         conn.commit()
-        
-        # Get the report
-        cursor.execute('SELECT * FROM reports WHERE instance_id = %s', (instance_id,))
-        report = dict(cursor.fetchone())
-        
-        # Convert content back to JSON for the response
-        report['content'] = json.loads(report['content'])
+        print("report inserted")
+
         return report
+    
     
     except Exception as e:
         conn.rollback()
