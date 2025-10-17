@@ -905,19 +905,15 @@ def get_report(instance_id):
     
     try:
         # Check if instance exists
-        cursor.execute(
-            '''
-            SELECT ti.*, t.name as test_name, t.assessment_prompt
+        cursor.execute('''
+            SELECT t.initial_prompt, t.final_prompt, t.qualitative_assessment_prompt, t.quantitative_assessment_prompt, ti.company_id
             FROM test_instances ti
-            LEFT JOIN tests t ON ti.test_id = t.id
+            JOIN tests t ON ti.test_id = t.id
             WHERE ti.id = %s
-            ''',
-            (instance_id,)
-        )
-        
-        instance = cursor.fetchone()
-        
-        if not instance:
+        ''', (instance_id,))
+        test_record = cursor.fetchone()
+        if not test_record:
+            print(f"instance with ID {instance_id} not found")
             return {"message": f"Instance with ID {instance_id} not found"}
         
         # Check if a report already exists
@@ -925,13 +921,12 @@ def get_report(instance_id):
             'SELECT * FROM reports WHERE instance_id = %s',
             (instance_id,)
         )
-        
         report = cursor.fetchone()
+        if not report:
+            return {"message": f"No report exists for instance {instance_id}"}
         
-        if report:
-            return json.loads(report)
+        return json.loads(report)
         
-        return {"message": f"No report exists for instance {instance_id}"}
     
     except Exception as e:
         conn.rollback()
