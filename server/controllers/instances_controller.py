@@ -935,11 +935,11 @@ def get_report(instance_id):
             'SELECT * FROM reports WHERE instance_id = %s',
             (instance_id,)
         )
-        report = cursor.fetchone()
-        if not report:
+        report_row = cursor.fetchone()
+        if not report_row:
             return {"message": f"No report exists for instance {instance_id}"}
         
-        return json.loads(report)
+        return json.loads(report_row['content'])
         
     
     except Exception as e:
