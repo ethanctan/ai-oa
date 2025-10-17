@@ -288,7 +288,6 @@ def create_report_completion(messages, report_schema):
             response_format=report_schema,
             # Pass additional parameters such as temperature, top_p, max_tokens if needed
         )
-        print(result.model_dump_json(indent=2))
 
 
         # Check if the result contains choices and return the first reply.

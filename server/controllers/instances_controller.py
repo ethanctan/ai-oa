@@ -1037,7 +1037,6 @@ def create_report(instance_id, workspace_content):
         if test_data['initial_prompt'] or test_data['final_prompt']:
             chat_history_list = get_chat_history(instance_id)
             chat_history = ",\n".join(str(msg) for msg in chat_history_list)
-            print(chat_history)
             input_data += "<input_chat_logs>\n" + chat_history + "\n/<input_chat_logs>\n"
         
         if test_data['initial_prompt']:
@@ -1145,7 +1144,7 @@ def create_report(instance_id, workspace_content):
                             error_parts.append(f"Extra keys (case-insensitive): {extra_ci}")
                         raise ValueError(", ".join(error_parts))
                     return v
-                    
+
             # Conditional validator for quantitative_criteria
             if test_data['quantitative_assessment_prompt'] != "[]":
                 @validator('quantitative_criteria')
