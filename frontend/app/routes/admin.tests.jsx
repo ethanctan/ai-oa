@@ -2049,23 +2049,45 @@ export default function TestsAdmin() {
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap">
                                 {(() => {
-                                  const instanceId = candidate.instance_id || candidate.instanceId || candidate.instance?.id || candidate.instance?.Id;
-                                  const hasInstance = Boolean(instanceId);
+                                  const toNum = (v) => (v === null || v === undefined || v === '') ? null : Number(v);
+                                  const currentTestNum = toNum(currentTestId);
+                                  const candidateNum = toNum(candidate.id);
+                                  const matchingInstance = instances.find(inst => {
+                                    const testIdVal = toNum(inst.test_id ?? inst.testId ?? inst.TestId);
+                                    const candidateIdVal = toNum(inst.candidate_id ?? inst.candidateId ?? inst.CandidateId);
+                                    return testIdVal === currentTestNum && candidateIdVal === candidateNum;
+                                  });
+                                  const instanceId = matchingInstance ? (matchingInstance.id || matchingInstance.Id) : null;
+                                  try {
+                                    const forCandidate = instances.filter(inst => toNum(inst.candidate_id ?? inst.candidateId ?? inst.CandidateId) === candidateNum);
+                                    const forTest = instances.filter(inst => toNum(inst.test_id ?? inst.testId ?? inst.TestId) === currentTestNum);
+                                    console.log('[ManageCandidates][Report] Debug', {
+                                      currentTestIdRaw: currentTestId,
+                                      currentTestNum,
+                                      candidateIdRaw: candidate.id,
+                                      candidateNum,
+                                      instancesCount: Array.isArray(instances) ? instances.length : 'n/a',
+                                      forCandidateCount: forCandidate.length,
+                                      forTestCount: forTest.length,
+                                      forCandidate,
+                                      forTest,
+                                      matchingInstance,
+                                      instanceId
+                                    });
+                                  } catch (e) {
+                                    console.log('[ManageCandidates][Report] Debug error', e);
+                                  }
                                   return (
                                     <button
                                       onClick={() => {
-                                        if (hasInstance) {
+                                        if (instanceId) {
                                           handleViewReport(instanceId);
                                         } else {
+                                          console.log('[ManageCandidates][Report] No instance for candidate', { currentTestId, candidateId: candidate.id, instances });
                                           alert('No instance/report available yet for this candidate.');
                                         }
                                       }}
-                                      disabled={!hasInstance}
-                                      className={`inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md ${
-                                        hasInstance
-                                          ? 'text-purple-600 hover:text-purple-800 bg-transparent'
-                                          : 'text-gray-400 cursor-not-allowed bg-transparent'
-                                      }`}
+                                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-purple-600 hover:text-purple-800 bg-transparent"
                                     >
                                       View Report
                                     </button>
