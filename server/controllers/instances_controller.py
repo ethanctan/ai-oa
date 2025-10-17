@@ -1169,7 +1169,15 @@ def create_report(instance_id, workspace_content):
                              "content": developer_prompt + report_instructions})
             messages.append({"role": "user",
                              "content": input_data})
-            report = vars(create_report_completion(messages, ReportSchema))
+            report_obj = create_report_completion(messages, ReportSchema)
+            # Convert Pydantic model to dictionary for JSON serialization
+            if hasattr(report_obj, 'model_dump'):
+                report = report_obj.model_dump()
+            elif hasattr(report_obj, 'dict'):
+                report = report_obj.dict()
+            else:
+                # Fallback to vars if it's not a Pydantic model
+                report = vars(report_obj)
 
             print("api returned")
             print(report)
