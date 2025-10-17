@@ -1183,9 +1183,10 @@ def create_report(instance_id, workspace_content):
             print(report)
             
             cursor.execute(
-                'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (%s, %s, %s, %s, %s)',
-                (instance_id, test_data['company_id'], json.dumps(report), 'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP')
-            )
+                'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())',
+                (instance_id, test_data['company_id'], json.dumps(report))
+            ) #TODO: no way to update reports, updated and created are the same
+
             return report
         
         conn.commit()
