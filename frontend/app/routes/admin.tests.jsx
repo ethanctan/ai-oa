@@ -511,7 +511,7 @@ export default function TestsAdmin() {
   const handleViewReport = async (instanceId) => {
     try {
       console.log(`Fetching report for instance ID: ${instanceId}`);
-      const response = await api.get(`/reports/${instanceId}`);
+      const response = await api.get(`/instances/${instanceId}/report`);
       if (response.ok) {
         const data = await response.json();
         setCurrentReport(data);
@@ -1999,6 +1999,9 @@ export default function TestsAdmin() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                           </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Report
+                          </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Deadline
                             </th>
@@ -2043,6 +2046,31 @@ export default function TestsAdmin() {
                                 }`}>
                                   {candidate.test_completed ? "Completed" : "Pending"}
                                 </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {(() => {
+                                  const instanceId = candidate.instance_id || candidate.instanceId || candidate.instance?.id || candidate.instance?.Id;
+                                  const hasInstance = Boolean(instanceId);
+                                  return (
+                                    <button
+                                      onClick={() => {
+                                        if (hasInstance) {
+                                          handleViewReport(instanceId);
+                                        } else {
+                                          alert('No instance/report available yet for this candidate.');
+                                        }
+                                      }}
+                                      disabled={!hasInstance}
+                                      className={`inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md ${
+                                        hasInstance
+                                          ? 'text-purple-600 hover:text-purple-800 bg-transparent'
+                                          : 'text-gray-400 cursor-not-allowed bg-transparent'
+                                      }`}
+                                    >
+                                      View Report
+                                    </button>
+                                  );
+                                })()}
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap">
                                 {editingDeadline === candidate.id ? (
