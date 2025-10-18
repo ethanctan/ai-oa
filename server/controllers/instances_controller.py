@@ -5,10 +5,12 @@ import subprocess
 import shutil
 import tempfile # For temporary directories and files
 import zipfile # For handling zip files
+import json
 from pathlib import Path
 from database.db_postgresql import get_connection
 from controllers.timer_controller import delete_timer, start_instance_timer
-from controllers.timer_controller import start_instance_timer
+from controllers.chat_controller import get_chat_history, create_report_completion
+from pydantic import Field, BaseModel, create_model, validator
 
 # Base directory for project repositories
 BASE_PROJECTS_DIR = Path(__file__).parent.parent / 'projects'
@@ -253,6 +255,20 @@ def get_instance(instance_id, company_id=None):
             cursor.execute('SELECT * FROM test_instances WHERE id = %s', (instance_id,))
         instance = cursor.fetchone()
         return dict(instance) if instance else None
+    finally:
+        conn.close()
+
+def resolve_instance_id_by_test_and_candidate(test_id: int, candidate_id: int):
+    """Resolve latest test_instances.id by test_id and candidate_id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            'SELECT id FROM test_instances WHERE test_id = %s AND candidate_id = %s ORDER BY id DESC LIMIT 1',
+            (test_id, candidate_id)
+        )
+        row = cursor.fetchone()
+        return row['id'] if row else None
     finally:
         conn.close()
 
@@ -887,3 +903,311 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
     finally:
         if conn:
             conn.close() 
+
+def get_report(instance_id):
+    """
+    Get a report for a test instance
+    
+    Args:
+        instance_id (int): The instance ID
+    
+    Returns:
+        dict: The report data or a message if no report exists
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if instance exists
+        cursor.execute('''
+            SELECT t.initial_prompt, t.final_prompt, t.qualitative_assessment_prompt, t.quantitative_assessment_prompt, ti.company_id
+            FROM test_instances ti
+            JOIN tests t ON ti.test_id = t.id
+            WHERE ti.id = %s
+        ''', (instance_id,))
+        test_record = cursor.fetchone()
+        if not test_record:
+            print(f"instance with ID {instance_id} not found")
+            return {"message": f"Instance with ID {instance_id} not found"}
+        
+        # Check if a report already exists
+        cursor.execute(
+            'SELECT * FROM reports WHERE instance_id = %s',
+            (instance_id,)
+        )
+        report_row = cursor.fetchone()
+        if not report_row:
+            return {"message": f"No report exists for instance {instance_id}"}
+        
+        return report_row['content']
+        
+    
+    except Exception as e:
+        conn.rollback()
+        raise e
+    
+    finally:
+        conn.close()
+
+def create_report(instance_id, workspace_content):
+    """
+    Create a new report for a test instance
+    
+    Args:
+        instance_id (int): The instance ID
+        workspace_content (str): The instance workspace content as JSON
+    
+    Returns:
+        dict: The created report data
+    """
+
+    # Prompts
+    developer_prompt = """You are a technical interviewer analyzing a software engineering candidate's coding project.
+
+    You will be given a codebase that the candidate has written.
+    You may be given a chat history of the candidate's responses to your questions in an initial interview, before they start coding, and a final interview, after they have finished coding.
+    You may also be given a list of qualitative and quantitative criteria that you will use to evaluate the candidate's performance.
+
+    Your main task is to generate a structured evaluation report in the exact JSON format described in the schema.
+
+    Use only the information provided to you to generate the report.
+    If the schema requires a field that you do not have information for, do NOT include false information. Instead, raise this warning in the "report_warnings" field of the report.
+
+    <chat_history>
+    The chat history is formatted as follows, where message.role is either "user" or "assistant". "user" messages are the candidate's messages, and "assistant" messages are your messages.
+
+    {
+      "role": "user",
+      "content": "I am ready to start the initial interview."
+    },
+    {
+      "role": "assistant",
+      "content": "Great! Let's start with the project design phase. How would you approach understanding the requirements specified in the README.md file and translating them into a design plan?"
+    },
+    // ... further messages ...
+    </chat_history>
+
+    <code_citations>
+    When using markdown in the report, use backticks to format file, directory, function, and class names. Use \( and \) for inline math, \[ and \] for block math.
+    
+    Anyone reading this report can see the entire file, so they prefer to only read the updates to the code. So, when citing code, prefer to cite short snippets of code rather than the entire file.
+
+    You MUST use the following format when citing code regions or blocks:
+    ```12:15:app/components/Todo.tsx
+    // ... existing code ...
+    ```
+    This is the ONLY acceptable format for code citations. The format is ```startLine:endLine:filepath where startLine and endLine are line numbers.
+    </code_citations>
+
+
+    """
+    report_instructions = "Your report should contain the following sections:\n"
+    input_data = "In generating the report, use only information referenced from the following input data provided:\n"
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Check if instance exists and get test data
+        cursor.execute('''
+            SELECT t.initial_prompt, t.final_prompt, t.qualitative_assessment_prompt, t.quantitative_assessment_prompt, ti.company_id
+            FROM test_instances ti
+            JOIN tests t ON ti.test_id = t.id
+            WHERE ti.id = %s
+        ''', (instance_id,))
+        test_record = cursor.fetchone()
+        if not test_record:
+            print(f"instance with ID {instance_id} not found")
+            return {"message": f"Instance with ID {instance_id} not found"}
+        
+        test_data = dict(test_record)
+        print("test data:", test_data)
+        
+        
+        # Check if a report already exists
+        cursor.execute('SELECT * FROM reports WHERE instance_id = %s', (instance_id,))
+        existing_report = cursor.fetchone()
+        
+        if existing_report:
+            # Update existing report
+            # cursor.execute(
+            #     'UPDATE reports SET content = %s WHERE instance_id = %s',
+            #     (content, instance_id)
+            # )
+            print("Report already exists, ignoring")
+            return json.loads(existing_report)
+        
+        # Create new report
+        print("Creating new report")
+        field_definitions = {}
+        
+        field_definitions['code_summary'] = (
+            str,
+            Field(title="Code Summary", description="Concise summary of the code architecture and implementation.")
+        )
+        report_instructions += "- Code Summary, based on the content of <input_codebase>\n"
+        input_data += "<input_codebase>\n" + workspace_content + "\n</input_codebase>\n"
+        
+        if test_data['initial_prompt'] or test_data['final_prompt']:
+            chat_history_list = get_chat_history(instance_id)
+            chat_history = ",\n".join(str(msg) for msg in chat_history_list)
+            input_data += "<input_chat_logs>\n" + chat_history + "\n/<input_chat_logs>\n"
+        
+        if test_data['initial_prompt']:
+            field_definitions['initial_interview_summary'] = (
+                str,
+                Field(title="Initial Interview Summary", description="Summary of the initial interview chat logs.")
+            )
+            # initial_interview = "placeholder initial" 
+            # report_instructions += "- Initial Interview Summary, based on the content of <input_initial_interview>\n"
+            # input_data += "<input_initial_interview>\n" + initial_interview + "\n</input_initial_interview>\n"
+            report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> before 'PHASE_MARKER: initial'"
+        
+        if test_data['final_prompt']:
+            field_definitions['final_interview_summary'] = (
+                str,
+                Field(title="Final Interview Summary", description="Summary of the final interview chat logs.")
+            )
+            # final_interview = "placeholder final" 
+            # report_instructions += "- Final Interview Summary, based on the content of <input_final_interview>\n"
+            # input_data += "<input_final_interview>\n" + final_interview + "\n</input_final_interview>\n"
+            report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> after 'PHASE_MARKER: final_started'"
+
+        if test_data['qualitative_assessment_prompt'] != "[]":
+            class QualitativeCriterionModel(BaseModel):
+                title: str = Field(title="Title", description="Title of the criterion")
+                description: str = Field(title="Description", description="Description of the candidate's performance on this criterion")
+            
+            qualitative_criteria_list = json.loads(test_data['qualitative_assessment_prompt'])
+            criteria_count = len(qualitative_criteria_list)
+            qualitative_desc = "Qualitative criteria performance assessments:\n"
+            qualitative_desc += f"The following {criteria_count} criteria are used to assess the candidate's performance on the project:\n"
+            
+            for qc in qualitative_criteria_list:
+                qualitative_desc += f"- {qc['title']}: {qc['description']}\n"
+
+            field_definitions['qualitative_criteria'] = (
+                list[QualitativeCriterionModel],
+                Field(title="Qualitative Criteria", description=qualitative_desc)
+            )
+        
+        if test_data['quantitative_assessment_prompt'] != "[]":
+            class QuantitativeCriterionModel(BaseModel):
+                title: str = Field(title="Title", description="Title of the criterion")
+                score: int = Field(title="Score", description="Numerical score for this criterion according to the scoring rubric")
+                explanation: str = Field(title="Explanation", description="Justification for the given score")
+
+            quantitative_criteria_list = json.loads(test_data['quantitative_assessment_prompt'])
+            criteria_count = len(quantitative_criteria_list)
+            quantitative_desc = "Quantitative criteria performance assessments:\n"
+            quantitative_desc += f"The following {criteria_count} criteria are used to assess the candidate's performance on the project:\n"
+
+            quantitative_metadata = {}
+
+            for qc in quantitative_criteria_list:
+                title = qc["title"]
+                descriptors = {k: v for k, v in qc.items() if k != "title" and str(k).isdigit()}
+                min_score = min(int(k) for k in descriptors.keys())
+                max_score = max(int(k) for k in descriptors.keys())
+                quantitative_metadata[title] = {
+                    "min_score": min_score,
+                    "max_score": max_score,
+                    "descriptors": descriptors
+                }
+            
+                quantitative_desc += f"- {title} (score range: {min_score}-{max_score}):\n"
+                for k, v in sorted(descriptors.items()):
+                    quantitative_desc += f"  {k}: {v}\n"
+
+            # Build a case-insensitive lookup map for quantitative criteria titles
+            quantitative_metadata_ci = {title.casefold(): meta for title, meta in quantitative_metadata.items()}
+
+            field_definitions['quantitative_criteria'] = (
+                list[QuantitativeCriterionModel],
+                Field(title="Quantitative Criteria", description=quantitative_desc)
+            )
+        
+        field_definitions['report_warnings'] = (
+            str,
+            Field(title="Report Warnings", description="Any critical issues with report generation, such as missing required information, should be explained here.")
+        )
+        print("added all fields")
+        # Step 3: Create the base model dynamically
+        DynamicModel = create_model('DynamicModel', **field_definitions)
+        print("dynamic model created")
+        # Step 4: Define the model with validators (conditional)
+        class ReportSchema(DynamicModel):
+            class Config:
+                extra = 'forbid'
+
+            # Conditional validator for qualitative_criteria
+            if test_data['qualitative_assessment_prompt'] != "[]":
+                @validator('qualitative_criteria')
+                def validate_qualitative_keys(cls, v):
+                    expected_keys_ci = {qc['title'].casefold() for qc in qualitative_criteria_list}
+                    v_keys_ci = {qc.title.casefold() for qc in v}
+                    print(v)
+                    print("v_keys (ci):", v_keys_ci)
+                    if v_keys_ci != expected_keys_ci:
+                        missing_ci = expected_keys_ci - v_keys_ci
+                        extra_ci = v_keys_ci - expected_keys_ci
+                        error_parts = []
+                        if missing_ci:
+                            error_parts.append(f"Missing keys (case-insensitive): {missing_ci}")
+                        if extra_ci:
+                            error_parts.append(f"Extra keys (case-insensitive): {extra_ci}")
+                        raise ValueError(", ".join(error_parts))
+                    return v
+
+            # Conditional validator for quantitative_criteria
+            if test_data['quantitative_assessment_prompt'] != "[]":
+                @validator('quantitative_criteria')
+                def validate_quantitative_scores(cls, v):
+                    for criterion in v:
+                        key_ci = criterion.title.casefold()
+                        if key_ci not in quantitative_metadata_ci:
+                            raise ValueError(f"Unexpected criterion: {criterion.title}")
+                        meta = quantitative_metadata_ci[key_ci]
+                        score = criterion.score
+                        if not (meta["min_score"] <= score <= meta["max_score"]):
+                            raise ValueError(
+                                f"Score for '{criterion.title}' must be between {meta['min_score']} and {meta['max_score']}"
+                            )
+                    return v
+
+        print("schema created")
+        # Prompt
+        messages = []
+        messages.append({"role": "developer",
+                         "content": developer_prompt + report_instructions})
+        messages.append({"role": "user",
+                         "content": input_data})
+        report_obj = create_report_completion(messages, ReportSchema)
+        # Convert Pydantic model to dictionary for JSON serialization
+        if hasattr(report_obj, 'model_dump'):
+            report = report_obj.model_dump()
+        elif hasattr(report_obj, 'dict'):
+            report = report_obj.dict()
+        else:
+            # Fallback to vars if it's not a Pydantic model
+            report = vars(report_obj)
+
+        print("api returned")
+        print(report)
+        
+        cursor.execute(
+            'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())',
+            (instance_id, test_data['company_id'], json.dumps(report))
+        ) #TODO: no way to update reports, updated and created are the same
+        conn.commit()
+        print("report inserted")
+
+        return report
+    
+    
+    except Exception as e:
+        conn.rollback()
+        raise e
+    
+    finally:
+        conn.close()

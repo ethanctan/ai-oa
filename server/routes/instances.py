@@ -1,9 +1,8 @@
 from flask import Blueprint, request, jsonify, redirect, render_template_string
-from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github
+from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github, get_report, create_report, resolve_instance_id_by_test_and_candidate
 from controllers.timer_controller import delete_timer, load_timers
-from controllers.reports_controller import get_report
 from controllers.email_controller import send_test_invitations
-from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url
+from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url, validate_instance_access
 
 # Create a Blueprint for instances routes
 instances_bp = Blueprint('instances', __name__)
@@ -165,16 +164,6 @@ def stop_instance_route(instance_id):
         print(f'Error stopping instance: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
-# GET /instances/:id/report - Get a report for an instance
-@instances_bp.route('/<int:instance_id>/report', methods=['GET'])
-def get_instance_report(instance_id):
-    try:
-        report = get_report(instance_id)
-        return jsonify(report)
-    except Exception as e:
-        print(f'Error getting report: {str(e)}')
-        return jsonify({'error': str(e)}), 500
-
 # POST /instances/:instance_id/upload-to-github - Upload project files to GitHub
 @instances_bp.route('/<int:instance_id>/upload-to-github', methods=['POST'])
 def upload_to_github_route(instance_id):
@@ -194,6 +183,46 @@ def upload_to_github_route(instance_id):
             
     except Exception as e:
         print(f'Error uploading to GitHub: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+# GET/POST /instances/:id/report - Get or create a report for an instance
+@instances_bp.route('/<int:instance_id>/report', methods=['GET', 'POST'])
+def instance_report(instance_id):
+    if request.method == 'GET':
+        try:
+            report = get_report(instance_id)
+            return jsonify(report)
+        except Exception as e:
+            print(f'Error getting report: {str(e)}')
+            return jsonify({'error': str(e)}), 500
+    else:  # POST
+        try:
+            data = request.json
+            print(f'Received report create request: {data}')
+            if not data:
+                return jsonify({'error': 'Instance content is required to generate a report'}), 400
+            workspace_content = data['workspaceContent']
+            report = create_report(instance_id, workspace_content)
+            return jsonify(report)
+        except Exception as e:
+            print(f'Error creating report: {str(e)}')
+            return jsonify({'error': str(e)}), 500
+
+# GET /instances/resolve?test_id=...&candidate_id=... - resolve instance id by test and candidate
+@instances_bp.route('/resolve', methods=['GET'])
+def resolve_instance_id():
+    try:
+        test_id = request.args.get('test_id', type=int)
+        candidate_id = request.args.get('candidate_id', type=int)
+        if not test_id or not candidate_id:
+            return jsonify({'error': 'test_id and candidate_id are required'}), 400
+
+        instance_id = resolve_instance_id_by_test_and_candidate(test_id, candidate_id)
+        if not instance_id:
+            return jsonify({'error': 'Instance not found for test and candidate'}), 404
+        return jsonify({'id': instance_id})
+    except Exception as e:
+        print(f'Error resolving instance id: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
 # POST /instances/send-invitations - Send test invitations via email

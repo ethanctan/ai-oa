@@ -33,8 +33,8 @@ export default function TestsAdmin() {
   const [initialPromptEnabled, setInitialPromptEnabled] = useState(true);
   const [finalPromptEnabled, setFinalPromptEnabled] = useState(true);
   const [assessmentType, setAssessmentType] = useState('qualitative');
-  const [qualitativeCriteria, setQualitativeCriteria] = useState(['']);
-  const [quantitativeCriteria, setQuantitativeCriteria] = useState([['', '']]);
+  const [qualitativeCriteria, setQualitativeCriteria] = useState([{ title: '', description: '' }]);
+  const [quantitativeCriteria, setQuantitativeCriteria] = useState([{ title: '', '1': '', '2': '', '3': '' }]);
   
   // Separate state for candidates in different contexts
   const [newTestSelectedCandidates, setNewTestSelectedCandidates] = useState([]);
@@ -511,7 +511,7 @@ export default function TestsAdmin() {
   const handleViewReport = async (instanceId) => {
     try {
       console.log(`Fetching report for instance ID: ${instanceId}`);
-      const response = await api.get(`/reports/${instanceId}`);
+      const response = await api.get(`/instances/${instanceId}/report`);
       if (response.ok) {
         const data = await response.json();
         setCurrentReport(data);
@@ -956,8 +956,13 @@ export default function TestsAdmin() {
                     <h5 className="font-medium text-md mb-2">Qualitative Criteria</h5>
                     {parsedQualitativeCriteria.length > 0 ? (
                       parsedQualitativeCriteria.map((criterion, index) => (
-                        <div key={index} className="px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-600">
-                          {criterion || `Criterion ${index + 1} (empty)`}
+                        <div key={index} className="space-y-2 p-3 border border-gray-100 rounded-md bg-white">
+                          <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-medium text-gray-700">
+                            {criterion.title || `Criterion ${index + 1} Title (empty)`}
+                          </div>
+                          <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 ml-4">
+                            {criterion.description || `Criterion ${index + 1} Description (empty)`}
+                          </div>
                         </div>
                       ))
                     ) : (
@@ -972,17 +977,20 @@ export default function TestsAdmin() {
                   <div className="space-y-4 p-4 border border-gray-200 rounded-md bg-gray-50">
                     <h5 className="font-medium text-md mb-3">Quantitative Criteria (Rubric)</h5>
                     {parsedQuantitativeCriteria.length > 0 ? (
-                      parsedQuantitativeCriteria.map((row, rowIndex) => (
+                      parsedQuantitativeCriteria.map((criterion, rowIndex) => (
                         <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-white">
                           <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-medium text-gray-700">
-                            {row[0] || `Rubric Item ${rowIndex + 1} (empty)`}
+                            {criterion.title || `Rubric Item Title ${rowIndex + 1} (empty)`}
                           </div>
                           <p className="text-xs text-gray-500 ml-1">Score Descriptions (Lowest to Highest):</p>
-                          {row.slice(1).map((scoreDesc, scoreIndex) => (
-                            <div key={scoreIndex} className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 ml-4">
-                              {scoreDesc || `Score ${scoreIndex + 1} (empty)`}
-                            </div>
-                          ))}
+                          {Object.keys(criterion)
+                            .filter(key => key !== 'title')
+                            .sort((a, b) => parseInt(a) - parseInt(b))
+                            .map((scoreKey) => (
+                              <div key={scoreKey} className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 ml-4">
+                                {criterion[scoreKey] || `Score ${scoreKey} (empty)`}
+                              </div>
+                            ))}
                         </div>
                       ))
                     ) : (
@@ -1159,21 +1167,23 @@ export default function TestsAdmin() {
 
                   // Add assessment criteria based on type
                   if (assessmentType === 'qualitative' || assessmentType === 'both') {
-                    const activeQualitativeCriteria = qualitativeCriteria.filter(criterion => criterion.trim() !== '');
+                    // Filter out empty criteria before stringifying
+                    const activeQualitativeCriteria = qualitativeCriteria.filter(criterion => 
+                      criterion.title.trim() !== '' || criterion.description.trim() !== ''
+                    );
                     payload.qualitativeAssessmentPrompt = JSON.stringify(activeQualitativeCriteria.length > 0 ? activeQualitativeCriteria : []);
                   } else {
                     payload.qualitativeAssessmentPrompt = JSON.stringify([]);
                   }
 
                   if (assessmentType === 'quantitative' || assessmentType === 'both') {
-                    const activeQuantitativeCriteria = quantitativeCriteria.filter(row => {
-                      const descriptionNotEmpty = row[0] && row[0].trim() !== '';
-                      const scoreDescriptions = row.slice(1).filter(desc => desc && desc.trim() !== '');
-                      return descriptionNotEmpty && scoreDescriptions.length > 0;
-                    }).map(row => {
-                      const description = row[0];
-                      const filteredScores = row.slice(1).filter(desc => desc && desc.trim() !== '');
-                      return [description, ...filteredScores];
+                    const activeQuantitativeCriteria = quantitativeCriteria.filter(criterion => {
+                    // A criterion is active if it has a title AND at least one non-empty score description
+                    const hasTitle = criterion.title && criterion.title.trim() !== '';
+                    const hasScores = Object.keys(criterion)
+                      .filter(key => key !== 'title')
+                      .some(key => criterion[key] && criterion[key].trim() !== '');
+                    return hasTitle && hasScores;
                     });
 
                     payload.quantitativeAssessmentPrompt = JSON.stringify(activeQuantitativeCriteria.length > 0 ? activeQuantitativeCriteria : []);
@@ -1534,33 +1544,46 @@ export default function TestsAdmin() {
                   <div className="space-y-3 p-4 border border-gray-200 rounded-md">
                     <h5 className="font-medium text-md mb-2">Qualitative Criteria</h5>
                     {qualitativeCriteria.map((criterion, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          value={criterion}
+                      <div key={index} className="space-y-2 p-3 border border-gray-100 rounded-md bg-gray-50">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={criterion.title}
+                            onChange={(e) => {
+                              const newCriteria = [...qualitativeCriteria];
+                              newCriteria[index] = { ...newCriteria[index], title: e.target.value };
+                              setQualitativeCriteria(newCriteria);
+                            }}
+                            placeholder={`Criterion ${index + 1} Title`}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-medium"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              const newCriteria = qualitativeCriteria.filter((_, i) => i !== index);
+                              setQualitativeCriteria(newCriteria.length > 0 ? newCriteria : [{ title: '', description: '' }]);
+                            }}
+                            className="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <textarea
+                          value={criterion.description}
                           onChange={(e) => {
                             const newCriteria = [...qualitativeCriteria];
-                            newCriteria[index] = e.target.value;
+                            newCriteria[index] = { ...newCriteria[index], description: e.target.value };
                             setQualitativeCriteria(newCriteria);
                           }}
-                          placeholder={`Criterion ${index + 1}`}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder={`Criterion ${index + 1} Description`}
+                          rows="2"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
                         />
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            const newCriteria = qualitativeCriteria.filter((_, i) => i !== index);
-                            setQualitativeCriteria(newCriteria.length > 0 ? newCriteria : ['']);
-                          }}
-                          className="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
-                        >
-                          -
-                        </button>
                       </div>
                     ))}
                     <button 
                       type="button" 
-                      onClick={() => setQualitativeCriteria([...qualitativeCriteria, ''])}
+                      onClick={() => setQualitativeCriteria([...qualitativeCriteria, { title: '', description: '' }])}
                       className="px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm mt-2"
                     >
                       + Add Criterion
@@ -1570,27 +1593,27 @@ export default function TestsAdmin() {
 
                 {/* Quantitative Criteria (Rubric) UI */}
                 {(assessmentType === 'quantitative' || assessmentType === 'both') && (
-                  <div className="space-y-4 p-4 border border-gray-200 rounded-md">
+                  <div className="space-y-4 p-4 border border-gray-200 rounded-md bg-gray-50">
                     <h5 className="font-medium text-md mb-3">Quantitative Criteria (Rubric)</h5>
-                    {quantitativeCriteria.map((row, rowIndex) => (
-                      <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-gray-50">
+                    {quantitativeCriteria.map((criterion, rowIndex) => (
+                      <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-white">
                         <div className="flex items-center space-x-2 mb-2">
                           <input
                             type="text"
-                            value={row[0]} // First element is the rubric item description
+                            value={criterion.title}
                             onChange={(e) => {
                               const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
-                              newCriteria[rowIndex][0] = e.target.value;
+                              newCriteria[rowIndex].title = e.target.value;
                               setQuantitativeCriteria(newCriteria);
                             }}
-                            placeholder={`Rubric Item ${rowIndex + 1} (e.g., Code Quality)`}
+                            placeholder={`Rubric Item Title ${rowIndex + 1} (e.g., Code Quality)`}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 font-medium"
                           />
                           <button 
                             type="button" 
                             onClick={() => {
                               const newCriteria = quantitativeCriteria.filter((_, i) => i !== rowIndex);
-                              setQuantitativeCriteria(newCriteria.length > 0 ? newCriteria : [['', '']]);
+                              setQuantitativeCriteria(newCriteria.length > 0 ? newCriteria : [{ title: '', '1': '', '2': '', '3': '' }]);
                             }}
                             className="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 text-sm"
                           >
@@ -1598,41 +1621,52 @@ export default function TestsAdmin() {
                           </button>
                         </div>
                         <p className="text-xs text-gray-500 ml-1">Score Descriptions (Lowest to Highest):</p>
-                        {row.slice(1).map((scoreDesc, scoreIndex) => ( // Iterate from the second element for score descriptions
-                          <div key={scoreIndex} className="flex items-center space-x-2 pl-4">
-                            <input
-                              type="text"
-                              value={scoreDesc}
-                              onChange={(e) => {
-                                const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
-                                newCriteria[rowIndex][scoreIndex + 1] = e.target.value;
-                                setQuantitativeCriteria(newCriteria);
-                              }}
-                              placeholder={`Score ${scoreIndex + 1} Description`}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                            />
-                            <button 
-                              type="button" 
-                              onClick={() => {
-                                const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
-                                newCriteria[rowIndex].splice(scoreIndex + 1, 1);
-                                // Ensure at least one score description input remains if the item itself is not empty
-                                if (newCriteria[rowIndex].length < 2 && newCriteria[rowIndex][0] !== '') {
-                                   newCriteria[rowIndex].push(''); 
-                                }
-                                setQuantitativeCriteria(newCriteria);
-                              }}
-                              className="px-2 py-1 bg-red-400 text-white rounded-md hover:bg-red-500 text-xs"
-                            >
-                              -
-                            </button>
-                          </div>
-                        ))}
+                         {Object.keys(criterion)
+                          .filter(key => key !== 'title')
+                          .sort((a, b) => parseInt(a) - parseInt(b))
+                          .map((scoreKey) => (
+                            <div key={scoreKey} className="flex items-center space-x-2 pl-4">
+                              <input
+                                type="text"
+                                value={criterion[scoreKey]}
+                                onChange={(e) => {
+                                  const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
+                                  newCriteria[rowIndex][scoreKey] = e.target.value;
+                                  setQuantitativeCriteria(newCriteria);
+                                }}
+                                placeholder={`Score ${scoreKey} Description`}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => {
+                                  const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
+                                  delete newCriteria[rowIndex][scoreKey];
+                                  // Ensure at least one score description remains if the item itself is not empty
+                                  if (Object.keys(newCriteria[rowIndex]).length <= 1 && newCriteria[rowIndex].title !== '') {
+                                    const nextScore = Object.keys(newCriteria[rowIndex])
+                                      .filter(key => key !== 'title')
+                                      .map(Number)
+                                      .reduce((max, num) => Math.max(max, num), 0) + 1;
+                                    newCriteria[rowIndex][nextScore.toString()] = '';
+                                  }
+                                  setQuantitativeCriteria(newCriteria);
+                                }}
+                                className="px-2 py-1 bg-red-400 text-white rounded-md hover:bg-red-500 text-xs"
+                              >
+                                -
+                              </button>
+                            </div>
+                          ))}
                         <button 
                           type="button" 
                           onClick={() => {
                             const newCriteria = JSON.parse(JSON.stringify(quantitativeCriteria));
-                            newCriteria[rowIndex].push('');
+                            const nextScore = Object.keys(newCriteria[rowIndex])
+                              .filter(key => key !== 'title')
+                              .map(Number)
+                              .reduce((max, num) => Math.max(max, num), 0) + 1;
+                            newCriteria[rowIndex][nextScore.toString()] = '';
                             setQuantitativeCriteria(newCriteria);
                           }}
                           className="px-3 py-1 bg-green-400 text-white rounded-md hover:bg-green-500 text-xs mt-1 ml-4"
@@ -1643,7 +1677,7 @@ export default function TestsAdmin() {
                     ))}
                     <button 
                       type="button" 
-                      onClick={() => setQuantitativeCriteria([...quantitativeCriteria, ['', '']])} // New row with item description and one score point
+                      onClick={() => setQuantitativeCriteria([...quantitativeCriteria, { title: '', '1': '', '2': '', '3': '' }])} 
                       className="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm mt-2"
                     >
                       + Add Rubric Item
@@ -1965,6 +1999,9 @@ export default function TestsAdmin() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                           </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Report
+                          </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Deadline
                             </th>
@@ -2009,6 +2046,66 @@ export default function TestsAdmin() {
                                 }`}>
                                   {candidate.test_completed ? "Completed" : "Pending"}
                                 </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {(() => {
+                                  const toNum = (v) => (v === null || v === undefined || v === '') ? null : Number(v);
+                                  const currentTestNum = toNum(currentTestId);
+                                  const candidateNum = toNum(candidate.id);
+                                  const matchingInstance = instances.find(inst => {
+                                    const testIdVal = toNum(inst.test_id ?? inst.testId ?? inst.TestId);
+                                    const candidateIdVal = toNum(inst.candidate_id ?? inst.candidateId ?? inst.CandidateId);
+                                    return testIdVal === currentTestNum && candidateIdVal === candidateNum;
+                                  });
+                                  const instanceId = matchingInstance ? (matchingInstance.id || matchingInstance.Id) : null;
+                                  try {
+                                    const forCandidate = instances.filter(inst => toNum(inst.candidate_id ?? inst.candidateId ?? inst.CandidateId) === candidateNum);
+                                    const forTest = instances.filter(inst => toNum(inst.test_id ?? inst.testId ?? inst.TestId) === currentTestNum);
+                                    console.log('[ManageCandidates][Report] Debug', {
+                                      currentTestIdRaw: currentTestId,
+                                      currentTestNum,
+                                      candidateIdRaw: candidate.id,
+                                      candidateNum,
+                                      instancesCount: Array.isArray(instances) ? instances.length : 'n/a',
+                                      forCandidateCount: forCandidate.length,
+                                      forTestCount: forTest.length,
+                                      forCandidate,
+                                      forTest,
+                                      matchingInstance,
+                                      instanceId
+                                    });
+                                  } catch (e) {
+                                    console.log('[ManageCandidates][Report] Debug error', e);
+                                  }
+                                  return (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          if (instanceId) {
+                                            handleViewReport(instanceId);
+                                            return;
+                                          }
+                                          const resp = await api.get(`/instances/resolve?test_id=${currentTestNum}&candidate_id=${candidateNum}`);
+                                          if (resp.ok) {
+                                            const data = await resp.json();
+                                            if (data && data.id) {
+                                              handleViewReport(data.id);
+                                              return;
+                                            }
+                                          }
+                                          console.log('[ManageCandidates][Report] No instance for candidate', { currentTestId, candidateId: candidate.id, instances });
+                                          alert('No instance/report available yet for this candidate.');
+                                        } catch (err) {
+                                          console.error('[ManageCandidates][Report] resolve error', err);
+                                          alert('Error resolving report.');
+                                        }
+                                      }}
+                                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-purple-600 hover:text-purple-800 bg-transparent"
+                                    >
+                                      View Report
+                                    </button>
+                                  );
+                                })()}
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap">
                                 {editingDeadline === candidate.id ? (
@@ -2328,16 +2425,86 @@ export default function TestsAdmin() {
               <p className="text-gray-500">{currentReport.message}</p>
             ) : (
               <div>
-                <div className="mb-4">
-                  <p className="text-sm text-gray-500">
-                    Created at: {currentReport && new Date(currentReport.created_at).toLocaleString()}
-                  </p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <pre className="whitespace-pre-wrap font-sans">
-                    {currentReport && currentReport.content}
-                  </pre>
-                </div>
+                {currentReport && currentReport.created_at && !isNaN(new Date(currentReport.created_at)) && (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500">
+                      Created at: {new Date(currentReport.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
+                {/* Legacy plain content rendering */}
+                {currentReport && currentReport.content ? (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <pre className="whitespace-pre-wrap font-sans">
+                      {currentReport.content}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {currentReport && currentReport.code_summary && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Code Summary</h4>
+                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.code_summary}</p>
+                      </div>
+                    )}
+
+                    {currentReport && currentReport.initial_interview_summary && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Initial Interview Summary</h4>
+                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.initial_interview_summary}</p>
+                      </div>
+                    )}
+
+                    {currentReport && currentReport.final_interview_summary && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Final Interview Summary</h4>
+                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.final_interview_summary}</p>
+                      </div>
+                    )}
+
+                    {currentReport && Array.isArray(currentReport.qualitative_criteria) && currentReport.qualitative_criteria.length > 0 && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Qualitative Criteria</h4>
+                        <div className="space-y-3">
+                          {currentReport.qualitative_criteria.map((criterion, idx) => (
+                            <div key={`qual-${idx}`} className="bg-gray-50 p-3 rounded">
+                              <div className="font-medium">{criterion.title}</div>
+                              <p className="text-gray-800 text-sm whitespace-pre-wrap">{criterion.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {currentReport && Array.isArray(currentReport.quantitative_criteria) && currentReport.quantitative_criteria.length > 0 && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Quantitative Criteria</h4>
+                        <div className="space-y-3">
+                          {currentReport.quantitative_criteria.map((criterion, idx) => (
+                            <div key={`quant-${idx}`} className="bg-gray-50 p-3 rounded">
+                              <div className="font-medium">
+                                {criterion.title} {typeof criterion.score !== 'undefined' && (
+                                  <span className="text-gray-600 font-normal">- Score: {criterion.score}</span>
+                                )}
+                              </div>
+                              {criterion.explanation && (
+                                <p className="text-gray-800 text-sm whitespace-pre-wrap">{criterion.explanation}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {currentReport && currentReport.report_warnings && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Warnings</h4>
+                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.report_warnings}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
