@@ -33,36 +33,35 @@
       }
     }
 
-    async function requestScreen() {
-      try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-        // immediately stop to avoid sharing preview
-        stream.getTracks().forEach(t => t.stop());
-        document.getElementById('screenStatus').textContent = 'granted';
-        document.getElementById('screenStatus').className = 'ok';
-        maybeEnable();
-      } catch (e) {
-        document.getElementById('screenStatus').textContent = 'denied';
-        document.getElementById('screenStatus').className = 'err';
-      }
-    }
 
     function setConsentCookie() {
       const ret = new URLSearchParams(window.location.search).get('return') || '/?folder=/home/coder/project';
-      // Set cookie for proxy to detect, 30 minutes
-      const expires = new Date(Date.now() + 30*60*1000).toUTCString();
-      document.cookie = 'aoa_consent=1; Path=/; Expires=' + expires + '; SameSite=None; Secure';
-      window.location.href = ret;
+      // Server-side sets cookie and redirects to ret
+      const url = '/consent-continue?return=' + encodeURIComponent(ret);
+      console.log('Navigating to consent-continue:', url);
+      window.location.href = url;
     }
 
     function maybeEnable() {
       const clip = document.getElementById('clipboardStatus').textContent === 'granted';
-      const scr = document.getElementById('screenStatus').textContent === 'granted';
-      document.getElementById('continueBtn').disabled = !(clip && scr);
+      document.getElementById('continueBtn').disabled = !clip;
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+      console.log('Page loaded, checking clipboard status...');
       maybeEnable();
+      
+      // Check if we already have clipboard permission
+      if (navigator.permissions) {
+        navigator.permissions.query({name: 'clipboard-read'}).then(result => {
+          console.log('Clipboard permission state:', result.state);
+          if (result.state === 'granted') {
+            document.getElementById('clipboardStatus').textContent = 'granted';
+            document.getElementById('clipboardStatus').className = 'ok';
+            maybeEnable();
+          }
+        }).catch(e => console.log('Permission query not supported:', e));
+      }
     });
   </script>
 </head>
@@ -80,14 +79,6 @@
       <button class="btn" onclick="requestClipboard()">Grant Clipboard Access</button>
     </div>
 
-    <div class="section">
-      <div class="row">
-        <strong>Screen Recording Permission:</strong>
-        <span id="screenStatus" class="warn">pending</span>
-      </div>
-      <p>Your browser will prompt you to allow screen recording (no recording is stored; permission is required by policy).</p>
-      <button class="btn" onclick="requestScreen()">Grant Screen Permission</button>
-    </div>
 
     <div class="section">
       <button id="continueBtn" class="btn" disabled onclick="setConsentCookie()">Continue to Assessment</button>
