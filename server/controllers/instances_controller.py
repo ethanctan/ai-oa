@@ -374,8 +374,7 @@ def create_instance(test_id, candidate_id, company_id):
                 )
                 conn.commit()
                 print(f"Updated instance with Docker info: {docker_info}")
-                # Do not auto-start initial timer; the client will explicitly start it on first load
-                print(f"Initial timer will be started explicitly by the client for instance {instance_id}")
+                # Do not start initial timer here; start after extension loads/consent screen redirect
             else:
                 print("No Docker info returned from create_docker_container")
         except Exception as e:
@@ -659,16 +658,11 @@ def upload_project_to_github(instance_id, file_storage):
                     # Determine current branch
                     current_branch = exec_command("git rev-parse --abbrev-ref HEAD").strip()
                     
-                    # Construct the push URL with token if available
-                    push_url = target_repo_url
+                    # Prefer Authorization header for pushes when token is available
                     if target_repo_token:
-                        if push_url.startswith('https://'):
-                            push_url = f"https://x-access-token:{target_repo_token}@{push_url[8:]}"
-                        else:
-                            # Assuming https, adjust if other protocols are used for target_repo_url
-                            push_url = f"https://x-access-token:{target_repo_token}@{push_url}"
-                    
-                    push_command = f"git push {push_url} {current_branch}"
+                        push_command = f"git -c http.extraHeader=\"Authorization: Bearer {target_repo_token}\" push origin {current_branch}"
+                    else:
+                        push_command = f"git push origin {current_branch}"
                     exec_command(push_command)
                     print(f"Successfully pushed changes to {target_repo_url} on branch {current_branch}")
                 except Exception as e:

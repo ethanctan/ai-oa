@@ -36,7 +36,8 @@ def send_test_invitation(test_id, candidate_id, company_id, deadline=None):
 
         # Compose access URL with unique access token
         access_token = generate_instance_access_token(instance_id, candidate_id, deadline)
-        access_url = get_instance_url(80, instance_id, access_token)
+        # Welcome page first; it will redirect to the instance subdomain after consent
+        access_url = f"https://ai-oa-production.up.railway.app/welcome/{access_token}"
 
         # Send email invitation
         send_email(
