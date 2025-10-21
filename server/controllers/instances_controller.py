@@ -658,9 +658,16 @@ def upload_project_to_github(instance_id, file_storage):
                     # Determine current branch
                     current_branch = exec_command("git rev-parse --abbrev-ref HEAD").strip()
                     
-                    # Prefer Authorization header for pushes when token is available
+                    # Prefer HTTP Basic header (Git smart HTTP expects Basic)
                     if target_repo_token:
-                        push_command = f"git -c http.extraHeader=\"Authorization: Bearer {target_repo_token}\" push origin {current_branch}"
+                        basic_header = (
+                            "$(printf '%s' '"
+                            + "x-access-token"
+                            + ":"
+                            + f"{target_repo_token}"
+                            + "' | base64)"
+                        )
+                        push_command = f"git -c http.extraHeader=\"AUTHORIZATION: basic {basic_header}\" push origin {current_branch}"
                     else:
                         push_command = f"git push origin {current_branch}"
                     exec_command(push_command)

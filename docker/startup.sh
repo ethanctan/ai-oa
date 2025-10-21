@@ -19,9 +19,12 @@ clone_repo_if_needed() {
             cd /home/coder
             if [ -n "$GITHUB_TOKEN" ]; then
                 echo "🔑 Using GitHub token for authentication"
-                # Prefer Authorization header to avoid embedding token in URL
-                if git -c http.extraHeader="Authorization: Bearer $GITHUB_TOKEN" clone "$GITHUB_REPO" temp_repo; then
-                    echo "✅ Successfully cloned repository with header auth"
+                # Prefer HTTP Basic header (Git smart HTTP expects Basic)
+                # Username: use provided GITHUB_USERNAME or fallback to x-access-token
+                BASIC_USER=${GITHUB_USERNAME:-x-access-token}
+                BASIC_HEADER=$(printf '%s' "$BASIC_USER:$GITHUB_TOKEN" | base64)
+                if git -c http.extraHeader="AUTHORIZATION: basic $BASIC_HEADER" clone "$GITHUB_REPO" temp_repo; then
+                    echo "✅ Successfully cloned repository with basic auth header"
                     sudo mv temp_repo/* /home/coder/project/ 2>/dev/null || true
                     sudo mv temp_repo/.* /home/coder/project/ 2>/dev/null || true
                     rm -rf temp_repo
