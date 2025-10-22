@@ -19,9 +19,15 @@ clone_repo_if_needed() {
             cd /home/coder
             if [ -n "$GITHUB_TOKEN" ]; then
                 echo "🔑 Using GitHub token for authentication"
-                # Prefer Authorization header to avoid embedding token in URL
-                if git -c http.extraHeader="Authorization: Bearer $GITHUB_TOKEN" clone "$GITHUB_REPO" temp_repo; then
-                    echo "✅ Successfully cloned repository with header auth"
+                # Build x-access-token URL for HTTPS cloning (works for PATs and GitHub App tokens)
+                if [[ "$GITHUB_REPO" == https://* ]]; then
+                    REPO_URL_NO_PROTOCOL="${GITHUB_REPO#https://}"
+                else
+                    REPO_URL_NO_PROTOCOL="$GITHUB_REPO"
+                fi
+                AUTHENTICATED_URL="https://x-access-token:${GITHUB_TOKEN}@${REPO_URL_NO_PROTOCOL}"
+                if git clone "$AUTHENTICATED_URL" temp_repo; then
+                    echo "✅ Successfully cloned repository with x-access-token"
                     sudo mv temp_repo/* /home/coder/project/ 2>/dev/null || true
                     sudo mv temp_repo/.* /home/coder/project/ 2>/dev/null || true
                     rm -rf temp_repo
