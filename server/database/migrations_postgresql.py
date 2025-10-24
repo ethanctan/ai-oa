@@ -28,7 +28,7 @@ def get_connection():
 
 def run_migrations():
     """Run all PostgreSQL migrations in order"""
-    logger.info("🔄 Running PostgreSQL database migrations...")
+    logger.info("Running PostgreSQL database migrations...")
     
     try:
         conn = get_connection()
@@ -56,10 +56,10 @@ def run_migrations():
         create_telemetry_events_table(cursor)
         
         conn.close()
-        logger.info("✅ PostgreSQL migrations completed successfully.")
+        logger.info("PostgreSQL migrations completed successfully.")
         
     except Exception as e:
-        logger.error(f"❌ PostgreSQL migration failed: {str(e)}")
+        logger.error(f"PostgreSQL migration failed: {str(e)}")
         raise
 
 def ensure_all_columns_exist(cursor, conn):
@@ -81,13 +81,13 @@ def ensure_all_columns_exist(cursor, conn):
         if column not in companies_columns:
             if column == 'auth0_organization_id':
                 cursor.execute("ALTER TABLE companies ADD COLUMN auth0_organization_id TEXT")
-                logger.info(f"✅ Added {column} to companies table")
+                logger.info(f"Added {column} to companies table")
             elif column == 'approved':
                 cursor.execute("ALTER TABLE companies ADD COLUMN approved INTEGER DEFAULT 1")
-                logger.info(f"✅ Added {column} to companies table")
+                logger.info(f"Added {column} to companies table")
             elif column == 'approved_domains':
                 cursor.execute("ALTER TABLE companies ADD COLUMN approved_domains TEXT")
-                logger.info(f"✅ Added {column} to companies table")
+                logger.info(f"Added {column} to companies table")
     
     # Check tests table
     cursor.execute("""
@@ -99,7 +99,7 @@ def ensure_all_columns_exist(cursor, conn):
     
     if 'created_by_user_id' not in tests_columns:
         cursor.execute("ALTER TABLE tests ADD COLUMN created_by_user_id BIGINT REFERENCES users(id)")
-        logger.info("✅ Added created_by_user_id to tests table")
+        logger.info("Added created_by_user_id to tests table")
     
     conn.commit()
 
@@ -118,7 +118,7 @@ def set_default_values(cursor, conn):
     cursor.execute("UPDATE companies SET approved = 1 WHERE approved IS NULL")
     
     conn.commit()
-    logger.info("✅ Default values set for all tables")
+    logger.info("Default values set for all tables")
 
 def test_migration():
     """Test that migrations work properly"""
@@ -163,7 +163,7 @@ def create_instance_access_tokens_table(cursor):
     CREATE INDEX IF NOT EXISTS idx_instance_access_tokens_token ON instance_access_tokens(token);
     CREATE INDEX IF NOT EXISTS idx_instance_access_tokens_instance ON instance_access_tokens(instance_id);
     """)
-    logger.info("✅ Added instance_access_tokens table")
+    logger.info("Added instance_access_tokens table")
 
 # Add chat_history table
 def create_chat_history_table(cursor):
@@ -179,7 +179,7 @@ def create_chat_history_table(cursor):
     CREATE INDEX IF NOT EXISTS idx_chat_history_instance ON chat_history(instance_id);
     CREATE INDEX IF NOT EXISTS idx_chat_history_created_at ON chat_history(created_at);
     """)
-    logger.info("✅ Added chat_history table")
+    logger.info("Added chat_history table")
 
 # Add access_tokens table (invite tokens)
 def create_access_tokens_table(cursor):
@@ -197,7 +197,7 @@ def create_access_tokens_table(cursor):
         CREATE INDEX IF NOT EXISTS idx_access_tokens_instance ON access_tokens(instance_id);
         """
     )
-    logger.info("✅ Added access_tokens table")
+    logger.info("Added access_tokens table")
 
 # Add telemetry_events table
 def create_telemetry_events_table(cursor):
@@ -217,7 +217,7 @@ def create_telemetry_events_table(cursor):
         CREATE INDEX IF NOT EXISTS idx_telemetry_events_created ON telemetry_events(created_at);
         """
     )
-    logger.info("✅ Added telemetry_events table")
+    logger.info("Added telemetry_events table")
 
 # Add reports table
 def create_reports_table(cursor):
@@ -237,7 +237,7 @@ def create_reports_table(cursor):
         CREATE INDEX IF NOT EXISTS idx_reports_updated_at ON reports(updated_at);
         """
     )
-    logger.info("✅ Added telemetry_events table")
+    logger.info("Added telemetry_events table")
 # List of all migrations
 migrations = [
     # ... existing migrations ...

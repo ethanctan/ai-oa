@@ -23,7 +23,7 @@ def get_user_profile():
 
         data = request.json
         if not data:
-            logger.error("❌ AUTH ROUTE: No JSON data received in request")
+            logger.error("AUTH ROUTE: No JSON data received in request")
             return jsonify({'error': 'No JSON data provided'}), 400
             
         
@@ -33,7 +33,7 @@ def get_user_profile():
     
         
         if not auth0_user_id or not email:
-            logger.error("❌ AUTH ROUTE: Auth0 user ID and email are required")
+            logger.error("AUTH ROUTE: Auth0 user ID and email are required")
             return jsonify({'error': 'Auth0 user ID and email are required'}), 400
         
         # Create or get user based on profile data
@@ -42,18 +42,18 @@ def get_user_profile():
         return jsonify(user)
         
     except Exception as e:
-        logger.error(f'❌ AUTH ROUTE: Error creating/getting user: {str(e)}')
-        logger.error(f'❌ AUTH ROUTE: Full traceback: {traceback.format_exc()}')
+        logger.error(f'AUTH ROUTE: Error creating/getting user: {str(e)}')
+        logger.error(f'AUTH ROUTE: Full traceback: {traceback.format_exc()}')
         return jsonify({'error': str(e)}), 500
 
 # GET /auth/approved-domains - List approved domains 
 @auth_bp.route('/approved-domains', methods=['GET'])
 @require_auth
 def get_approved_domains():
-    logger.info("🚀 AUTH ROUTE: /auth/approved-domains - Starting approved domains request")
+    logger.info("AUTH ROUTE: /auth/approved-domains - Starting approved domains request")
     
     try:
-        logger.info("🔄 AUTH ROUTE: Getting approved domains from environment")
+        logger.info("AUTH ROUTE: Getting approved domains from environment")
         domains = get_approved_domains_from_env()
         
         response_data = {
@@ -62,12 +62,12 @@ def get_approved_domains():
             'note': 'Domains are managed via APPROVED_DOMAINS environment variable'
         }
         
-        logger.info(f"✅ AUTH ROUTE: Successfully retrieved approved domains: {domains}")
+        logger.info(f"AUTH ROUTE: Successfully retrieved approved domains: {domains}")
         logger.info(f"📤 AUTH ROUTE: Returning response: {response_data}")
         
         return jsonify(response_data)
         
     except Exception as e:
-        logger.error(f'❌ AUTH ROUTE: Error getting approved domains: {str(e)}')
-        logger.error(f'❌ AUTH ROUTE: Full traceback: {traceback.format_exc()}')
+        logger.error(f'AUTH ROUTE: Error getting approved domains: {str(e)}')
+        logger.error(f'AUTH ROUTE: Full traceback: {traceback.format_exc()}')
         return jsonify({'error': str(e)}), 500 

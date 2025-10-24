@@ -9,7 +9,7 @@ export function useAuthenticatedApi() {
 
   const makeAuthenticatedRequest = async (endpoint, options = {}) => {
     if (!user) {
-      console.error('❌ useAuthenticatedApi: User not authenticated');
+      console.error('useAuthenticatedApi: User not authenticated');
       throw new Error('User not authenticated');
     }
 
@@ -38,14 +38,14 @@ export function useAuthenticatedApi() {
 
     // Handle authentication errors
     if (response.status === 401) {
-      console.error('❌ useAuthenticatedApi: 401 Unauthorized - redirecting to login');
+      console.error('useAuthenticatedApi: 401 Unauthorized - redirecting to login');
       // Redirect to login if unauthorized
       window.location.href = '/login';
       throw new Error('Authentication required');
     }
     
     if (response.status === 403) {
-      console.error('❌ useAuthenticatedApi: 403 Forbidden');
+      console.error('useAuthenticatedApi: 403 Forbidden');
       throw new Error('Access forbidden - insufficient permissions');
     }
     

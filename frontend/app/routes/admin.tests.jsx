@@ -1191,7 +1191,7 @@ export default function TestsAdmin() {
                     payload.quantitativeAssessmentPrompt = JSON.stringify([]);
                   }
 
-                  console.log('🚀 Creating test with payload:', payload);
+                  console.log('Creating test with payload:', payload);
 
                   // Use the authenticated API to create the test
                   const response = await api.post('/tests', payload);
@@ -1201,7 +1201,7 @@ export default function TestsAdmin() {
                     throw new Error(result.error || 'Failed to create test');
                   }
 
-                  console.log('✅ Test created successfully:', result);
+                  console.log('Test created successfully:', result);
 
                   // Close the modal and refresh
                   setShowNewTestForm(false);
@@ -1211,7 +1211,7 @@ export default function TestsAdmin() {
                   await fetchTests();
                   
                 } catch (error) {
-                  console.error('❌ Error creating test:', error);
+                  console.error('Error creating test:', error);
                   alert(`Failed to create test: ${error.message}`);
                 }
               }}

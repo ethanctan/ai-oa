@@ -110,7 +110,7 @@ async function getUserFromAuth0Profile(profile: Auth0Profile): Promise<User> {
 
     return mappedUserData;
   } catch (error) {
-    console.error("❌ AUTH FRONTEND: Error in getUserFromAuth0Profile:");
+    console.error("AUTH FRONTEND: Error in getUserFromAuth0Profile:");
     console.error("   - Error:", error);
     if (error instanceof Error) {
       console.error("   - Error message:", error.message);

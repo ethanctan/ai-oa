@@ -32,7 +32,7 @@ list_instances() {
 stop_instance() {
     local instance_id=$1
     if [ -z "$instance_id" ]; then
-        echo "❌ Error: Instance ID required"
+        echo "Error: Instance ID required"
         echo "Usage: $0 stop <instance_id>"
         exit 1
     fi
@@ -41,24 +41,24 @@ stop_instance() {
     echo "🛑 Stopping instance container: $container_name"
     
     if docker stop "$container_name" 2>/dev/null; then
-        echo "✅ Instance $instance_id stopped successfully"
+        echo "Instance $instance_id stopped successfully"
         echo "🗑️  Removing container..."
         docker rm "$container_name" 2>/dev/null || echo "⚠️  Container already removed"
     else
-        echo "❌ Failed to stop instance $instance_id (container may not exist)"
+        echo "Failed to stop instance $instance_id (container may not exist)"
     fi
 }
 
 show_logs() {
     local instance_id=$1
     if [ -z "$instance_id" ]; then
-        echo "❌ Error: Instance ID required"
+        echo "Error: Instance ID required"
         echo "Usage: $0 logs <instance_id>"
         exit 1
     fi
     
     local container_name="instance-${instance_id}"
-    echo "📋 Showing logs for instance: $container_name"
+    echo "Showing logs for instance: $container_name"
     echo ""
     docker logs "$container_name" --tail 50 -f
 }
@@ -66,18 +66,18 @@ show_logs() {
 restart_instance() {
     local instance_id=$1
     if [ -z "$instance_id" ]; then
-        echo "❌ Error: Instance ID required"
+        echo "Error: Instance ID required"
         echo "Usage: $0 restart <instance_id>"
         exit 1
     fi
     
     local container_name="instance-${instance_id}"
-    echo "🔄 Restarting instance container: $container_name"
+    echo "Restarting instance container: $container_name"
     
     if docker restart "$container_name" 2>/dev/null; then
-        echo "✅ Instance $instance_id restarted successfully"
+        echo "Instance $instance_id restarted successfully"
     else
-        echo "❌ Failed to restart instance $instance_id (container may not exist)"
+        echo "Failed to restart instance $instance_id (container may not exist)"
     fi
 }
 
@@ -104,7 +104,7 @@ show_network() {
     if docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
         docker network inspect "$NETWORK_NAME" --format "{{json .}}" | jq '.Containers // {}' 2>/dev/null || docker network inspect "$NETWORK_NAME"
     else
-        echo "❌ Network $NETWORK_NAME not found"
+        echo "Network $NETWORK_NAME not found"
         echo "Run: docker/deploy-proxy.sh to create the network and proxy"
     fi
 }

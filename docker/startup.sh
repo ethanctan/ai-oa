@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting simplified AI OA code-server container..."
+echo "Starting simplified AI OA code-server container..."
 
 # Ensure project directory exists with correct permissions
 sudo mkdir -p /home/coder/project
@@ -10,15 +10,15 @@ sudo chown coder:coder /home/coder/project
 # Function to clone repository if needed
 clone_repo_if_needed() {
     if [ -n "$GITHUB_REPO" ]; then
-        echo "📦 Found GITHUB_REPO: $GITHUB_REPO"
+        echo "Found GITHUB_REPO: $GITHUB_REPO"
         
         # Only clone if project directory is empty
         if [ ! "$(ls -A /home/coder/project 2>/dev/null)" ]; then
-            echo "📁 Project directory is empty, cloning repository..."
+            echo "Project directory is empty, cloning repository..."
             
             cd /home/coder
             if [ -n "$GITHUB_TOKEN" ]; then
-                echo "🔑 Using GitHub token for authentication"
+                echo "Using GitHub token for authentication"
                 # Build x-access-token URL for HTTPS cloning (works for PATs and GitHub App tokens)
                 if [[ "$GITHUB_REPO" == https://* ]]; then
                     REPO_URL_NO_PROTOCOL="${GITHUB_REPO#https://}"
@@ -27,13 +27,13 @@ clone_repo_if_needed() {
                 fi
                 AUTHENTICATED_URL="https://x-access-token:${GITHUB_TOKEN}@${REPO_URL_NO_PROTOCOL}"
                 if git clone "$AUTHENTICATED_URL" temp_repo; then
-                    echo "✅ Successfully cloned repository with x-access-token"
+                    echo "Successfully cloned repository with x-access-token"
                     sudo mv temp_repo/* /home/coder/project/ 2>/dev/null || true
                     sudo mv temp_repo/.* /home/coder/project/ 2>/dev/null || true
                     rm -rf temp_repo
                 else
                     echo "⚠️ Failed to clone with token, trying without..."
-                    git clone "$GITHUB_REPO" temp_repo || echo "❌ Repository clone failed, continuing anyway..."
+                    git clone "$GITHUB_REPO" temp_repo || echo "Repository clone failed, continuing anyway..."
                     if [ -d temp_repo ]; then
                         sudo mv temp_repo/* /home/coder/project/ 2>/dev/null || true
                         sudo mv temp_repo/.* /home/coder/project/ 2>/dev/null || true
@@ -43,7 +43,7 @@ clone_repo_if_needed() {
             else
                 echo "🔓 Cloning repository without authentication"
                 if git clone "$GITHUB_REPO" temp_repo; then
-                    echo "✅ Successfully cloned repository"
+                    echo "Successfully cloned repository"
                     sudo mv temp_repo/* /home/coder/project/ 2>/dev/null || true
                     sudo mv temp_repo/.* /home/coder/project/ 2>/dev/null || true
                     rm -rf temp_repo
@@ -55,7 +55,7 @@ clone_repo_if_needed() {
             # Ensure correct ownership
             sudo chown -R coder:coder /home/coder/project
         else
-            echo "📁 Project directory not empty, skipping clone"
+            echo "Project directory not empty, skipping clone"
         fi
     else
         echo "ℹ️ No GITHUB_REPO specified, skipping clone"
@@ -65,7 +65,7 @@ clone_repo_if_needed() {
 # Clone repository as root (for permissions)
 clone_repo_if_needed
 
-echo "📡 Starting code-server on HTTP port 80..."
+echo "Starting code-server on HTTP port 80..."
 
 # Start code-server directly on port 80 (nginx proxy handles HTTPS)
 # Pass environment variables needed by the VS Code extension

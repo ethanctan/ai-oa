@@ -43,7 +43,7 @@ CORS(app,
 # Request logging middleware removed to reduce log verbosity
 
 # Register routes/blueprints
-logger.info("🚀 STARTUP: Registering blueprints...")
+logger.info("STARTUP: Registering blueprints...")
 app.register_blueprint(chat_bp, url_prefix='/chat')
 app.register_blueprint(candidates_bp, url_prefix='/candidates')
 app.register_blueprint(tests_bp, url_prefix='/tests')
@@ -53,7 +53,7 @@ app.register_blueprint(reports_bp, url_prefix='/reports')
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(telemetry_bp, url_prefix='/telemetry')
 app.register_blueprint(welcome_bp, url_prefix='/')
-logger.info("✅ STARTUP: All blueprints registered")
+logger.info("STARTUP: All blueprints registered")
 
 # Log environment variables (safely)
 logger.info("🔧 STARTUP: Environment configuration:")
@@ -69,7 +69,7 @@ try:
     connection_result = test_connection()
     logger.info(connection_result)
 except Exception as e:
-    logger.error(f"❌ STARTUP: Database connection test failed: {str(e)}")
+    logger.error(f"STARTUP: Database connection test failed: {str(e)}")
     logger.error("💡 Make sure DATABASE_URL is set in your .env file")
     exit(1)
 
@@ -77,19 +77,19 @@ except Exception as e:
 try:
     logger.info("🗄️ STARTUP: Initializing PostgreSQL database...")
     init_database()
-    logger.info("✅ STARTUP: Database initialized successfully")
+    logger.info("STARTUP: Database initialized successfully")
     
     # Run migrations to update schema
-    logger.info("🔄 STARTUP: Running PostgreSQL migrations...")
+    logger.info("STARTUP: Running PostgreSQL migrations...")
     run_migrations()
-    logger.info("✅ STARTUP: Migrations completed successfully")
+    logger.info("STARTUP: Migrations completed successfully")
 except Exception as e:
-    logger.error(f"❌ STARTUP: Database initialization failed: {str(e)}")
+    logger.error(f"STARTUP: Database initialization failed: {str(e)}")
     logger.error("💡 Check your DATABASE_URL and Supabase connection")
     exit(1)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 3000))
-    logger.info(f"🚀 STARTUP: Server starting on port {port}")
-    logger.info(f"🔗 STARTUP: Using PostgreSQL database (Supabase)")
+    logger.info(f"STARTUP: Server starting on port {port}")
+    logger.info(f"STARTUP: Using PostgreSQL database (Supabase)")
     app.run(host='0.0.0.0', port=port, debug=True) 

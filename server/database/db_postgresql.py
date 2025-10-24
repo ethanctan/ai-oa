@@ -55,7 +55,7 @@ def init_database():
         cursor.execute("SELECT COUNT(*) FROM tests")
         test_count = cursor.fetchone()['count']
         
-        logger.info(f"✅ Database connection successful!")
+        logger.info(f"Database connection successful!")
         logger.info(f"   - Companies: {company_count}")
         logger.info(f"   - Candidates: {candidate_count}")
         logger.info(f"   - Tests: {test_count}")
@@ -69,7 +69,7 @@ def init_database():
                 ON CONFLICT DO NOTHING
             """)
             conn.commit()
-            logger.info("✅ Default company created")
+            logger.info("Default company created")
         
         # Add some basic test candidates if none exist
         if candidate_count == 0:
@@ -89,13 +89,13 @@ def init_database():
                 """, (name, email, completed))
             
             conn.commit()
-            logger.info("✅ Basic test candidates created")
+            logger.info("Basic test candidates created")
         
         conn.close()
-        logger.info("✅ Database initialization completed successfully")
+        logger.info("Database initialization completed successfully")
         
     except Exception as e:
-        logger.error(f"❌ Database initialization failed: {str(e)}")
+        logger.error(f"Database initialization failed: {str(e)}")
         raise
 
 def test_connection():
@@ -106,6 +106,6 @@ def test_connection():
         cursor.execute("SELECT version()")
         version = cursor.fetchone()
         conn.close()
-        return f"✅ PostgreSQL connection successful: {version['version']}"
+        return f"PostgreSQL connection successful: {version['version']}"
     except Exception as e:
-        return f"❌ PostgreSQL connection failed: {str(e)}" 
+        return f"PostgreSQL connection failed: {str(e)}" 
