@@ -511,27 +511,16 @@ def stop_instance(instance_id):
             client = get_docker_client()
             
             try:
-                # Get the container and stop it
                 container = client.containers.get(docker_id)
                 container.stop()
                 container.remove()
                 
-                # Update the instance status
-                cursor.execute(
-                    'UPDATE test_instances SET status = %s WHERE id = %s',
-                    ('stopped', instance_id)
-                )
                 conn.commit()
                 
                 print(f"Instance {instance_id} (Docker ID: {docker_id}) stopped and removed successfully")
                 return {"success": True, "message": f"Instance {instance_id} stopped successfully"}
             
             except docker.errors.NotFound:
-                # Container doesn't exist anymore
-                cursor.execute(
-                    'UPDATE test_instances SET status = %s WHERE id = %s',
-                    ('not_found', instance_id)
-                )
                 conn.commit()
                 
                 print(f"Container for instance {instance_id} not found in Docker, marked as not_found")
@@ -658,12 +647,16 @@ def upload_project_to_github(instance_id, file_storage):
                     # Determine current branch
                     current_branch = exec_command("git rev-parse --abbrev-ref HEAD").strip()
                     
-                    # Prefer Authorization header for pushes when token is available
+                    # Use x-access-token URL for pushes when token is available
                     if target_repo_token:
-                        push_command = f"git -c http.extraHeader=\"Authorization: Bearer {target_repo_token}\" push origin {current_branch}"
+                        push_url = target_repo_url
+                        if push_url.startswith('https://'):
+                            push_url = f"https://x-access-token:{target_repo_token}@{push_url[8:]}"
+                        else:
+                            push_url = f"https://x-access-token:{target_repo_token}@{push_url}"
+                        exec_command(f"git push {push_url} {current_branch}")
                     else:
-                        push_command = f"git push origin {current_branch}"
-                    exec_command(push_command)
+                        exec_command(f"git push origin {current_branch}")
                     print(f"Successfully pushed changes to {target_repo_url} on branch {current_branch}")
                 except Exception as e:
                     # Attempt to reset if commit/push fails to avoid leaving repo in bad state
