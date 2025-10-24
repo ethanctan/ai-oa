@@ -84,4 +84,5 @@ exec sudo -u coder \
     --bind-addr 0.0.0.0:80 \
     --disable-telemetry \
     --disable-update-check \
+    --disable-workspace-trust \
     /home/coder/project
