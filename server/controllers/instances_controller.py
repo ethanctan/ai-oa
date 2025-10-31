@@ -770,6 +770,8 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             print(f"  - INITIAL_DURATION_MINUTES: {test.get('timer_duration', 10)}")
             print(f"  - ENABLE_PROJECT_TIMER: {test.get('enable_project_timer', 1)}")
             print(f"  - PROJECT_DURATION_MINUTES: {test.get('project_timer_duration', 60)}")
+            print(f"  - INITIAL_QUESTION_BUDGET: {test.get('initial_question_budget', 'DEFAULT')}")
+            print(f"  - FINAL_QUESTION_BUDGET: {test.get('final_question_budget', 'DEFAULT')}")
             
             # Prepare environment variables including GitHub repo info
             env_vars = {
@@ -798,6 +800,12 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             env_vars['INITIAL_DURATION_MINUTES'] = str(test.get('timer_duration', 10))
             env_vars['ENABLE_PROJECT_TIMER'] = '1' if test.get('enable_project_timer', 1) else '0'
             env_vars['PROJECT_DURATION_MINUTES'] = str(test.get('project_timer_duration', 60))
+
+            # Add interview question budgets
+            if test.get('initial_question_budget') is not None:
+                env_vars['INITIAL_QUESTION_BUDGET'] = str(test.get('initial_question_budget'))
+            if test.get('final_question_budget') is not None:
+                env_vars['FINAL_QUESTION_BUDGET'] = str(test.get('final_question_budget'))
 
             # Create the container without port mapping (network communication only)
             container = client.containers.create(

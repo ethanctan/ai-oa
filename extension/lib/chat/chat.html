@@ -418,6 +418,8 @@
       let initialPrompt = '';
       let finalPrompt = '';
       let assessmentPrompt = '';
+      let initialQuestionBudget = 5;
+      let finalQuestionBudget = 5;
       let initialInterviewStarted = false;
       let finalInterviewStarted = false;
       let initialInterviewEnded = false;
@@ -555,10 +557,10 @@
           
           // Add the specific interview prompt if provided
           if (initialPrompt) {
-            systemMessages.push({ role: "system", content: initialPrompt + " Based on the candidate's responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with 'END' as your complete message. Otherwise, ask your next question." });
+            systemMessages.push({ role: "system", content: initialPrompt });
           } else {
             // Default system message
-            systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused. Based on the candidate\'s responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with \'END\' as your complete message. Otherwise, ask your next question.' });
+            systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.' });
           }
           
           // Always include workspace content if available
@@ -1213,9 +1215,16 @@
             finalPrompt = message.finalPrompt || '';
             assessmentPrompt = message.assessmentPrompt || '';
             instanceId = message.instanceId;
+            if (message.initialQuestionBudget) {
+              initialQuestionBudget = message.initialQuestionBudget;
+            }
+            if (message.finalQuestionBudget) {
+              finalQuestionBudget = message.finalQuestionBudget;
+            }
             
             console.log(`Received environment prompts. Initial prompt length: ${initialPrompt.length}`);
             console.log(`Instance ID: ${instanceId}`);
+            console.log(`Question budgets → initial: ${initialQuestionBudget}, final: ${finalQuestionBudget}`);
             
             // Check timer status if instance ID is available
             if (instanceId) {
@@ -1469,11 +1478,7 @@
           basePrompt = 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project. Interview them about their design decisions and implementation. IMPORTANT: Ask only ONE question at a time, and wait for their response before asking the next question. Keep your questions concise and focused.';
         }
         
-        // Add instruction to end interview when appropriate
-        const endingInstructions = " Based on the candidate's responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with 'END' as your complete message. Otherwise, ask your next question.";
-        
-        // Add the combined prompt
-        systemMessages.push({ role: "system", content: basePrompt + endingInstructions });
+        systemMessages.push({ role: "system", content: basePrompt });
         
         // Always include workspace content if available
         if (workspaceContext) {
@@ -1623,10 +1628,10 @@
           
           // Add the specific interview prompt if provided
           if (finalPrompt) {
-            systemMessages.push({ role: "system", content: finalPrompt + " Based on the candidate's responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with 'END' as your complete message. Otherwise, ask your next question." });
+            systemMessages.push({ role: "system", content: finalPrompt });
           } else {
             // Default system message
-            systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have now completed. IMPORTANT: Ask only ONE question at a time about their implementation, and wait for their response before asking another question. Start by asking them to explain their overall approach. Based on the candidate\'s responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with \'END\' as your complete message. Otherwise, ask your next question.' });
+            systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have now completed. IMPORTANT: Ask only ONE question at a time about their implementation, and wait for their response before asking another question. Start by asking them to explain their overall approach.' });
           }
           
           // Always include workspace content if available

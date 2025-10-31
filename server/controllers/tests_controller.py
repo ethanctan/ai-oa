@@ -14,6 +14,7 @@ def get_all_tests(company_id=None):
                     t.id, t.name, t.github_repo, 
                     t.candidates_assigned, t.candidates_completed,
                     t.enable_timer, t.timer_duration,
+                    t.initial_question_budget, t.final_question_budget,
                     t.created_at, t.updated_at,
                     t.target_github_repo, t.target_github_token,
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
@@ -32,6 +33,7 @@ def get_all_tests(company_id=None):
                     t.id, t.name, t.github_repo, 
                     t.candidates_assigned, t.candidates_completed,
                     t.enable_timer, t.timer_duration,
+                    t.initial_question_budget, t.final_question_budget,
                     t.created_at, t.updated_at,
                     t.target_github_repo, t.target_github_token,
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
@@ -72,6 +74,7 @@ def get_test(test_id, company_id=None):
                     t.candidates_assigned, t.candidates_completed, 
                     t.enable_timer, t.timer_duration,
                     t.enable_project_timer, t.project_timer_duration,
+                    t.initial_question_budget, t.final_question_budget,
                     t.created_at, t.updated_at,
                     t.target_github_repo, t.target_github_token,
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
@@ -92,6 +95,7 @@ def get_test(test_id, company_id=None):
                     t.candidates_assigned, t.candidates_completed, 
                     t.enable_timer, t.timer_duration,
                     t.enable_project_timer, t.project_timer_duration,
+                    t.initial_question_budget, t.final_question_budget,
                     t.created_at, t.updated_at,
                     t.target_github_repo, t.target_github_token,
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
@@ -162,6 +166,20 @@ def create_test(data):
     # Extract project timer configuration
     enable_project_timer = data.get('enableProjectTimer', True)
     project_timer_duration = data.get('projectTimerDuration', 60)  # Default: 60 minutes
+
+    def parse_budget(value, default):
+        try:
+            parsed = int(value)
+            return parsed if parsed > 0 else default
+        except (TypeError, ValueError):
+            return default
+
+    initial_question_budget = parse_budget(
+        data.get('initialQuestionBudget', data.get('initial_question_budget')), 5
+    )
+    final_question_budget = parse_budget(
+        data.get('finalQuestionBudget', data.get('final_question_budget')), 5
+    )
     
     if not name:
         raise ValueError('Test name is required')
@@ -183,8 +201,9 @@ def create_test(data):
                 candidates_assigned, candidates_completed,
                 enable_timer, timer_duration,
                 enable_project_timer, project_timer_duration,
+                initial_question_budget, final_question_budget,
                 target_github_repo, target_github_token, company_id
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
             ''',
             (
                 name,
@@ -200,6 +219,8 @@ def create_test(data):
                 timer_duration,
                 1 if enable_project_timer else 0,  # Store as integer for SQLite compatibility
                 project_timer_duration,
+                initial_question_budget,
+                final_question_budget,
                 data.get('targetGithubRepo', None),
                 data.get('targetGithubToken', None),
                 company_id
@@ -301,6 +322,8 @@ def update_test(test_id, data, company_id=None):
             'finalPrompt': 'final_prompt',
             'qualitativeAssessmentPrompt': 'qualitative_assessment_prompt',
             'quantitativeAssessmentPrompt': 'quantitative_assessment_prompt',
+            'initialQuestionBudget': 'initial_question_budget',
+            'finalQuestionBudget': 'final_question_budget',
             'candidatesAssigned': 'candidates_assigned',
             'candidatesCompleted': 'candidates_completed'
         }

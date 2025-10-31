@@ -100,6 +100,14 @@ def ensure_all_columns_exist(cursor, conn):
     if 'created_by_user_id' not in tests_columns:
         cursor.execute("ALTER TABLE tests ADD COLUMN created_by_user_id BIGINT REFERENCES users(id)")
         logger.info("Added created_by_user_id to tests table")
+
+    if 'initial_question_budget' not in tests_columns:
+        cursor.execute("ALTER TABLE tests ADD COLUMN initial_question_budget INTEGER DEFAULT 5")
+        logger.info("Added initial_question_budget to tests table")
+
+    if 'final_question_budget' not in tests_columns:
+        cursor.execute("ALTER TABLE tests ADD COLUMN final_question_budget INTEGER DEFAULT 5")
+        logger.info("Added final_question_budget to tests table")
     
     conn.commit()
 
@@ -113,6 +121,9 @@ def set_default_values(cursor, conn):
     cursor.execute("UPDATE test_candidates SET company_id = 1 WHERE company_id IS NULL")
     cursor.execute("UPDATE reports SET company_id = 1 WHERE company_id IS NULL")
     cursor.execute("UPDATE access_tokens SET company_id = 1 WHERE company_id IS NULL") 
+
+    cursor.execute("UPDATE tests SET initial_question_budget = 5 WHERE initial_question_budget IS NULL")
+    cursor.execute("UPDATE tests SET final_question_budget = 5 WHERE final_question_budget IS NULL")
     
     # Set approved = 1 for companies that don't have it set
     cursor.execute("UPDATE companies SET approved = 1 WHERE approved IS NULL")

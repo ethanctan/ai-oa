@@ -39,6 +39,156 @@ let globalAssessmentPrompt = '';
 // Store timer config globally
 let globalTimerConfig = {};
 let globalProjectTimerConfig = {};
+let globalInitialQuestionBudget = 5;
+let globalFinalQuestionBudget = 5;
+
+function normalizePhaseName(value) {
+  if (value === null || value === undefined) return null;
+  const lower = String(value).trim().toLowerCase();
+  if (!lower) return null;
+  if (lower.startsWith('final')) return 'final';
+  if (lower.startsWith('project')) return 'project';
+  return 'initial';
+}
+
+function parsePositiveInteger(value, fallback) {
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function resolveMessagePhase(message, defaultPhase) {
+  if (!message || typeof message !== 'object') return defaultPhase;
+  const explicitPhase = normalizePhaseName(message.phase);
+  if (explicitPhase) return explicitPhase;
+  if (message.metadata && message.metadata.phase) {
+    const metadataPhase = normalizePhaseName(message.metadata.phase);
+    if (metadataPhase) return metadataPhase;
+  }
+  const normalizedDefault = normalizePhaseName(defaultPhase);
+  return normalizedDefault || 'initial';
+}
+
+function getQuestionBudgetForPhase(phaseName) {
+  if (normalizePhaseName(phaseName) === 'final') {
+    return parsePositiveInteger(globalFinalQuestionBudget, 5);
+  }
+  return parsePositiveInteger(globalInitialQuestionBudget, 5);
+}
+
+function buildInterviewControlContext({ phaseName, messages }) {
+  const defaultPhase = phaseName === 'final' ? 'final' : 'initial';
+  const budget = getQuestionBudgetForPhase(defaultPhase);
+  const phaseLabel = defaultPhase === 'final' ? 'Final' : 'Initial';
+
+  const normalizedDefaultPhase = normalizePhaseName(defaultPhase) || 'initial';
+  let currentDerivedPhase = normalizedDefaultPhase;
+
+  const enrichedMessages = Array.isArray(messages)
+    ? messages.reduce((acc, msg) => {
+        if (!msg) {
+          return acc;
+        }
+
+        if (msg.role === 'system' && typeof msg.content === 'string') {
+          const contentTrimmed = msg.content.trim();
+          if (contentTrimmed.toUpperCase().startsWith('PHASE_MARKER:')) {
+            const markerRaw = contentTrimmed.substring('PHASE_MARKER:'.length).trim();
+            const markerPhase = normalizePhaseName(markerRaw);
+            if (markerPhase) {
+              currentDerivedPhase = markerPhase;
+            }
+            return acc;
+          }
+        }
+
+        const resolvedPhase = resolveMessagePhase(msg, currentDerivedPhase);
+        acc.push({ message: msg, phase: resolvedPhase });
+        return acc;
+      }, [])
+    : [];
+
+  const conversationMessages = enrichedMessages.filter(({ message }) =>
+    message && (message.role === 'assistant' || message.role === 'user')
+  );
+
+  const assistantMessages = conversationMessages.filter(({ message, phase }) => {
+    if (message.role !== 'assistant') return false;
+    if (phase !== normalizedDefaultPhase) return false;
+    const content = (message.content || '').trim();
+    if (!content) return false;
+    return content.toUpperCase() !== 'END';
+  });
+
+  const userMessages = conversationMessages.filter(({ message, phase }) => {
+    if (message.role !== 'user') return false;
+    return phase === normalizedDefaultPhase;
+  });
+
+  const questionCount = assistantMessages.length;
+  const userResponseCount = userMessages.length;
+  const questionsRemaining = Math.max(budget - questionCount, 0);
+
+  const checklistItems = defaultPhase === 'final'
+    ? [
+        'Implementation decisions and rationale',
+        'Code structure and quality trade-offs',
+        'Testing and validation strategy',
+        'Challenges encountered and mitigation'
+      ]
+    : [
+        'Understanding of project requirements',
+        'Proposed technical approach',
+        'Consideration of risks and edge cases',
+        'System architecture or design thinking'
+      ];
+
+  const statusLine = questionCount >= budget
+    ? '⚠️ LIMIT REACHED — YOU MUST END'
+    : `${questionsRemaining} question${questionsRemaining === 1 ? '' : 's'} remaining`;
+
+  const lines = [
+    '═══ INTERVIEW CONTROL SYSTEM ═══',
+    `• Phase: ${phaseLabel} Interview`,
+    `• Question budget: ${budget}`,
+    `• Questions asked: ${questionCount}/${budget}`,
+    `• Candidate responses recorded: ${userResponseCount}`,
+    `• Status: ${statusLine}`,
+    '',
+    'MANDATORY END CONDITIONS (respond with ONLY "END"):',
+    '1. You have reached the question budget',
+    '2. The candidate explicitly asks to end (e.g. “let’s stop”, “I am done”)',
+    '3. The candidate provides three consecutive non-answers (e.g. “I don’t know”, silence)',
+    '',
+    `ASSESSMENT COVERAGE CHECKLIST (${phaseLabel} Interview):`,
+    ...checklistItems.map((item) => `□ ${item}`),
+    '',
+    'RESPONSE RULES:',
+    '- If the checklist is complete OR the budget is exhausted → respond with exactly "END" (no additional text).',
+    '- Otherwise, ask the next concise, high-signal question. One question per turn only.',
+    '- Keep the conversation focused on the candidate’s reasoning and evidence.',
+    '',
+    'When you decide to conclude, reply with exactly "END" and nothing else.'
+  ];
+
+  return {
+    prompt: lines.join('\n'),
+    questionCount,
+    userResponseCount,
+    budget
+  };
+}
+
+function buildSystemPrompt(basePrompt, controlPrompt) {
+  const sanitizedBase = (basePrompt || '').trim();
+  const sanitizedControl = (controlPrompt || '').trim();
+  if (!sanitizedControl) {
+    return sanitizedBase;
+  }
+  return `${sanitizedBase}\n\n${sanitizedControl}`.trim();
+}
 
 // Function to get environment variables 
 async function getEnvironmentVariables() {
@@ -47,7 +197,7 @@ async function getEnvironmentVariables() {
     const result = await new Promise((resolve, reject) => {
       const { exec } = require('child_process');
       // Update grep pattern to include timer variables
-      exec('env | grep -E "INITIAL_PROMPT|FINAL_PROMPT|ASSESSMENT_PROMPT|INSTANCE_ID|ENABLE_INITIAL_TIMER|INITIAL_DURATION_MINUTES|ENABLE_PROJECT_TIMER|PROJECT_DURATION_MINUTES"', (error, stdout, stderr) => {
+      exec('env | grep -E "INITIAL_PROMPT|FINAL_PROMPT|ASSESSMENT_PROMPT|INSTANCE_ID|ENABLE_INITIAL_TIMER|INITIAL_DURATION_MINUTES|ENABLE_PROJECT_TIMER|PROJECT_DURATION_MINUTES|INITIAL_QUESTION_BUDGET|FINAL_QUESTION_BUDGET"', (error, stdout, stderr) => {
         if (error) {
           console.error(`Error getting env variables: ${error.message}`);
           // Don't reject - just return empty if there's an issue
@@ -78,8 +228,19 @@ async function getEnvironmentVariables() {
       projectDuration: result.PROJECT_DURATION_MINUTES ? parseInt(result.PROJECT_DURATION_MINUTES, 10) : 60 // Default 60 mins
     };
     
+    if (result.INITIAL_QUESTION_BUDGET) {
+      globalInitialQuestionBudget = parsePositiveInteger(result.INITIAL_QUESTION_BUDGET, globalInitialQuestionBudget);
+    }
+    if (result.FINAL_QUESTION_BUDGET) {
+      globalFinalQuestionBudget = parsePositiveInteger(result.FINAL_QUESTION_BUDGET, globalFinalQuestionBudget);
+    }
+
     console.log('Populated globalTimerConfig:', globalTimerConfig);
     console.log('Populated globalProjectTimerConfig:', globalProjectTimerConfig);
+    console.log('Populated question budgets:', {
+      initial: globalInitialQuestionBudget,
+      final: globalFinalQuestionBudget
+    });
     
     return result;
   } catch (error) {
@@ -240,7 +401,9 @@ function openChat() {
           initialPrompt: globalInitialPrompt,
           finalPrompt: globalFinalPrompt,
           assessmentPrompt: globalAssessmentPrompt,
-          instanceId: instanceId
+          instanceId: instanceId,
+          initialQuestionBudget: globalInitialQuestionBudget,
+          finalQuestionBudget: globalFinalQuestionBudget
         });
       } catch (error) {
         global.chatPanel.webview.postMessage({ 
@@ -248,7 +411,9 @@ function openChat() {
           error: error.message,
           initialPrompt: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have not started yet. Instructions for the project have been provided in the README.md file. IMPORTANT: Ask only ONE question at a time about their approach to the project, and wait for their response before asking another question. Start by asking about their initial thoughts on the project requirements.',
           finalPrompt: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have now completed. IMPORTANT: Ask only ONE question at a time about their implementation, and wait for their response before asking another question. Start by asking them to explain their overall approach.',
-          instanceId: instanceId
+          instanceId: instanceId,
+          initialQuestionBudget: globalInitialQuestionBudget,
+          finalQuestionBudget: globalFinalQuestionBudget
         });
       }
     }
@@ -339,22 +504,22 @@ function openChat() {
           console.log('Using INITIAL interview prompt for this message');
         }
         
+        const controlContext = buildInterviewControlContext({ phaseName, messages });
+        const systemPrompt = buildSystemPrompt(promptToUse, controlContext.prompt);
+
+        console.log(`Using system prompt for ${phaseName} phase. Budget: ${controlContext.budget}, questions asked: ${controlContext.questionCount}.`);
+
         // Create a new payload using the standardized format
         const newPayload = {
           instanceId: chatInstanceId,
           skipHistorySave: true,
           payload: {
             messages: [
-              // Use the appropriate prompt based on interview phase
-              { role: "system", content: promptToUse + " Based on the candidate's responses and the progress of the interview, decide whether to ask the next question or end the interview. If you decide the interview has covered enough topics and should conclude, respond with 'END' as your complete message. Otherwise, ask your next question." },
-              // Include the user message
+              { role: "system", content: systemPrompt },
               { role: "user", content: userMessage.content }
             ]
           }
         };
-        
-        // Log which prompt we're using
-        console.log(`Using system prompt for ${phaseName} phase: ${promptToUse.substring(0, 50)}...`);
         
         const response = await fetch(SERVER_CHAT_URL, {
           method: 'POST',
@@ -867,21 +1032,37 @@ async function sendChatMessage(message, instanceId) {
       console.error(`Warning: Could not save user message to history: ${historyError.message}`);
     }
     
+    let conversationMessages = [];
+    try {
+      const historyResponse = await fetch(`${SERVER_CHAT_URL}/history?instanceId=${instanceId}`);
+      if (historyResponse.ok) {
+        const historyData = await historyResponse.json();
+        if (Array.isArray(historyData.history)) {
+          conversationMessages = historyData.history;
+        }
+      } else {
+        console.warn(`Unable to fetch chat history for control context: ${historyResponse.status}`);
+      }
+    } catch (historyFetchError) {
+      console.error(`Error fetching chat history for control context: ${historyFetchError.message}`);
+    }
+
+    const controlContext = buildInterviewControlContext({ phaseName, messages: conversationMessages });
+    const systemPrompt = buildSystemPrompt(promptToUse, controlContext.prompt);
+
+    console.log(`Using ${phaseName} system prompt. Budget: ${controlContext.budget}, questions asked: ${controlContext.questionCount}.`);
+
     // Create a payload using the standardized format
     const payload = {
       instanceId,
       skipHistorySave: true, // Signal to server not to save to history
       payload: {
         messages: [
-          // Use appropriate prompt for current phase
-          { role: "system", content: promptToUse },
+          { role: "system", content: systemPrompt },
           { role: "user", content: message }
         ]
       }
     };
-    
-    // Log which prompt we're using
-    console.log(`Using ${phaseName} prompt: ${promptToUse.substring(0, 50)}...`);
     
     // Then call the API with the skip flag to avoid duplication
     const aiResponse = await fetch(

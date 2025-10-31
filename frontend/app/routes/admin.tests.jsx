@@ -1139,6 +1139,9 @@ export default function TestsAdmin() {
                   const enableProjectTimer = formData.get('enableProjectTimer') === 'on';
                   const projectTimerDuration = parseInt(formData.get('projectTimerDuration'), 10) || 60;
                   
+                  const initialQuestionBudget = Math.max(1, parseInt(formData.get('initialQuestionBudget'), 10) || 5);
+                  const finalQuestionBudget = Math.max(1, parseInt(formData.get('finalQuestionBudget'), 10) || 5);
+
                   // Create the payload object for the API
                   const payload = {
                     instanceName: formData.get('instanceName'),
@@ -1146,6 +1149,8 @@ export default function TestsAdmin() {
                     timerDuration: timerDuration,
                     enableProjectTimer: enableProjectTimer,
                     projectTimerDuration: projectTimerDuration,
+                    initialQuestionBudget,
+                    finalQuestionBudget,
                     githubRepo: formData.get('githubRepo') || '',
                     githubToken: formData.get('githubToken') || '',
                     candidateIds: newTestSelectedCandidates
@@ -1422,6 +1427,43 @@ export default function TestsAdmin() {
 
               <div className="space-y-4">
                 <h4 className="font-medium text-lg mb-2">Interviewer Prompts</h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="initialQuestionBudget" className="block text-sm font-medium text-gray-700 mb-1">
+                      Initial Interview Question Budget
+                    </label>
+                    <input
+                      type="number"
+                      id="initialQuestionBudget"
+                      name="initialQuestionBudget"
+                      min="1"
+                      max="20"
+                      defaultValue="5"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Number of questions the AI interviewer should target before ending the initial interview.
+                    </p>
+                  </div>
+                  <div>
+                    <label htmlFor="finalQuestionBudget" className="block text-sm font-medium text-gray-700 mb-1">
+                      Final Interview Question Budget
+                    </label>
+                    <input
+                      type="number"
+                      id="finalQuestionBudget"
+                      name="finalQuestionBudget"
+                      min="1"
+                      max="20"
+                      defaultValue="5"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Number of questions the AI interviewer should target before ending the final interview.
+                    </p>
+                  </div>
+                </div>
                 
                 {/* Initial Interview Prompt */}
                 <div className="space-y-2">
