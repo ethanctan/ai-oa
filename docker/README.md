@@ -12,6 +12,14 @@ nginx-proxy (routes subdomains)
     └── instance-*.verihire.me → Docker containers
 ```
 
+## How to push changes to the droplet
+The droplet has 2 docker images running: ai-oa-public (the main app) and ai-oa-nginx-proxy (the reverse proxy). To update either image, follow these steps:
+1. Make changes to the docker image locally
+2. Build and push the image to Docker Hub, the repos are `ectan/ai-oa-public` and `ectan/ai-oa-nginx-proxy`
+   1. For extension changes, you have to build the .vsix locally, drag it into the docker folder, and then build and push the docker image
+3. SSH into the droplet
+4. Pull the latest image using `docker pull ectan/ai-oa-public:latest` or `docker pull ectan/ai-oa-nginx-proxy:latest`
+
 ## Quick Start
 
 ### On droplet restart:
@@ -35,164 +43,3 @@ docker ps | grep ai-oa-nginx-proxy | cat
 ```bash
 docker pull ectan/ai-oa-public:latest
 ```
-
-### 1. Deploy the nginx proxy
-```bash
-cd docker
-./deploy-proxy.sh
-```
-
-### 2. Create test instances through the admin interface
-- Go to your admin panel
-- Create a test and assign candidates
-- Each instance will automatically get a unique subdomain
-
-### 3. Access instances
-- Base domain: https://verihire.me (shows "Coming Soon" placeholder)
-- Instance 123: https://instance-123.verihire.me
-- Instance 456: https://instance-456.verihire.me
-
-## Files
-
-- `nginx.conf` - Routes subdomains to containers
-- `nginx-proxy.Dockerfile` - Nginx proxy container
-- `simple.Dockerfile` - Instance container (code-server)
-- `simple-startup.sh` - Startup script for instances
-- `docker-compose.yml` - Proxy deployment configuration
-- `deploy-proxy.sh` - Deployment script
-- `manage-instances.sh` - Instance management utilities
-
-## Management
-
-### List running instances
-```bash
-./manage-instances.sh list
-```
-
-### Stop an instance
-```bash
-./manage-instances.sh stop 123
-```
-
-### View instance logs
-```bash
-./manage-instances.sh logs 123
-```
-
-### Cleanup stopped containers
-```bash
-./manage-instances.sh cleanup
-```
-
-### View network information
-```bash
-./manage-instances.sh network
-```
-
-## How it works
-
-1. **nginx-proxy container**: Runs on port 80 and routes requests:
-   - `verihire.me` → Shows placeholder (ready for Vercel redirect)
-   - `instance-*.verihire.me` → Routes to appropriate container
-2. **ai-oa-network**: Docker bridge network for internal communication
-3. **Instance containers**: Each named `instance-{id}` running code-server on port 80
-4. **Cloudflare**: Handles SSL termination and DNS for `*.verihire.me`
-
-## Network Flow
-
-1. User visits `https://instance-123.verihire.me`
-2. Cloudflare handles SSL and forwards to nginx-proxy:80
-3. nginx extracts instance ID (123) from subdomain
-4. nginx forwards request to `instance-123:80` on ai-oa-network
-5. Instance container serves code-server interface
-
-## Scaling
-
-The system automatically scales by:
-- Creating new containers when instances are requested
-- Using Docker network for internal communication (no port conflicts)
-- Each container is isolated with its own filesystem and environment
-
-## Cloudflare Setup
-
-### DNS Configuration
-Add these DNS records in Cloudflare:
-```
-Type: A
-Name: verihire.me
-IPv4 address: 167.99.52.130
-Proxy status: Proxied (🟠 orange cloud)
-
-Type: A
-Name: *.verihire.me
-IPv4 address: 167.99.52.130
-Proxy status: Proxied (🟠 orange cloud)
-```
-
-### SSL/TLS Settings
-- Go to SSL/TLS → Overview
-- Set encryption mode to: **"Full"**
-- Cloudflare's free plan covers `*.verihire.me` wildcards
-
-## Adding Vercel Redirect (When Ready)
-
-When you deploy your frontend to Vercel, update the base domain redirect:
-
-1. **Edit `nginx.conf`** - Replace the placeholder section:
-```nginx
-# Replace this section:
-location / {
-    return 200 'Coming Soon - Verihire Assessment Platform';
-    add_header Content-Type text/plain;
-}
-
-# With this:
-location / {
-    return 301 https://your-vercel-url.vercel.app$request_uri;
-}
-```
-
-2. **Redeploy nginx:**
-```bash
-scp -i ai-oa-key docker/nginx.conf root@167.99.52.130:/root/ai-oa-docker/
-ssh -i ai-oa-key root@167.99.52.130 "cd /root/ai-oa-docker && docker stop nginx-proxy && docker rm nginx-proxy && docker build -f nginx-proxy.Dockerfile -t nginx-proxy . && docker run -d --name nginx-proxy --network ai-oa-network -p 80:80 nginx-proxy"
-```
-
-## Troubleshooting
-
-### Container not accessible
-```bash
-# Check if container is running
-./manage-instances.sh list
-
-# Check container logs
-./manage-instances.sh logs <instance_id>
-
-# Check network connectivity
-./manage-instances.sh network
-```
-
-### nginx proxy issues
-```bash
-# Check proxy logs
-docker logs nginx-proxy
-
-# Restart proxy
-docker-compose restart nginx-proxy
-```
-
-### DNS/SSL issues
-```bash
-# Test direct routing (bypassing SSL)
-curl -H "Host: instance-123.verihire.me" http://167.99.52.130/
-
-# Check DNS resolution
-nslookup instance-123.verihire.me
-```
-
-### Network issues
-```bash
-# Recreate network
-docker network rm ai-oa-network
-./deploy-proxy.sh
-``` 
