@@ -1543,6 +1543,79 @@
       window.addEventListener('blur', () => pushEvent('webviewFocus', { focused: false }));
       document.addEventListener('visibilitychange', () => pushEvent('webviewVisibility', { state: document.visibilityState }));
       setInterval(() => flushTelemetry(), 10000);
+
+      // Clipboard polling inside the webview (used when running in a browser)
+      let webviewClipboardPollTimer = null;
+      let lastWebviewClipboardText = undefined;
+      const WEBVIEW_CLIPBOARD_POLL_MS = 1500;
+
+      function stopWebviewClipboardPolling() {
+        if (webviewClipboardPollTimer) {
+          clearInterval(webviewClipboardPollTimer);
+          webviewClipboardPollTimer = null;
+        }
+      }
+
+      function startWebviewClipboardPolling() {
+        if (!navigator.clipboard || webviewClipboardPollTimer) {
+          return;
+        }
+
+        webviewClipboardPollTimer = setInterval(async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            if (typeof text !== 'string') {
+              return;
+            }
+            if (text !== lastWebviewClipboardText) {
+              lastWebviewClipboardText = text;
+              pushEvent('clipboardPoll', {
+                target: 'webview',
+                length: text.length,
+                content: text
+              });
+            }
+          } catch (err) {
+            console.warn('Stopping webview clipboard polling:', err?.message || err);
+            stopWebviewClipboardPolling();
+          }
+        }, WEBVIEW_CLIPBOARD_POLL_MS);
+      }
+
+      async function initWebviewClipboardPolling() {
+        if (!navigator.clipboard) {
+          return;
+        }
+
+        if (navigator.permissions && navigator.permissions.query) {
+          try {
+            const permission = await navigator.permissions.query({ name: 'clipboard-read' });
+
+            const handlePermissionChange = () => {
+              if (permission.state === 'granted') {
+                startWebviewClipboardPolling();
+              } else {
+                stopWebviewClipboardPolling();
+              }
+            };
+
+            handlePermissionChange();
+
+            if (typeof permission.addEventListener === 'function') {
+              permission.addEventListener('change', handlePermissionChange);
+            } else {
+              permission.onchange = handlePermissionChange;
+            }
+          } catch (err) {
+            console.warn('Clipboard permission query failed in webview:', err?.message || err);
+          }
+        } else {
+          // Fallback: attempt to start polling after a short delay
+          setTimeout(startWebviewClipboardPolling, 2000);
+        }
+      }
+
+      initWebviewClipboardPolling();
       
       // Start interview button handler
       startInterviewBtn.addEventListener('click', () => {

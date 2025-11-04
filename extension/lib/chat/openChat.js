@@ -428,41 +428,43 @@ function openChat() {
         
         // Extract user message from the standardized payload format
         let userMessage = null;
+        let payloadMessages = [];
+
         if (message.payload && message.payload.payload && message.payload.payload.messages) {
           // Handle nested payload structure from chat.html
-          const messages = message.payload.payload.messages;
-          console.log(`Received nested payload with ${messages.length} messages`);
+          payloadMessages = message.payload.payload.messages || [];
+          console.log(`Received nested payload with ${payloadMessages.length} messages`);
           
           // Log message roles to help diagnose issues
-          console.log('Message roles:', messages.map(m => m.role).join(', '));
+          console.log('Message roles:', payloadMessages.map(m => m.role).join(', '));
           
           // Get the last user message
-          const userMessages = messages.filter(m => m.role === 'user');
+          const userMessages = payloadMessages.filter(m => m.role === 'user');
           console.log(`Found ${userMessages.length} user messages in payload`);
           
           if (userMessages.length > 0) {
             userMessage = userMessages[userMessages.length - 1];
             console.log(`User message from payload: ${userMessage.content.substring(0, 30)}...`);
           } else {
-            console.error('No user messages found in payload. Message roles:', messages.map(m => m.role).join(', '));
+            console.error('No user messages found in payload. Message roles:', payloadMessages.map(m => m.role).join(', '));
           }
         } else if (message.payload && message.payload.messages) {
           // Handle direct payload structure
-          const messages = message.payload.messages;
-          console.log(`Received direct payload with ${messages.length} messages`);
+          payloadMessages = message.payload.messages || [];
+          console.log(`Received direct payload with ${payloadMessages.length} messages`);
           
           // Log message roles to help diagnose issues
-          console.log('Message roles:', messages.map(m => m.role).join(', '));
+          console.log('Message roles:', payloadMessages.map(m => m.role).join(', '));
           
           // Get the last user message
-          const userMessages = messages.filter(m => m.role === 'user');
+          const userMessages = payloadMessages.filter(m => m.role === 'user');
           console.log(`Found ${userMessages.length} user messages in payload`);
           
           if (userMessages.length > 0) {
             userMessage = userMessages[userMessages.length - 1];
             console.log(`User message from payload: ${userMessage.content.substring(0, 30)}...`);
           } else {
-            console.error('No user messages found in payload. Message roles:', messages.map(m => m.role).join(', '));
+            console.error('No user messages found in payload. Message roles:', payloadMessages.map(m => m.role).join(', '));
           }
         } else {
           console.error('Invalid payload format:', JSON.stringify(message.payload));
@@ -504,7 +506,7 @@ function openChat() {
           console.log('Using INITIAL interview prompt for this message');
         }
         
-        const controlContext = buildInterviewControlContext({ phaseName, messages });
+        const controlContext = buildInterviewControlContext({ phaseName, messages: payloadMessages });
         const systemPrompt = buildSystemPrompt(promptToUse, controlContext.prompt);
 
         console.log(`Using system prompt for ${phaseName} phase. Budget: ${controlContext.budget}, questions asked: ${controlContext.questionCount}.`);

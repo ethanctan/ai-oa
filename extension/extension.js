@@ -77,19 +77,28 @@ function activate(context) {
     } catch {}
   }));
 
-  // Clipboard polling fallback (log on any clipboard change)
-  let lastClipboardText = undefined;
-  const CLIPBOARD_POLL_MS = 750;
-  const clipboardPoll = setInterval(async () => {
-    try {
-      const text = await vscode.env.clipboard.readText();
-      if (text !== lastClipboardText) {
-        lastClipboardText = text;
-        recordEvent('copy', { target: 'clipboardPoll', content: text, length: (text || '').length });
+  // Clipboard polling fallback (desktop only – web uses webview-based polling)
+  const isWebHost = ((vscode.env.appHost || '').toLowerCase() === 'web') || (vscode.UIKind && vscode.env.uiKind === vscode.UIKind.Web);
+  if (!isWebHost) {
+    let lastClipboardText = undefined;
+    const CLIPBOARD_POLL_MS = 750;
+    const clipboardPoll = setInterval(async () => {
+      try {
+        const text = await vscode.env.clipboard.readText();
+        if (text !== lastClipboardText) {
+          lastClipboardText = text;
+          recordEvent('copy', { target: 'clipboardPoll', content: text, length: (text || '').length });
+        }
+      } catch (error) {
+        // If the host denies access, stop polling to avoid repeated errors
+        clearInterval(clipboardPoll);
+        recordEvent('clipboardPollingDisabled', { reason: error?.message || 'unknown' });
       }
-    } catch {}
-  }, CLIPBOARD_POLL_MS);
-  context.subscriptions.push({ dispose: () => clearInterval(clipboardPoll) });
+    }, CLIPBOARD_POLL_MS);
+    context.subscriptions.push({ dispose: () => clearInterval(clipboardPoll) });
+  } else {
+    console.log('Clipboard polling skipped in web host; relying on webview telemetry.');
+  }
 
   // Wrapped paste/copy/cut commands: forward to default after logging
   context.subscriptions.push(vscode.commands.registerCommand('ai-oa.telemetry.paste', async (args) => {
