@@ -139,6 +139,37 @@ def add_chat_message(instance_id, message):
         ''', (instance_id, user_id, content, role))
 
         inserted_id = cursor.fetchone()['id']
+
+        # If this message marks the test as completed, update test_candidates
+        if isinstance(content, str) and content.strip().upper().startswith('PHASE_MARKER: FINAL_COMPLETED'):
+            cursor.execute(
+                'SELECT test_id, candidate_id FROM test_instances WHERE id = %s',
+                (instance_id,)
+            )
+            instance_row = cursor.fetchone()
+            if instance_row and instance_row.get('test_id') and instance_row.get('candidate_id'):
+                test_id = instance_row['test_id']
+                candidate_id = instance_row['candidate_id']
+                cursor.execute(
+                    '''
+                    UPDATE test_candidates
+                    SET completed = TRUE
+                    WHERE test_id = %s AND candidate_id = %s
+                    ''',
+                    (test_id, candidate_id)
+                )
+                if cursor.rowcount > 0:
+                    cursor.execute(
+                        '''
+                        UPDATE tests
+                        SET candidates_completed = (
+                            SELECT COUNT(*) FROM test_candidates WHERE test_id = %s AND completed = TRUE
+                        )
+                        WHERE id = %s
+                        ''',
+                        (test_id, test_id)
+                    )
+
         conn.commit()
 
         # Return the updated history in normalized form

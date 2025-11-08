@@ -219,7 +219,32 @@ def get_candidate_tests(candidate_id, company_id=None):
         
         # Get tests assigned to candidate
         cursor.execute('''
-            SELECT t.*, tc.completed as test_completed
+            SELECT t.*, 
+                (
+                    COALESCE(tc.completed, FALSE)
+                    OR EXISTS (
+                        SELECT 1
+                        FROM chat_history ch
+                        JOIN test_instances ti2 ON ch.instance_id = ti2.id
+                        WHERE ti2.test_id = tc.test_id
+                          AND ti2.candidate_id = tc.candidate_id
+                          AND ch.message ILIKE 'PHASE_MARKER: final_completed%'
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM reports r
+                        JOIN test_instances ti3 ON r.instance_id = ti3.id
+                        WHERE ti3.test_id = tc.test_id
+                          AND ti3.candidate_id = tc.candidate_id
+                    )
+                ) AS test_completed
+                ,
+                EXISTS (
+                    SELECT 1
+                    FROM test_instances ti
+                    WHERE ti.test_id = tc.test_id
+                      AND ti.candidate_id = tc.candidate_id
+                ) AS invited
             FROM tests t
             JOIN test_candidates tc ON t.id = tc.test_id
             WHERE tc.candidate_id = %s

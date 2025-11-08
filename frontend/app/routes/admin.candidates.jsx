@@ -516,6 +516,18 @@ export default function CandidatesAdmin() {
                   <tbody className="divide-y divide-gray-200">
                     {candidateTests.map((test) => {
                       const isComplete = interpretCompletion(test.test_completed);
+                      const isInvited = interpretCompletion(test.invited);
+
+                      let statusText = 'Pending submission';
+                      let statusClass = 'bg-yellow-100 text-yellow-800';
+
+                      if (isComplete) {
+                        statusText = 'Completed';
+                        statusClass = 'bg-green-100 text-green-800';
+                      } else if (!isInvited) {
+                        statusText = 'Not invited';
+                        statusClass = 'bg-gray-200 text-gray-700';
+                      }
                       return (
                         <tr key={test.id}>
                           <td className="py-3 px-4">
@@ -527,10 +539,8 @@ export default function CandidatesAdmin() {
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              isComplete ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {isComplete ? 'Completed' : 'Pending'}
+                            <span className={`px-2 py-1 rounded text-xs ${statusClass}`}>
+                              {statusText}
                             </span>
                           </td>
                           <td className="py-3 px-4">

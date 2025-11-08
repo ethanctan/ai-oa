@@ -120,10 +120,40 @@ def get_test(test_id, company_id=None):
         test_dict["updated_at"] = _convert_to_utc(test_dict["updated_at"])
         
         # Get candidates assigned to this test (also filter by company if provided)
+        completion_expr = """
+            (
+                COALESCE(tc.completed, FALSE)
+                OR EXISTS (
+                    SELECT 1
+                    FROM chat_history ch
+                    JOIN test_instances ti2 ON ch.instance_id = ti2.id
+                    WHERE ti2.test_id = tc.test_id
+                      AND ti2.candidate_id = tc.candidate_id
+                      AND ch.message ILIKE 'PHASE_MARKER: final_completed%'
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM reports r
+                    JOIN test_instances ti3 ON r.instance_id = ti3.id
+                    WHERE ti3.test_id = tc.test_id
+                      AND ti3.candidate_id = tc.candidate_id
+                )
+            ) AS test_completed
+        """
+
+        invited_expr = """
+            EXISTS (
+                SELECT 1
+                FROM test_instances ti
+                WHERE ti.test_id = tc.test_id
+                  AND ti.candidate_id = tc.candidate_id
+            ) AS invited
+        """
+
         if company_id:
             cursor.execute(
-                '''
-                SELECT c.id, c.name, c.email, tc.completed
+                f'''
+                SELECT c.id, c.name, c.email, {completion_expr}, {invited_expr}
                 FROM candidates c
                 JOIN test_candidates tc ON c.id = tc.candidate_id
                 WHERE tc.test_id = %s AND c.company_id = %s
@@ -132,8 +162,8 @@ def get_test(test_id, company_id=None):
             )
         else:
             cursor.execute(
-                '''
-                SELECT c.id, c.name, c.email, tc.completed
+                f'''
+                SELECT c.id, c.name, c.email, {completion_expr}, {invited_expr}
                 FROM candidates c
                 JOIN test_candidates tc ON c.id = tc.candidate_id
                 WHERE tc.test_id = %s
@@ -436,17 +466,47 @@ def get_test_candidates(test_id, company_id=None):
         if not existing:
             raise ValueError(f"Test with ID {test_id} not found in your organization")
         
+        completion_expr = """
+            (
+                COALESCE(tc.completed, FALSE)
+                OR EXISTS (
+                    SELECT 1
+                    FROM chat_history ch
+                    JOIN test_instances ti2 ON ch.instance_id = ti2.id
+                    WHERE ti2.test_id = tc.test_id
+                      AND ti2.candidate_id = tc.candidate_id
+                      AND ch.message ILIKE 'PHASE_MARKER: final_completed%'
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM reports r
+                    JOIN test_instances ti3 ON r.instance_id = ti3.id
+                    WHERE ti3.test_id = tc.test_id
+                      AND ti3.candidate_id = tc.candidate_id
+                )
+            ) AS test_completed
+        """
+
+        invited_expr = """
+            EXISTS (
+                SELECT 1
+                FROM test_instances ti
+                WHERE ti.test_id = tc.test_id
+                  AND ti.candidate_id = tc.candidate_id
+            ) AS invited
+        """
+
         # Get candidates assigned to test (only from the same company)
         if company_id:
-            cursor.execute('''
-                SELECT c.*, tc.completed as test_completed, tc.deadline
+            cursor.execute(f'''
+                SELECT c.*, {completion_expr}, {invited_expr}, tc.deadline
                 FROM candidates c
                 JOIN test_candidates tc ON c.id = tc.candidate_id
                 WHERE tc.test_id = %s AND c.company_id = %s
             ''', (test_id, company_id))
         else:
-            cursor.execute('''
-                SELECT c.*, tc.completed as test_completed, tc.deadline
+            cursor.execute(f'''
+                SELECT c.*, {completion_expr}, {invited_expr}, tc.deadline
                 FROM candidates c
                 JOIN test_candidates tc ON c.id = tc.candidate_id
                 WHERE tc.test_id = %s

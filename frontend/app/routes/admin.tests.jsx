@@ -2214,6 +2214,18 @@ export default function TestsAdmin() {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {filterAssignedCandidatesByTags(testCandidates.assigned).map((candidate) => {
                           const isCompleted = interpretCompletion(candidate.test_completed);
+                          const isInvited = interpretCompletion(candidate.invited);
+
+                          let statusText = 'Pending submission';
+                          let statusClass = 'bg-yellow-100 text-yellow-800';
+
+                          if (isCompleted) {
+                            statusText = 'Completed';
+                            statusClass = 'bg-green-100 text-green-800';
+                          } else if (!isInvited) {
+                            statusText = 'Not invited';
+                            statusClass = 'bg-gray-200 text-gray-700';
+                          }
 
                           return (
                             <tr key={candidate.id}>
@@ -2246,12 +2258,8 @@ export default function TestsAdmin() {
                                 )}
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap">
-                                <span className={`px-2 py-1 rounded text-xs ${
-                                  isCompleted 
-                                    ? "bg-green-100 text-green-800" 
-                                    : "bg-yellow-100 text-yellow-800"
-                                }`}>
-                                  {isCompleted ? "Completed" : "Pending"}
+                                <span className={`px-2 py-1 rounded text-xs ${statusClass}`}>
+                                  {statusText}
                                 </span>
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap">
