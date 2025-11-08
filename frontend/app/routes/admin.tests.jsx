@@ -2484,6 +2484,81 @@ export default function TestsAdmin() {
                   </div>
                 ) : (
                   <div className="space-y-6">
+                    {currentReport && currentReport.submission_repo_link && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Submission Repository</h4>
+                        <a
+                          href={currentReport.submission_repo_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-indigo-600 hover:text-indigo-800 break-all"
+                        >
+                          {currentReport.submission_repo_link}
+                        </a>
+                        {currentReport.target_repository && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Base repository: {currentReport.target_repository}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {currentReport && Array.isArray(currentReport.qualitative_criteria_template) && currentReport.qualitative_criteria_template.length > 0 && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Configured Qualitative Criteria</h4>
+                        <div className="space-y-3">
+                          {currentReport.qualitative_criteria_template.map((criterion, idx) => (
+                            <div key={`template-qual-${idx}`} className="bg-white border border-gray-200 rounded p-4">
+                              <div className="font-semibold text-gray-900">{criterion.title || `Criterion ${idx + 1}`}</div>
+                              {criterion.description && (
+                                <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{criterion.description}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {currentReport && Array.isArray(currentReport.quantitative_criteria_template) && currentReport.quantitative_criteria_template.length > 0 && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">Configured Quantitative Criteria</h4>
+                        <div className="space-y-3">
+                          {currentReport.quantitative_criteria_template.map((criterion, idx) => {
+                            const descriptorEntries = Object.entries(criterion || {})
+                              .filter(([key]) => key !== 'title' && key.trim() !== '')
+                              .map(([key, value]) => ({ score: key, description: value }))
+                              .filter(entry => entry.description && entry.description.trim() !== '')
+                              .sort((a, b) => {
+                                const scoreA = Number(a.score);
+                                const scoreB = Number(b.score);
+                                if (Number.isNaN(scoreA) || Number.isNaN(scoreB)) {
+                                  return a.score.localeCompare(b.score);
+                                }
+                                return scoreA - scoreB;
+                              });
+
+                            return (
+                              <div key={`template-quant-${idx}`} className="bg-white border border-gray-200 rounded p-4 space-y-3">
+                                <div className="font-semibold text-gray-900">{criterion.title || `Criterion ${idx + 1}`}</div>
+                                {descriptorEntries.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {descriptorEntries.map(entry => (
+                                      <div key={`${idx}-${entry.score}`} className="text-sm text-gray-700 flex flex-col sm:flex-row sm:items-start sm:gap-3">
+                                        <span className="font-medium text-gray-900 w-16">Score {entry.score}</span>
+                                        <span className="flex-1 whitespace-pre-wrap">{entry.description}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-gray-500">No score descriptors provided.</p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {currentReport && currentReport.code_summary && (
                       <div>
                         <h4 className="text-lg font-semibold mb-2">Code Summary</h4>
@@ -2544,6 +2619,42 @@ export default function TestsAdmin() {
                         <h4 className="text-lg font-semibold mb-2">Warnings</h4>
                         <p className="text-gray-800 whitespace-pre-wrap">{currentReport.report_warnings}</p>
                       </div>
+                    )}
+
+                    {currentReport && Array.isArray(currentReport.initial_interview_log) && currentReport.initial_interview_log.length > 0 && (
+                      <details className="bg-gray-50 border border-gray-200 rounded p-4">
+                        <summary className="cursor-pointer font-semibold text-gray-900">
+                          Initial Interview Log ({currentReport.initial_interview_log.length} messages)
+                        </summary>
+                        <div className="mt-3 space-y-3">
+                          {currentReport.initial_interview_log.map((entry, idx) => (
+                            <div key={`initial-log-${idx}`} className="border-l-4 border-blue-200 pl-3">
+                              <div className="text-xs text-gray-500 mb-1">
+                                {entry.created_at ? new Date(entry.created_at).toLocaleString() : 'Timestamp unknown'} · {entry.role === 'assistant' ? 'Interviewer' : 'Candidate'}
+                              </div>
+                              <div className="text-sm text-gray-800 whitespace-pre-wrap">{entry.content}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+
+                    {currentReport && Array.isArray(currentReport.final_interview_log) && currentReport.final_interview_log.length > 0 && (
+                      <details className="bg-gray-50 border border-gray-200 rounded p-4">
+                        <summary className="cursor-pointer font-semibold text-gray-900">
+                          Final Interview Log ({currentReport.final_interview_log.length} messages)
+                        </summary>
+                        <div className="mt-3 space-y-3">
+                          {currentReport.final_interview_log.map((entry, idx) => (
+                            <div key={`final-log-${idx}`} className="border-l-4 border-green-200 pl-3">
+                              <div className="text-xs text-gray-500 mb-1">
+                                {entry.created_at ? new Date(entry.created_at).toLocaleString() : 'Timestamp unknown'} · {entry.role === 'assistant' ? 'Interviewer' : 'Candidate'}
+                              </div>
+                              <div className="text-sm text-gray-800 whitespace-pre-wrap">{entry.content}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
                     )}
                   </div>
                 )}

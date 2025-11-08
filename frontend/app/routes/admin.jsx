@@ -4,6 +4,12 @@ import { Outlet, Link, useLocation, Form, useLoaderData } from "@remix-run/react
 import { json, redirect } from "@remix-run/node";
 import { auth } from "~/utils/auth.server";
 
+export const meta = () => {
+  return {
+    title: "Verihire - Admin Dashboard",
+  };
+};
+
 export const loader = async ({ request }) => {
   try {
     // Check if user is authenticated

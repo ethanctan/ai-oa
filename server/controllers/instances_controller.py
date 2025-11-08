@@ -915,7 +915,16 @@ def get_report(instance_id):
     try:
         # Check if instance exists
         cursor.execute('''
-            SELECT t.initial_prompt, t.final_prompt, t.qualitative_assessment_prompt, t.quantitative_assessment_prompt, ti.company_id
+            SELECT 
+                ti.candidate_id,
+                ti.test_id,
+                ti.created_at AS instance_created_at,
+                ti.company_id,
+                t.initial_prompt,
+                t.final_prompt,
+                t.qualitative_assessment_prompt,
+                t.quantitative_assessment_prompt,
+                t.target_github_repo
             FROM test_instances ti
             JOIN tests t ON ti.test_id = t.id
             WHERE ti.id = %s
@@ -924,6 +933,7 @@ def get_report(instance_id):
         if not test_record:
             print(f"instance with ID {instance_id} not found")
             return {"message": f"Instance with ID {instance_id} not found"}
+        test_data = dict(test_record)
         
         # Check if a report already exists
         cursor.execute(
@@ -934,7 +944,97 @@ def get_report(instance_id):
         if not report_row:
             return {"message": f"No report exists for instance {instance_id}"}
         
-        return report_row['content']
+        report_payload = report_row['content']
+        if isinstance(report_payload, str):
+            try:
+                report_payload = json.loads(report_payload)
+            except Exception:
+                report_payload = {"content": report_payload}
+        elif not isinstance(report_payload, dict):
+            report_payload = {"content": report_payload}
+
+        created_at = report_row.get('created_at')
+        if created_at and not report_payload.get('created_at'):
+            report_payload['created_at'] = created_at.isoformat()
+
+        # Attach configured qualitative/quantitative criteria templates
+        qualitative_template = []
+        raw_qualitative = test_data.get('qualitative_assessment_prompt')
+        if raw_qualitative and raw_qualitative != "[]":
+            try:
+                qualitative_template = json.loads(raw_qualitative)
+            except Exception:
+                qualitative_template = []
+        if qualitative_template:
+            report_payload['qualitative_criteria_template'] = qualitative_template
+
+        quantitative_template = []
+        raw_quantitative = test_data.get('quantitative_assessment_prompt')
+        if raw_quantitative and raw_quantitative != "[]":
+            try:
+                quantitative_template = json.loads(raw_quantitative)
+            except Exception:
+                quantitative_template = []
+        if quantitative_template:
+            report_payload['quantitative_criteria_template'] = quantitative_template
+
+        # Build initial and final interview logs from chat history
+        try:
+            chat_history_list = get_chat_history(instance_id) or []
+        except Exception:
+            chat_history_list = []
+
+        initial_log = []
+        final_log = []
+        current_phase = 'initial'
+
+        for message in chat_history_list:
+            content = message.get('content', '')
+            role = message.get('role')
+
+            if isinstance(content, str) and role == 'system' and content.startswith('PHASE_MARKER:'):
+                marker = content.split(':', 1)[1].strip().lower()
+                if marker.startswith('initial'):
+                    current_phase = 'initial'
+                elif marker.startswith('project'):
+                    current_phase = 'project'
+                elif marker.startswith('final'):
+                    if 'completed' in marker:
+                        current_phase = 'post_final'
+                    else:
+                        current_phase = 'final'
+                continue
+
+            if role in ('user', 'assistant'):
+                sanitized = {
+                    'role': role,
+                    'content': content,
+                    'created_at': message.get('created_at').isoformat() if message.get('created_at') else None,
+                    'user_name': message.get('user_name')
+                }
+
+                if current_phase == 'initial':
+                    initial_log.append(sanitized)
+                elif current_phase == 'final':
+                    final_log.append(sanitized)
+
+        if initial_log:
+            report_payload['initial_interview_log'] = initial_log
+        if final_log:
+            report_payload['final_interview_log'] = final_log
+
+        # Provide submission repository link if configured
+        target_repo_url = test_data.get('target_github_repo')
+        candidate_id = test_data.get('candidate_id')
+        if target_repo_url and candidate_id:
+            base_repo_url = target_repo_url[:-4] if target_repo_url.endswith('.git') else target_repo_url
+            submission_dir_name = f"submission_candidate_{candidate_id}_instance_{instance_id}"
+            submission_link = base_repo_url.rstrip('/') + '/' + submission_dir_name
+            report_payload['submission_repo_link'] = submission_link
+            report_payload['submission_repo_folder'] = submission_dir_name
+            report_payload['target_repository'] = base_repo_url.rstrip('/')
+        
+        return report_payload
         
     
     except Exception as e:
