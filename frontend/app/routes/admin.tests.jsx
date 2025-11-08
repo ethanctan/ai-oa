@@ -5,6 +5,7 @@ import { loader } from "../loaders/testsLoader.jsx";
 import { action } from "../actions/testsAction.jsx";
 import { getApiEndpoint } from "../utils/api";
 import { useAuthenticatedApi } from "../hooks/useAuthenticatedApi";
+import ReportModal from "../components/ReportModal";
 
 // Re-export the loader and action so Remix can pick them up
 export { loader, action };
@@ -65,6 +66,14 @@ export default function TestsAdmin() {
   const [selectedAvailableTags, setSelectedAvailableTags] = useState([]);
   const [selectAllAssignedShown, setSelectAllAssignedShown] = useState(false);
   const [selectAllAvailableShown, setSelectAllAvailableShown] = useState(false);
+
+  const interpretCompletion = (value) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      return normalized === 'true' || normalized === 't' || normalized === '1' || normalized === 'yes' || normalized === 'completed';
+    }
+    return Boolean(value);
+  };
 
   // Add state for email sending
   const [isSendingEmails, setIsSendingEmails] = useState(false);
@@ -757,6 +766,12 @@ export default function TestsAdmin() {
 
     const isViewMode = mode === 'view';
     const modalTitle = isViewMode ? 'Test Details' : 'Create New Test';
+    const enableInitialTimer = Boolean(testData?.enable_timer);
+    const enableProjectTimer = Boolean(testData?.enable_project_timer);
+    const targetRepoEnabledView = Boolean(testData?.target_github_repo);
+    const targetTokenEnabledView = Boolean(testData?.target_github_token);
+    const initialPromptEnabledView = Boolean(testData?.initial_prompt);
+    const finalPromptEnabledView = Boolean(testData?.final_prompt);
     
     // Parse assessment criteria for view mode
     let parsedQualitativeCriteria = [];
@@ -808,9 +823,13 @@ export default function TestsAdmin() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Test Name
                 </label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
-                  {testData?.name || 'N/A'}
-                </div>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
+                  value={testData?.name || ''}
+                  disabled
+                  readOnly
+                />
               </div>
 
               <div className="space-y-4">
@@ -820,25 +839,29 @@ export default function TestsAdmin() {
                     Initial Waiting Timer
                   </label>
                   <div className="flex items-center space-x-2">
-                    <span className={`text-sm ${testData?.enable_timer ? 'text-blue-600' : 'text-gray-500'}`}>
-                      {testData?.enable_timer ? 'Enabled' : 'Disabled'}
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      checked={enableInitialTimer}
+                      disabled
+                      readOnly
+                    />
+                    <span className={`text-sm ${enableInitialTimer ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {enableInitialTimer ? 'Enabled' : 'Disabled'}
                     </span>
-                    <div className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-                      testData?.enable_timer ? 'bg-blue-600' : 'bg-gray-200'
-                    }`}>
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        testData?.enable_timer ? 'translate-x-6' : 'translate-x-1'
-                      }`} />
-                    </div>
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Timer Duration (minutes)
                   </label>
-                  <div className="w-32 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
-                    {testData?.timer_duration || 'N/A'}
-                  </div>
+                  <input
+                    type="number"
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
+                    value={testData?.timer_duration ?? ''}
+                    disabled
+                    readOnly
+                  />
                 </div>
 
                 <h4 className="font-medium text-lg mt-6">Project Work Timer Configuration</h4>
@@ -847,25 +870,57 @@ export default function TestsAdmin() {
                     Project Work Timer
                   </label>
                   <div className="flex items-center space-x-2">
-                    <span className={`text-sm ${testData?.enable_project_timer ? 'text-blue-600' : 'text-gray-500'}`}>
-                      {testData?.enable_project_timer ? 'Enabled' : 'Disabled'}
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      checked={enableProjectTimer}
+                      disabled
+                      readOnly
+                    />
+                    <span className={`text-sm ${enableProjectTimer ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {enableProjectTimer ? 'Enabled' : 'Disabled'}
                     </span>
-                    <div className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-                      testData?.enable_project_timer ? 'bg-blue-600' : 'bg-gray-200'
-                    }`}>
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        testData?.enable_project_timer ? 'translate-x-6' : 'translate-x-1'
-                      }`} />
-                    </div>
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Project Work Duration (minutes)
                   </label>
-                  <div className="w-32 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
-                    {testData?.project_timer_duration || 'N/A'}
-                  </div>
+                  <input
+                    type="number"
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
+                    value={testData?.project_timer_duration ?? ''}
+                    disabled
+                    readOnly
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-medium text-lg">Interview Question Budgets</h4>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Initial Interview Question Budget
+                  </label>
+                  <input
+                    type="number"
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
+                    value={testData?.initial_question_budget ?? ''}
+                    disabled
+                    readOnly
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Final Interview Question Budget
+                  </label>
+                    <input
+                      type="number"
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
+                      value={testData?.final_question_budget ?? ''}
+                      disabled
+                      readOnly
+                    />
                 </div>
               </div>
 
@@ -873,36 +928,79 @@ export default function TestsAdmin() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   GitHub Repo URL
                 </label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
-                  {testData?.github_repo || 'N/A'}
-                </div>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
+                  value={testData?.github_repo || ''}
+                  disabled
+                  readOnly
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   GitHub Token
                 </label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
-                  {testData?.github_token ? '••••••••••••••••' : 'Not provided'}
-                </div>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
+                  value={testData?.github_token ? '••••••••••••••••' : ''}
+                  placeholder="Not provided"
+                  disabled
+                  readOnly
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Target GitHub Repo URL (for Upload)
                 </label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
-                  {testData?.target_github_repo || 'Not provided'}
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm ${targetRepoEnabledView ? 'text-blue-600' : 'text-gray-500'}`}>
+                    {targetRepoEnabledView ? 'Enabled' : 'Disabled'}
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    checked={targetRepoEnabledView}
+                    disabled
+                    readOnly
+                  />
                 </div>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
+                  value={testData?.target_github_repo || ''}
+                  placeholder="Not provided"
+                  disabled
+                  readOnly
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Target GitHub Token (for Upload)
                 </label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600">
-                  {testData?.target_github_token ? '••••••••••••••••' : 'Not provided'}
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm ${targetTokenEnabledView ? 'text-blue-600' : 'text-gray-500'}`}>
+                    {targetTokenEnabledView ? 'Enabled' : 'Disabled'}
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    checked={targetTokenEnabledView}
+                    disabled
+                    readOnly
+                  />
                 </div>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700"
+                  value={testData?.target_github_token ? '••••••••••••••••' : ''}
+                  placeholder="Not provided"
+                  disabled
+                  readOnly
+                />
               </div>
 
               <div className="space-y-4">
@@ -912,18 +1010,48 @@ export default function TestsAdmin() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Initial Interview
                   </label>
-                  <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 min-h-[120px]">
-                    {testData?.initial_prompt || 'Not provided'}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-sm ${initialPromptEnabledView ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {initialPromptEnabledView ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      checked={initialPromptEnabledView}
+                      disabled
+                      readOnly
+                    />
                   </div>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 min-h-[120px]"
+                    value={testData?.initial_prompt || ''}
+                    disabled
+                    readOnly
+                  />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Post-completion Interview
                   </label>
-                  <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 min-h-[120px]">
-                    {testData?.final_prompt || 'Not provided'}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-sm ${finalPromptEnabledView ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {finalPromptEnabledView ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      checked={finalPromptEnabledView}
+                      disabled
+                      readOnly
+                    />
                   </div>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 min-h-[120px]"
+                    value={testData?.final_prompt || ''}
+                    disabled
+                    readOnly
+                  />
                 </div>
               </div>
 
@@ -957,12 +1085,21 @@ export default function TestsAdmin() {
                     {parsedQualitativeCriteria.length > 0 ? (
                       parsedQualitativeCriteria.map((criterion, index) => (
                         <div key={index} className="space-y-2 p-3 border border-gray-100 rounded-md bg-white">
-                          <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-medium text-gray-700">
-                            {criterion.title || `Criterion ${index + 1} Title (empty)`}
-                          </div>
-                          <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 ml-4">
-                            {criterion.description || `Criterion ${index + 1} Description (empty)`}
-                          </div>
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 font-medium"
+                            value={criterion.title || ''}
+                            placeholder={`Criterion ${index + 1} Title`}
+                            disabled
+                            readOnly
+                          />
+                          <textarea
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 text-sm"
+                            value={criterion.description || ''}
+                            placeholder={`Criterion ${index + 1} Description`}
+                            disabled
+                            readOnly
+                          />
                         </div>
                       ))
                     ) : (
@@ -979,16 +1116,30 @@ export default function TestsAdmin() {
                     {parsedQuantitativeCriteria.length > 0 ? (
                       parsedQuantitativeCriteria.map((criterion, rowIndex) => (
                         <div key={rowIndex} className="space-y-2 p-3 border border-gray-100 rounded-md bg-white">
-                          <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 font-medium text-gray-700">
-                            {criterion.title || `Rubric Item Title ${rowIndex + 1} (empty)`}
-                          </div>
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 font-medium"
+                            value={criterion.title || ''}
+                            placeholder={`Rubric Item Title ${rowIndex + 1}`}
+                            disabled
+                            readOnly
+                          />
                           <p className="text-xs text-gray-500 ml-1">Score Descriptions (Lowest to Highest):</p>
                           {Object.keys(criterion)
                             .filter(key => key !== 'title')
                             .sort((a, b) => parseInt(a) - parseInt(b))
                             .map((scoreKey) => (
-                              <div key={scoreKey} className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 ml-4">
-                                {criterion[scoreKey] || `Score ${scoreKey} (empty)`}
+                              <div key={scoreKey} className="ml-4">
+                                <label className="block text-xs font-medium text-gray-600 mb-1">
+                                  Score {scoreKey}
+                                </label>
+                                <textarea
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 text-sm"
+                                  value={criterion[scoreKey] || ''}
+                                  placeholder={`Score ${scoreKey} description`}
+                                  disabled
+                                  readOnly
+                                />
                               </div>
                             ))}
                         </div>
@@ -1074,7 +1225,7 @@ export default function TestsAdmin() {
                       className="text-blue-600 hover:text-blue-800 mr-3"
                       onClick={() => handleViewTest(test.id)}
                     >
-                      View
+                      View Details
                     </button>
                     <button 
                       className="text-indigo-600 hover:text-indigo-800 mr-3"
@@ -1662,7 +1813,8 @@ export default function TestsAdmin() {
                             Remove Item
                           </button>
                         </div>
-                        <p className="text-xs text-gray-500 ml-1">Score Descriptions (Lowest to Highest):</p>
+                        <p className="text-xs text-gray-700 ml-1">Score Descriptions (Lowest to Highest):
+                        </p>
                          {Object.keys(criterion)
                           .filter(key => key !== 'title')
                           .sort((a, b) => parseInt(a) - parseInt(b))
@@ -1676,7 +1828,17 @@ export default function TestsAdmin() {
                                   newCriteria[rowIndex][scoreKey] = e.target.value;
                                   setQuantitativeCriteria(newCriteria);
                                 }}
-                                placeholder={`Score ${scoreKey} Description`}
+                                placeholder={
+                                  scoreKey === "1"
+                                    ? "Score 1 Description (Lowest)"
+                                    : (scoreKey ===
+                                        Object.keys(criterion)
+                                          .filter(key => key !== 'title')
+                                          .sort((a, b) => parseInt(a) - parseInt(b))
+                                          .slice(-1)[0]
+                                      ? `Score ${scoreKey} Description (Highest)`
+                                      : `Score ${scoreKey} Description`)
+                                }
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
                               />
                               <button 
@@ -2050,8 +2212,11 @@ export default function TestsAdmin() {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {filterAssignedCandidatesByTags(testCandidates.assigned).map((candidate) => (
-                          <tr key={candidate.id}>
+                        {filterAssignedCandidatesByTags(testCandidates.assigned).map((candidate) => {
+                          const isCompleted = interpretCompletion(candidate.test_completed);
+
+                          return (
+                            <tr key={candidate.id}>
                               <td className="px-4 py-3 whitespace-nowrap">
                                 <input 
                                   type="checkbox" 
@@ -2060,94 +2225,79 @@ export default function TestsAdmin() {
                                   className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
                                 />
                               </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              {candidate.name}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              {candidate.email}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              {candidate.tags ? (
-                                candidate.tags.split(';').map((tag, index) => (
-                                  <span 
-                                    key={index} 
-                                    className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1"
-                                  >
-                                    {tag.trim()}
-                                  </span>
-                                ))
-                              ) : (
-                                <span className="text-gray-500">No tags</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {candidate.name}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {candidate.email}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {candidate.tags ? (
+                                  candidate.tags.split(';').map((tag, index) => (
+                                    <span 
+                                      key={index} 
+                                      className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1"
+                                    >
+                                      {tag.trim()}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-gray-500">No tags</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
                                 <span className={`px-2 py-1 rounded text-xs ${
-                                  candidate.test_completed 
+                                  isCompleted 
                                     ? "bg-green-100 text-green-800" 
                                     : "bg-yellow-100 text-yellow-800"
                                 }`}>
-                                  {candidate.test_completed ? "Completed" : "Pending"}
+                                  {isCompleted ? "Completed" : "Pending"}
                                 </span>
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap">
-                                {(() => {
-                                  const toNum = (v) => (v === null || v === undefined || v === '') ? null : Number(v);
-                                  const currentTestNum = toNum(currentTestId);
-                                  const candidateNum = toNum(candidate.id);
-                                  const matchingInstance = instances.find(inst => {
-                                    const testIdVal = toNum(inst.test_id ?? inst.testId ?? inst.TestId);
-                                    const candidateIdVal = toNum(inst.candidate_id ?? inst.candidateId ?? inst.CandidateId);
-                                    return testIdVal === currentTestNum && candidateIdVal === candidateNum;
-                                  });
-                                  const instanceId = matchingInstance ? (matchingInstance.id || matchingInstance.Id) : null;
-                                  try {
-                                    const forCandidate = instances.filter(inst => toNum(inst.candidate_id ?? inst.candidateId ?? inst.CandidateId) === candidateNum);
-                                    const forTest = instances.filter(inst => toNum(inst.test_id ?? inst.testId ?? inst.TestId) === currentTestNum);
-                                    console.log('[ManageCandidates][Report] Debug', {
-                                      currentTestIdRaw: currentTestId,
-                                      currentTestNum,
-                                      candidateIdRaw: candidate.id,
-                                      candidateNum,
-                                      instancesCount: Array.isArray(instances) ? instances.length : 'n/a',
-                                      forCandidateCount: forCandidate.length,
-                                      forTestCount: forTest.length,
-                                      forCandidate,
-                                      forTest,
-                                      matchingInstance,
-                                      instanceId
+                                {isCompleted ? (
+                                  (() => {
+                                    const toNum = (v) => (v === null || v === undefined || v === '') ? null : Number(v);
+                                    const currentTestNum = toNum(currentTestId);
+                                    const candidateNum = toNum(candidate.id);
+                                    const matchingInstance = instances.find(inst => {
+                                      const testIdVal = toNum(inst.test_id ?? inst.testId ?? inst.TestId);
+                                      const candidateIdVal = toNum(inst.candidate_id ?? inst.candidateId ?? inst.CandidateId);
+                                      return testIdVal === currentTestNum && candidateIdVal === candidateNum;
                                     });
-                                  } catch (e) {
-                                    console.log('[ManageCandidates][Report] Debug error', e);
-                                  }
-                                  return (
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          if (instanceId) {
-                                            handleViewReport(instanceId);
-                                            return;
-                                          }
-                                          const resp = await api.get(`/instances/resolve?test_id=${currentTestNum}&candidate_id=${candidateNum}`);
-                                          if (resp.ok) {
-                                            const data = await resp.json();
-                                            if (data && data.id) {
-                                              handleViewReport(data.id);
+                                    const instanceId = matchingInstance ? (matchingInstance.id || matchingInstance.Id) : null;
+                                    return (
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            if (instanceId) {
+                                              handleViewReport(instanceId);
                                               return;
                                             }
+                                            const resp = await api.get(`/instances/resolve?test_id=${currentTestNum}&candidate_id=${candidateNum}`);
+                                            if (resp.ok) {
+                                              const data = await resp.json();
+                                              if (data && data.id) {
+                                                handleViewReport(data.id);
+                                                return;
+                                              }
+                                            }
+                                            console.log('[ManageCandidates][Report] No instance for candidate', { currentTestId, candidateId: candidate.id, instances });
+                                            alert('No instance/report available yet for this candidate.');
+                                          } catch (err) {
+                                            console.error('[ManageCandidates][Report] resolve error', err);
+                                            alert('Error resolving report.');
                                           }
-                                          console.log('[ManageCandidates][Report] No instance for candidate', { currentTestId, candidateId: candidate.id, instances });
-                                          alert('No instance/report available yet for this candidate.');
-                                        } catch (err) {
-                                          console.error('[ManageCandidates][Report] resolve error', err);
-                                          alert('Error resolving report.');
-                                        }
-                                      }}
-                                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-purple-600 hover:text-purple-800 bg-transparent"
-                                    >
-                                      View Report
-                                    </button>
-                                  );
-                                })()}
+                                        }}
+                                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-purple-600 hover:text-purple-800 bg-transparent"
+                                      >
+                                        View Report
+                                      </button>
+                                    );
+                                  })()
+                                ) : (
+                                  <span className="text-xs text-gray-400 italic">Report unavailable</span>
+                                )}
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap">
                                 {editingDeadline === candidate.id ? (
@@ -2221,7 +2371,8 @@ export default function TestsAdmin() {
                                 )}
                               </td>
                           </tr>
-                        ))}
+                        );
+                      })}
                       </tbody>
                     </table>
                     </div>
@@ -2449,220 +2600,11 @@ export default function TestsAdmin() {
         )}
       </div>
 
-      {/* Report Modal */}
-      {showReportModal && (
-        <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-4xl w-full max-h-screen overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-semibold">Test Report</h3>
-              <button 
-                onClick={handleCloseReport}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                &times;
-              </button>
-            </div>
-            
-            {currentReport && currentReport.message ? (
-              <p className="text-gray-500">{currentReport.message}</p>
-            ) : (
-              <div>
-                {currentReport && currentReport.created_at && !isNaN(new Date(currentReport.created_at)) && (
-                  <div className="mb-4">
-                    <p className="text-sm text-gray-500">
-                      Created at: {new Date(currentReport.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                )}
-
-                {/* Legacy plain content rendering */}
-                {currentReport && currentReport.content ? (
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <pre className="whitespace-pre-wrap font-sans">
-                      {currentReport.content}
-                    </pre>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {currentReport && currentReport.submission_repo_link && (
-                      <div>
-                        <h4 className="text-lg font-semibold mb-2">Submission Repository</h4>
-                        <a
-                          href={currentReport.submission_repo_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-600 hover:text-indigo-800 break-all"
-                        >
-                          {currentReport.submission_repo_link}
-                        </a>
-                        {currentReport.target_repository && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Base repository: {currentReport.target_repository}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {currentReport && Array.isArray(currentReport.qualitative_criteria_template) && currentReport.qualitative_criteria_template.length > 0 && (
-                      <div>
-                        <h4 className="text-lg font-semibold mb-2">Configured Qualitative Criteria</h4>
-                        <div className="space-y-3">
-                          {currentReport.qualitative_criteria_template.map((criterion, idx) => (
-                            <div key={`template-qual-${idx}`} className="bg-white border border-gray-200 rounded p-4">
-                              <div className="font-semibold text-gray-900">{criterion.title || `Criterion ${idx + 1}`}</div>
-                              {criterion.description && (
-                                <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{criterion.description}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {currentReport && Array.isArray(currentReport.quantitative_criteria_template) && currentReport.quantitative_criteria_template.length > 0 && (
-                      <div>
-                        <h4 className="text-lg font-semibold mb-2">Configured Quantitative Criteria</h4>
-                        <div className="space-y-3">
-                          {currentReport.quantitative_criteria_template.map((criterion, idx) => {
-                            const descriptorEntries = Object.entries(criterion || {})
-                              .filter(([key]) => key !== 'title' && key.trim() !== '')
-                              .map(([key, value]) => ({ score: key, description: value }))
-                              .filter(entry => entry.description && entry.description.trim() !== '')
-                              .sort((a, b) => {
-                                const scoreA = Number(a.score);
-                                const scoreB = Number(b.score);
-                                if (Number.isNaN(scoreA) || Number.isNaN(scoreB)) {
-                                  return a.score.localeCompare(b.score);
-                                }
-                                return scoreA - scoreB;
-                              });
-
-                            return (
-                              <div key={`template-quant-${idx}`} className="bg-white border border-gray-200 rounded p-4 space-y-3">
-                                <div className="font-semibold text-gray-900">{criterion.title || `Criterion ${idx + 1}`}</div>
-                                {descriptorEntries.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {descriptorEntries.map(entry => (
-                                      <div key={`${idx}-${entry.score}`} className="text-sm text-gray-700 flex flex-col sm:flex-row sm:items-start sm:gap-3">
-                                        <span className="font-medium text-gray-900 w-16">Score {entry.score}</span>
-                                        <span className="flex-1 whitespace-pre-wrap">{entry.description}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-gray-500">No score descriptors provided.</p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {currentReport && currentReport.code_summary && (
-                      <div>
-                        <h4 className="text-lg font-semibold mb-2">Code Summary</h4>
-                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.code_summary}</p>
-                      </div>
-                    )}
-
-                    {currentReport && currentReport.initial_interview_summary && (
-                      <div>
-                        <h4 className="text-lg font-semibold mb-2">Initial Interview Summary</h4>
-                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.initial_interview_summary}</p>
-                      </div>
-                    )}
-
-                    {currentReport && currentReport.final_interview_summary && (
-                      <div>
-                        <h4 className="text-lg font-semibold mb-2">Final Interview Summary</h4>
-                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.final_interview_summary}</p>
-                      </div>
-                    )}
-
-                    {currentReport && Array.isArray(currentReport.qualitative_criteria) && currentReport.qualitative_criteria.length > 0 && (
-                      <div>
-                        <h4 className="text-lg font-semibold mb-2">Qualitative Criteria</h4>
-                        <div className="space-y-3">
-                          {currentReport.qualitative_criteria.map((criterion, idx) => (
-                            <div key={`qual-${idx}`} className="bg-gray-50 p-3 rounded">
-                              <div className="font-medium">{criterion.title}</div>
-                              <p className="text-gray-800 text-sm whitespace-pre-wrap">{criterion.description}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {currentReport && Array.isArray(currentReport.quantitative_criteria) && currentReport.quantitative_criteria.length > 0 && (
-                      <div>
-                        <h4 className="text-lg font-semibold mb-2">Quantitative Criteria</h4>
-                        <div className="space-y-3">
-                          {currentReport.quantitative_criteria.map((criterion, idx) => (
-                            <div key={`quant-${idx}`} className="bg-gray-50 p-3 rounded">
-                              <div className="font-medium">
-                                {criterion.title} {typeof criterion.score !== 'undefined' && (
-                                  <span className="text-gray-600 font-normal">- Score: {criterion.score}</span>
-                                )}
-                              </div>
-                              {criterion.explanation && (
-                                <p className="text-gray-800 text-sm whitespace-pre-wrap">{criterion.explanation}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {currentReport && currentReport.report_warnings && (
-                      <div>
-                        <h4 className="text-lg font-semibold mb-2">Warnings</h4>
-                        <p className="text-gray-800 whitespace-pre-wrap">{currentReport.report_warnings}</p>
-                      </div>
-                    )}
-
-                    {currentReport && Array.isArray(currentReport.initial_interview_log) && currentReport.initial_interview_log.length > 0 && (
-                      <details className="bg-gray-50 border border-gray-200 rounded p-4">
-                        <summary className="cursor-pointer font-semibold text-gray-900">
-                          Initial Interview Log ({currentReport.initial_interview_log.length} messages)
-                        </summary>
-                        <div className="mt-3 space-y-3">
-                          {currentReport.initial_interview_log.map((entry, idx) => (
-                            <div key={`initial-log-${idx}`} className="border-l-4 border-blue-200 pl-3">
-                              <div className="text-xs text-gray-500 mb-1">
-                                {entry.created_at ? new Date(entry.created_at).toLocaleString() : 'Timestamp unknown'} · {entry.role === 'assistant' ? 'Interviewer' : 'Candidate'}
-                              </div>
-                              <div className="text-sm text-gray-800 whitespace-pre-wrap">{entry.content}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
-
-                    {currentReport && Array.isArray(currentReport.final_interview_log) && currentReport.final_interview_log.length > 0 && (
-                      <details className="bg-gray-50 border border-gray-200 rounded p-4">
-                        <summary className="cursor-pointer font-semibold text-gray-900">
-                          Final Interview Log ({currentReport.final_interview_log.length} messages)
-                        </summary>
-                        <div className="mt-3 space-y-3">
-                          {currentReport.final_interview_log.map((entry, idx) => (
-                            <div key={`final-log-${idx}`} className="border-l-4 border-green-200 pl-3">
-                              <div className="text-xs text-gray-500 mb-1">
-                                {entry.created_at ? new Date(entry.created_at).toLocaleString() : 'Timestamp unknown'} · {entry.role === 'assistant' ? 'Interviewer' : 'Candidate'}
-                              </div>
-                              <div className="text-sm text-gray-800 whitespace-pre-wrap">{entry.content}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <ReportModal
+        isOpen={showReportModal}
+        report={currentReport}
+        onClose={handleCloseReport}
+      />
 
       {/* View Test Details Modal */}
       <TestFormModal

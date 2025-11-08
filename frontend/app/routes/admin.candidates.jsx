@@ -1,6 +1,7 @@
-import { useSubmit } from "@remix-run/react";
 import { useState, useEffect } from "react";
+import { useSubmit } from "@remix-run/react";
 import { useAuthenticatedApi } from "../hooks/useAuthenticatedApi";
+import ReportModal from "../components/ReportModal";
 
 export default function CandidatesAdmin() {
   const [candidates, setCandidates] = useState([]);
@@ -11,8 +12,24 @@ export default function CandidatesAdmin() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateData, setDuplicateData] = useState(null);
   const [duplicateDecisions, setDuplicateDecisions] = useState({});
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [currentCandidate, setCurrentCandidate] = useState(null);
+  const [candidateTests, setCandidateTests] = useState([]);
+  const [loadingCandidateTests, setLoadingCandidateTests] = useState(false);
+  const [manageError, setManageError] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [currentReport, setCurrentReport] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
   const submit = useSubmit();
   const api = useAuthenticatedApi();
+
+  const interpretCompletion = (value) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      return normalized === 'true' || normalized === 't' || normalized === '1' || normalized === 'yes' || normalized === 'completed';
+    }
+    return Boolean(value);
+  };
 
   // Fetch candidates on component mount
   useEffect(() => {
@@ -42,6 +59,59 @@ export default function CandidatesAdmin() {
       setCandidates(data);
     } catch (err) {
       console.error('Error refreshing candidates:', err);
+    }
+  };
+
+  const handleOpenManageModal = async (candidate) => {
+    setCurrentCandidate(candidate);
+    setShowManageModal(true);
+    setLoadingCandidateTests(true);
+    setCandidateTests([]);
+    setManageError(null);
+    try {
+      const response = await api.get(`/candidates/${candidate.id}/tests`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch tests for this candidate');
+      }
+      setCandidateTests(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error loading candidate tests:', err);
+      setManageError(err.message || 'Failed to load tests for this candidate.');
+    } finally {
+      setLoadingCandidateTests(false);
+    }
+  };
+
+  const handleCloseManageModal = () => {
+    setShowManageModal(false);
+    setCurrentCandidate(null);
+    setCandidateTests([]);
+    setManageError(null);
+  };
+
+  const handleCandidateViewReport = async (testId, candidateId) => {
+    try {
+      setReportLoading(true);
+      const resolveResponse = await api.get(`/instances/resolve?test_id=${testId}&candidate_id=${candidateId}`);
+      const resolveData = await resolveResponse.json();
+      if (!resolveResponse.ok || !resolveData || !resolveData.id) {
+        throw new Error(resolveData?.error || 'No instance/report available yet for this candidate.');
+      }
+
+      const reportResponse = await api.get(`/instances/${resolveData.id}/report`);
+      const reportData = await reportResponse.json();
+      if (!reportResponse.ok) {
+        throw new Error(reportData.error || 'Failed to fetch report.');
+      }
+
+      setCurrentReport(reportData);
+      setShowReportModal(true);
+    } catch (err) {
+      console.error('Error retrieving candidate report:', err);
+      alert(err.message || 'Failed to retrieve report for this candidate.');
+    } finally {
+      setReportLoading(false);
     }
   };
 
@@ -366,9 +436,7 @@ export default function CandidatesAdmin() {
               <th className="py-3 px-4 text-left font-medium text-gray-600">Name</th>
               <th className="py-3 px-4 text-left font-medium text-gray-600">Email</th>
               <th className="py-3 px-4 text-left font-medium text-gray-600">Tags</th>
-              <th className="py-3 px-4 text-left font-medium text-gray-600">Tests Assigned</th>
-              <th className="py-3 px-4 text-left font-medium text-gray-600">Status</th>
-              <th className="py-3 px-4 text-left font-medium text-gray-600">Actions</th>
+              <th className="py-3 px-4 text-left font-medium text-gray-600">Manage Candidate</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -391,36 +459,11 @@ export default function CandidatesAdmin() {
                   )}
                 </td>
                 <td className="py-3 px-4">
-                  {candidate.testsAssigned && candidate.testsAssigned.length > 0 ? (
-                    candidate.testsAssigned.map((test, index) => (
-                      <span 
-                        key={index} 
-                        className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1 mb-1"
-                      >
-                        {test.name}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-gray-500">No tests assigned</span>
-                  )}
-                </td>
-                <td className="py-3 px-4">
-                  <span 
-                    className={`px-2 py-1 rounded text-xs ${
-                      candidate.completed 
-                        ? "bg-green-100 text-green-800" 
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
-                  >
-                    {candidate.completed ? "Completed" : "Pending"}
-                  </span>
-                </td>
-                <td className="py-3 px-4">
                   <button 
-                    className="text-blue-600 hover:text-blue-800"
-                    onClick={() => alert(`View results for ${candidate.name}`)}
+                    className="text-blue-600 hover:text-blue-800 font-medium"
+                    onClick={() => handleOpenManageModal(candidate)}
                   >
-                    {candidate.completed ? "View Results" : "Send Reminder"}
+                    Manage
                   </button>
                 </td>
               </tr>
@@ -428,6 +471,104 @@ export default function CandidatesAdmin() {
           </tbody>
         </table>
       </div>
+
+      {showManageModal && (
+        <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-3xl w-full max-h-screen overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-xl font-semibold">Manage Assignments</h3>
+                {currentCandidate && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Viewing tests assigned to {currentCandidate.name} ({currentCandidate.email})
+                  </p>
+                )}
+              </div>
+              <button 
+                onClick={handleCloseManageModal}
+                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                aria-label="Close manage assignments modal"
+              >
+                &times;
+              </button>
+            </div>
+
+            {manageError && (
+              <div className="mb-4 p-3 rounded bg-red-50 text-red-700 border border-red-200">
+                {manageError}
+              </div>
+            )}
+
+            {loadingCandidateTests ? (
+              <div className="flex items-center justify-center py-10">
+                <div className="text-gray-500">Loading assigned tests...</div>
+              </div>
+            ) : candidateTests.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full bg-white border border-gray-200 rounded">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="py-3 px-4 text-left text-sm font-medium text-gray-600">Test Name</th>
+                      <th className="py-3 px-4 text-left text-sm font-medium text-gray-600">Status</th>
+                      <th className="py-3 px-4 text-left text-sm font-medium text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {candidateTests.map((test) => {
+                      const isComplete = interpretCompletion(test.test_completed);
+                      return (
+                        <tr key={test.id}>
+                          <td className="py-3 px-4">
+                            <div className="font-medium text-gray-900">{test.name}</div>
+                            {test.created_at && (
+                              <div className="text-xs text-gray-500">
+                                Created {new Date(test.created_at).toLocaleDateString()}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              isComplete ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {isComplete ? 'Completed' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            {isComplete ? (
+                              <button
+                                onClick={() => handleCandidateViewReport(test.id, currentCandidate?.id)}
+                                className="text-purple-600 hover:text-purple-800 text-sm font-medium"
+                              >
+                                View Report
+                              </button>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">Report unavailable</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="py-6 text-center text-gray-500">
+                This candidate has not been assigned to any tests yet.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <ReportModal
+        isOpen={showReportModal}
+        report={currentReport}
+        isLoading={reportLoading}
+        onClose={() => {
+          setShowReportModal(false);
+          setCurrentReport(null);
+        }}
+      />
     </div>
   );
 } 

@@ -104,6 +104,38 @@ def exec_command(command):
     except subprocess.CalledProcessError as e:
         raise Exception(f"Command failed: {e.stderr}")
 
+def _mark_test_assignment_completed(cursor, test_id, candidate_id):
+    """
+    Mark a test_candidate assignment as completed and refresh the parent test's aggregate counts.
+    Returns True if an assignment row was updated.
+    """
+    if not test_id or not candidate_id:
+        return False
+
+    cursor.execute(
+        '''
+        UPDATE test_candidates
+        SET completed = TRUE
+        WHERE test_id = %s AND candidate_id = %s
+        ''',
+        (test_id, candidate_id)
+    )
+
+    if cursor.rowcount <= 0:
+        return False
+
+    cursor.execute(
+        '''
+        UPDATE tests
+        SET candidates_completed = (
+            SELECT COUNT(*) FROM test_candidates WHERE test_id = %s AND completed = TRUE
+        )
+        WHERE id = %s
+        ''',
+        (test_id, test_id)
+    )
+    return True
+
 async def clone_repo(repo_url, target_folder, token=None, exec_fn=None):
     """Clone a GitHub repository to the target folder"""
     # Create parent directory if it doesn't exist
@@ -672,6 +704,16 @@ def upload_project_to_github(instance_id, file_storage):
                 finally:
                     os.chdir(original_cwd) # Important to change back CWD
 
+        try:
+            assignment_marked = _mark_test_assignment_completed(cursor, test_id, candidate_id)
+            if not assignment_marked:
+                print(f"Warning: No test_candidates row updated for test {test_id} and candidate {candidate_id}")
+        except Exception as completion_error:
+            conn.rollback()
+            raise completion_error
+        else:
+            conn.commit()
+
         return {"success": True, "message": f"Project for candidate {candidate_id} uploaded successfully to {target_repo_url}/{submission_dir_name}"}
 
     except ValueError as ve:
@@ -1119,7 +1161,14 @@ def create_report(instance_id, workspace_content):
     try:
         # Check if instance exists and get test data
         cursor.execute('''
-            SELECT t.initial_prompt, t.final_prompt, t.qualitative_assessment_prompt, t.quantitative_assessment_prompt, ti.company_id
+            SELECT 
+                ti.test_id,
+                ti.candidate_id,
+                ti.company_id,
+                t.initial_prompt,
+                t.final_prompt,
+                t.qualitative_assessment_prompt,
+                t.quantitative_assessment_prompt
             FROM test_instances ti
             JOIN tests t ON ti.test_id = t.id
             WHERE ti.id = %s
@@ -1308,6 +1357,16 @@ def create_report(instance_id, workspace_content):
             'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())',
             (instance_id, test_data['company_id'], json.dumps(report))
         ) #TODO: no way to update reports, updated and created are the same
+
+        try:
+            if test_data.get('test_id') and test_data.get('candidate_id'):
+                assignment_marked = _mark_test_assignment_completed(cursor, test_data['test_id'], test_data['candidate_id'])
+                if not assignment_marked:
+                    print(f"Warning: No test_candidates row updated for test {test_data['test_id']} and candidate {test_data['candidate_id']} during report creation")
+        except Exception as completion_error:
+            conn.rollback()
+            raise completion_error
+
         conn.commit()
         print("report inserted")
 
