@@ -944,6 +944,18 @@ def get_report(instance_id):
         if not report_row:
             return {"message": f"No report exists for instance {instance_id}"}
         
+        def _serialize_timestamp(value):
+            if not value:
+                return None
+            if hasattr(value, 'isoformat'):
+                try:
+                    return value.isoformat()
+                except Exception:
+                    pass
+            if isinstance(value, str):
+                return value
+            return str(value)
+
         report_payload = report_row['content']
         if isinstance(report_payload, str):
             try:
@@ -955,7 +967,9 @@ def get_report(instance_id):
 
         created_at = report_row.get('created_at')
         if created_at and not report_payload.get('created_at'):
-            report_payload['created_at'] = created_at.isoformat()
+            serialized_ts = _serialize_timestamp(created_at)
+            if serialized_ts:
+                report_payload['created_at'] = serialized_ts
 
         # Attach configured qualitative/quantitative criteria templates
         qualitative_template = []
@@ -1009,7 +1023,7 @@ def get_report(instance_id):
                 sanitized = {
                     'role': role,
                     'content': content,
-                    'created_at': message.get('created_at').isoformat() if message.get('created_at') else None,
+                    'created_at': _serialize_timestamp(message.get('created_at')),
                     'user_name': message.get('user_name')
                 }
 

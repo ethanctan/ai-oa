@@ -5,9 +5,9 @@ import { json, redirect } from "@remix-run/node";
 import { auth } from "~/utils/auth.server";
 
 export const meta = () => {
-  return {
-    title: "Verihire - Admin Dashboard",
-  };
+  return [
+    { title: "Verihire - Admin Dashboard", }
+  ];
 };
 
 export const loader = async ({ request }) => {
