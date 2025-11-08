@@ -228,7 +228,7 @@ def get_candidate_tests(candidate_id, company_id=None):
                         JOIN test_instances ti2 ON ch.instance_id = ti2.id
                         WHERE ti2.test_id = tc.test_id
                           AND ti2.candidate_id = tc.candidate_id
-                          AND ch.message ILIKE 'PHASE_MARKER: final_completed%'
+                          AND ch.message ILIKE 'PHASE_MARKER: final_completed%%'
                     )
                     OR EXISTS (
                         SELECT 1
