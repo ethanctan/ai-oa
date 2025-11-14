@@ -440,6 +440,7 @@ def delete_test(test_id, company_id=None):
         # Get all associated instances
         cursor.execute('SELECT id, docker_instance_id FROM test_instances WHERE test_id = %s', (test_id,))
         instances = cursor.fetchall()
+        instance_ids = [instance['id'] for instance in instances if instance.get('id')]
         
         # Connect to Docker if needed
         docker_client = None
@@ -467,6 +468,17 @@ def delete_test(test_id, company_id=None):
                 except Exception as e:
                     print(f"Error stopping container {docker_id}: {str(e)}")
         
+        # Delete dependent access tokens explicitly (older schemas may lack ON DELETE CASCADE)
+        if instance_ids:
+            cursor.execute(
+                'DELETE FROM access_tokens WHERE instance_id = ANY(%s)',
+                (instance_ids,)
+            )
+            cursor.execute(
+                'DELETE FROM instance_access_tokens WHERE instance_id = ANY(%s)',
+                (instance_ids,)
+            )
+
         # Delete test instances
         instance_count = len(instances)
         if instance_count > 0:
