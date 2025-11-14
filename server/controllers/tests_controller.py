@@ -426,6 +426,11 @@ def delete_test(test_id, company_id=None):
     cursor = conn.cursor()
     
     try:
+        def table_exists(table_name):
+            cursor.execute('SELECT to_regclass(%s) AS regclass', (table_name,))
+            result = cursor.fetchone()
+            return bool(result and result.get('regclass'))
+        
         # Check if test exists and belongs to the company
         if company_id:
             cursor.execute('SELECT id FROM tests WHERE id = %s AND company_id = %s', (test_id, company_id))
@@ -470,14 +475,16 @@ def delete_test(test_id, company_id=None):
         
         # Delete dependent access tokens explicitly (older schemas may lack ON DELETE CASCADE)
         if instance_ids:
-            cursor.execute(
-                'DELETE FROM access_tokens WHERE instance_id = ANY(%s)',
-                (instance_ids,)
-            )
-            cursor.execute(
-                'DELETE FROM instance_access_tokens WHERE instance_id = ANY(%s)',
-                (instance_ids,)
-            )
+            if table_exists('access_tokens'):
+                cursor.execute(
+                    'DELETE FROM access_tokens WHERE instance_id = ANY(%s)',
+                    (instance_ids,)
+                )
+            if table_exists('instance_access_tokens'):
+                cursor.execute(
+                    'DELETE FROM instance_access_tokens WHERE instance_id = ANY(%s)',
+                    (instance_ids,)
+                )
 
         # Delete test instances
         instance_count = len(instances)
