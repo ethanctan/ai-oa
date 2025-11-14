@@ -1,5 +1,6 @@
 from database.db_postgresql import get_connection
 from datetime import datetime, timezone
+import docker
 
 def get_all_tests(company_id=None):
     """Get all tests from the database, filtered by company"""
