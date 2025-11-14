@@ -1435,6 +1435,10 @@
         }
         // Handle chat history received
         else if (message.command === 'chatHistory') {
+          if (typeof message.projectHelperEnabled === 'boolean') {
+            projectHelperEnabled = message.projectHelperEnabled;
+            console.log('Updated projectHelperEnabled from chatHistory message:', projectHelperEnabled);
+          }
           if (message.error) {
             console.error('Error retrieving chat history:', message.error);
           } else if (message.history) {

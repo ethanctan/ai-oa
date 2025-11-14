@@ -1,6 +1,11 @@
 from flask import Blueprint, request, jsonify
 import asyncio
-from controllers.chat_controller import get_chat_response, get_chat_history, add_chat_message
+from controllers.chat_controller import (
+    get_chat_response,
+    get_chat_history,
+    add_chat_message,
+    get_project_helper_flag
+)
 
 # Create a Blueprint for chat routes
 chat_bp = Blueprint('chat', __name__)
@@ -68,11 +73,13 @@ def history():
         
         print(f'Getting chat history for instance {instance_id}')
         history = get_chat_history(instance_id)
+        project_helper_enabled = get_project_helper_flag(instance_id)
         
         return jsonify({
             'success': True,
             'instanceId': instance_id,
-            'history': history
+            'history': history,
+            'project_helper_enabled': project_helper_enabled
         })
     except Exception as e:
         print(f'Error getting chat history: {str(e)}')

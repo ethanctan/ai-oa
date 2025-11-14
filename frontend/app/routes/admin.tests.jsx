@@ -508,15 +508,6 @@ export default function TestsAdmin() {
         : [...prev, candidateId]
     );
   };
-  
-  // Handle checkboxes for selecting candidates in the manage candidates modal
-  const toggleManageCandidateSelection = (candidateId) => {
-    setManageCandidatesSelection(prev => 
-      prev.includes(candidateId)
-        ? prev.filter(id => id !== candidateId)
-        : [...prev, candidateId]
-    );
-  };
 
   // Handle View Report button click
   const handleViewReport = async (instanceId) => {
@@ -628,16 +619,6 @@ export default function TestsAdmin() {
     } catch (error) {
       alert(`Error deleting test: ${error.message}`);
     }
-  };
-
-  // Handle timer toggle change
-  const handleTimerToggleChange = (e) => {
-    setTimerEnabled(e.target.checked);
-  };
-
-  // Handle project timer toggle change
-  const handleProjectTimerToggleChange = (e) => {
-    setProjectTimerEnabled(e.target.checked);
   };
 
   // Add handler for removing candidates
@@ -836,18 +817,11 @@ export default function TestsAdmin() {
 
               <div className="space-y-4">
                 <h4 className="font-medium text-lg">Timer Configuration</h4>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col">
                   <label className="text-sm font-medium text-gray-700">
                     Initial Waiting Timer
                   </label>
                   <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      checked={enableInitialTimer}
-                      disabled
-                      readOnly
-                    />
                     <span className={`text-sm ${enableInitialTimer ? 'text-blue-600' : 'text-gray-500'}`}>
                       {enableInitialTimer ? 'Enabled' : 'Disabled'}
                     </span>
@@ -867,18 +841,11 @@ export default function TestsAdmin() {
                 </div>
 
                 <h4 className="font-medium text-lg mt-6">Project Work Timer Configuration</h4>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col">
                   <label className="text-sm font-medium text-gray-700">
                     Project Work Timer
                   </label>
                   <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      checked={enableProjectTimer}
-                      disabled
-                      readOnly
-                    />
                     <span className={`text-sm ${enableProjectTimer ? 'text-blue-600' : 'text-gray-500'}`}>
                       {enableProjectTimer ? 'Enabled' : 'Disabled'}
                     </span>
@@ -900,7 +867,7 @@ export default function TestsAdmin() {
 
               <div className="space-y-4">
                 <h4 className="font-medium text-lg mt-6">Project Helper Chatbot</h4>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col">
                   <label className="text-sm font-medium text-gray-700">
                     Helper Availability
                   </label>
@@ -908,13 +875,6 @@ export default function TestsAdmin() {
                     <span className={`text-sm ${testData?.project_helper_enabled ? 'text-blue-600' : 'text-gray-500'}`}>
                       {testData?.project_helper_enabled ? 'Enabled' : 'Disabled'}
                     </span>
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      checked={Boolean(testData?.project_helper_enabled)}
-                      readOnly
-                      disabled
-                    />
                   </div>
                 </div>
                 <p className="text-sm text-gray-500">
@@ -985,13 +945,6 @@ export default function TestsAdmin() {
                   <span className={`text-sm ${targetRepoEnabledView ? 'text-blue-600' : 'text-gray-500'}`}>
                     {targetRepoEnabledView ? 'Enabled' : 'Disabled'}
                   </span>
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    checked={targetRepoEnabledView}
-                    disabled
-                    readOnly
-                  />
                 </div>
                 <input
                   type="text"
@@ -1011,13 +964,6 @@ export default function TestsAdmin() {
                   <span className={`text-sm ${targetTokenEnabledView ? 'text-blue-600' : 'text-gray-500'}`}>
                     {targetTokenEnabledView ? 'Enabled' : 'Disabled'}
                   </span>
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    checked={targetTokenEnabledView}
-                    disabled
-                    readOnly
-                  />
                 </div>
                 <input
                   type="text"
@@ -1040,13 +986,6 @@ export default function TestsAdmin() {
                     <span className={`text-sm ${initialPromptEnabledView ? 'text-blue-600' : 'text-gray-500'}`}>
                       {initialPromptEnabledView ? 'Enabled' : 'Disabled'}
                     </span>
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      checked={initialPromptEnabledView}
-                      disabled
-                      readOnly
-                    />
                   </div>
                   <textarea
                     className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 min-h-[120px]"
@@ -1064,13 +1003,6 @@ export default function TestsAdmin() {
                     <span className={`text-sm ${finalPromptEnabledView ? 'text-blue-600' : 'text-gray-500'}`}>
                       {finalPromptEnabledView ? 'Enabled' : 'Disabled'}
                     </span>
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      checked={finalPromptEnabledView}
-                      disabled
-                      readOnly
-                    />
                   </div>
                   <textarea
                     className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 min-h-[120px]"

@@ -1244,6 +1244,7 @@ async function getChatHistory(instanceId) {
     
     // Very detailed logging to help diagnose issues
     console.log('Chat history data:', JSON.stringify(data));
+    const helperEnabled = !!data.project_helper_enabled;
     
     if (data.history && data.history.length > 0) {
       // If we have chat history, the interview must have started
@@ -1256,13 +1257,21 @@ async function getChatHistory(instanceId) {
         global.chatPanel.webview.postMessage({
           command: 'chatHistory',
           history: data.history,
-          interviewStarted
+          interviewStarted,
+          projectHelperEnabled: helperEnabled
         });
       }
       
       return data.history;
     } else {
       console.log('No chat history found');
+      if (global.chatPanel) {
+        global.chatPanel.webview.postMessage({
+          command: 'chatHistory',
+          history: [],
+          projectHelperEnabled: helperEnabled
+        });
+      }
       return [];
     }
   } catch (error) {

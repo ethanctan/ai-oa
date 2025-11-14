@@ -114,6 +114,27 @@ def get_chat_history(instance_id):
     finally:
         conn.close()
 
+def get_project_helper_flag(instance_id):
+    """Return True if the associated test enables the project helper chatbot."""
+    if not instance_id:
+        return False
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            SELECT t.project_helper_enabled
+            FROM test_instances ti
+            JOIN tests t ON ti.test_id = t.id
+            WHERE ti.id = %s
+        ''', (instance_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        return bool(row.get('project_helper_enabled'))
+    finally:
+        conn.close()
+
 def add_chat_message(instance_id, message):
     """Add a message to the chat history.
     Accepts a message dict {role, content, user_id?} to match the extension routes.
