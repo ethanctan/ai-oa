@@ -1179,7 +1179,8 @@ def create_report(instance_id, workspace_content):
                 t.initial_prompt,
                 t.final_prompt,
                 t.qualitative_assessment_prompt,
-                t.quantitative_assessment_prompt
+                t.quantitative_assessment_prompt,
+                t.project_helper_enabled
             FROM test_instances ti
             JOIN tests t ON ti.test_id = t.id
             WHERE ti.id = %s
