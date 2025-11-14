@@ -285,8 +285,13 @@
     }
     
     .phase-label.final {
-      background-color: var(--vscode-editorWarning-background, rgba(255,127,0,0.1));
-      color: var(--vscode-editorWarning-foreground, #a05000);
+      background-color: var(--vscode-editorInfo-background, rgba(0,127,255,0.1));
+      color: var(--vscode-editorInfo-foreground, #2040a0);
+    }
+
+    .phase-label.project {
+      background-color: var(--vscode-editorInfo-background, rgba(0,127,255,0.1));
+      color: var(--vscode-editorInfo-foreground, #2040a0);
     }
 
     @keyframes pulse {
@@ -353,11 +358,7 @@
       color: white;
     }
 
-    /* Project phase label */
-    .phase-label.project {
-      background-color: var(--vscode-gitDecoration-addedResourceForeground, rgba(0,255,127,0.1));
-      color: var(--vscode-gitDecoration-addedResourceForeground, #00a050);
-    }
+
   </style>
 </head>
 <body>

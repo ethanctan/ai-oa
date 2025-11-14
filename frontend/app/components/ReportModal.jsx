@@ -148,6 +148,13 @@ function ReportModal({ isOpen, report, onClose, isLoading = false, title = "Test
                   </div>
                 )}
 
+                {report?.project_helper_summary && (
+                  <div>
+                    <h4 className="text-lg font-semibold mb-2">Project Helper Summary</h4>
+                    <p className="text-gray-800 whitespace-pre-wrap">{report.project_helper_summary}</p>
+                  </div>
+                )}
+
                 {report?.final_interview_summary && (
                   <div>
                     <h4 className="text-lg font-semibold mb-2">Final Interview Summary</h4>

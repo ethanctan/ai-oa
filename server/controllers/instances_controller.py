@@ -1191,6 +1191,7 @@ def create_report(instance_id, workspace_content):
         
         test_data = dict(test_record)
         print("test data:", test_data)
+        project_helper_enabled = bool(test_data.get('project_helper_enabled'))
         
         
         # Check if a report already exists
@@ -1241,6 +1242,16 @@ def create_report(instance_id, workspace_content):
             # report_instructions += "- Final Interview Summary, based on the content of <input_final_interview>\n"
             # input_data += "<input_final_interview>\n" + final_interview + "\n</input_final_interview>\n"
             report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> after 'PHASE_MARKER: final_started'"
+
+        if project_helper_enabled:
+            field_definitions['project_helper_summary'] = (
+                str,
+                Field(
+                    title="Project Helper Summary",
+                    description="Summary of the candidate's interactions with the project helper, covering the main questions asked and guidance provided."
+                )
+            )
+            report_instructions += "- Project Helper Summary, based on the content of <input_chat_logs> between 'PHASE_MARKER: project_started' and 'PHASE_MARKER: final_started'\n"
 
         if test_data['qualitative_assessment_prompt'] != "[]":
             class QualitativeCriterionModel(BaseModel):
