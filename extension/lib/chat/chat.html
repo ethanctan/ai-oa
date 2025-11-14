@@ -424,6 +424,9 @@
       let finalInterviewStarted = false;
       let initialInterviewEnded = false;
       let projectWorkStarted = false;
+      let projectHelperEnabled = false;
+      let projectHelperPrompt = '';
+      let projectHelperMessageShown = false;
       let timerStarted = false;
       let timerEndTime = null;
       let timerInterval = null;
@@ -465,16 +468,21 @@
           messageElem.textContent = text;
         } else {
           messageElem.className = `message ${role === 'user' ? 'user-message' : 'ai-message'}`;
-          
-          // Add phase label for non-system messages
-          // Only add labels at the beginning of an interview phase
-          if (finalInterviewStarted && !initialInterviewEnded && !document.querySelector('.phase-label.final')) {
+
+          const normalizedPhase = currentInterviewPhase || (finalInterviewStarted ? 'final' : 'initial');
+
+          // Add phase label for non-system messages at the beginning of a phase
+          if (normalizedPhase === 'final' && !document.querySelector('.phase-label.final')) {
             const phaseLabel = document.createElement('div');
             phaseLabel.className = 'phase-label final';
             phaseLabel.textContent = 'Final Interview';
             messagesContainer.appendChild(phaseLabel);
-          } else if (!finalInterviewStarted && !initialInterviewEnded && !document.querySelector('.phase-label.initial') && chatHistory.length === 0) {
-            // Add initial phase label for the first message
+          } else if (normalizedPhase === 'project' && projectHelperEnabled && !document.querySelector('.phase-label.project')) {
+            const phaseLabel = document.createElement('div');
+            phaseLabel.className = 'phase-label project';
+            phaseLabel.textContent = 'Project Helper';
+            messagesContainer.appendChild(phaseLabel);
+          } else if (normalizedPhase === 'initial' && !document.querySelector('.phase-label.initial') && chatHistory.length === 0) {
             const phaseLabel = document.createElement('div');
             phaseLabel.className = 'phase-label initial';
             phaseLabel.textContent = 'Initial Interview';
@@ -488,7 +496,7 @@
           messageElem.appendChild(contentElem);
           
           // Determine current phase for the message
-          const currentPhase = finalInterviewStarted ? 'final' : 'initial';
+          const currentPhase = normalizedPhase;
           
           // Record message in history
           const messageObj = { 
@@ -768,13 +776,22 @@
         projectWorkStarted = true;
         initialInterviewEnded = true; // Ensure initial interview is marked as ended
         
-        // IMPORTANT: Always disable chat input during project phase
-        console.log('DISABLING CHAT INPUT: Project timer detected');
-        chatInput.disabled = true;
-        chatSubmit.disabled = true;
+        if (projectHelperEnabled) {
+          console.log('ENABLING CHAT INPUT: Project helper enabled during project phase');
+          chatInput.disabled = false;
+          chatSubmit.disabled = false;
+        } else {
+          console.log('DISABLING CHAT INPUT: Project helper disabled during project phase');
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+        }
         
         // Ensure UI state is consistent with project phase
         updateInputStateBasedOnPhase();
+        if (projectHelperEnabled && !projectHelperMessageShown) {
+          appendMessage('system', 'Project helper assistant is available during this phase. Ask questions anytime for guidance.', true);
+          projectHelperMessageShown = true;
+        }
         
         // Show final interview container to allow early submission
         finalInterviewContainer.classList.add('visible');
@@ -858,6 +875,10 @@
         
         // Add system message indicating start of project work phase
         appendMessage('system', 'Initial interview completed. Please implement your solution now. You can submit your work and start the final interview at any time.', true);
+        if (projectHelperEnabled && !projectHelperMessageShown) {
+          appendMessage('system', 'Project helper assistant is available during this phase. Ask questions anytime for guidance.', true);
+          projectHelperMessageShown = true;
+        }
         
         // Notify server to start project timer
         vscode.postMessage({
@@ -872,9 +893,14 @@
           phase: 'project_started'
         });
         
-        // Disable chat input during project work
-        chatInput.disabled = true;
-        chatSubmit.disabled = true;
+        if (projectHelperEnabled) {
+          console.log('ENABLING CHAT INPUT: Project helper enabled during project phase start');
+          chatInput.disabled = false;
+          chatSubmit.disabled = false;
+        } else {
+          chatInput.disabled = true;
+          chatSubmit.disabled = true;
+        }
         
         // Show final interview container to allow early submission
         finalInterviewContainer.classList.add('visible');
@@ -903,6 +929,7 @@
         finalInterviewStarted = false;
         finalInterviewTrulyEnded = false;
         currentInterviewPhase = 'initial';
+        projectHelperMessageShown = false;
 
         // Determine phase strictly from system markers in history
         const determinePhaseFromHistory = (hist) => {
@@ -1157,8 +1184,17 @@
           // We're in the project phase
           console.log('UI update: Project phase detected from history');
           finalInterviewContainer.classList.add('visible');
-          chatInput.disabled = true;
-          chatSubmit.disabled = true;
+          if (projectHelperEnabled) {
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+            if (!projectHelperMessageShown) {
+              appendMessage('system', 'Project helper assistant is available during this phase. Ask questions anytime for guidance.', true);
+              projectHelperMessageShown = true;
+            }
+          } else {
+            chatInput.disabled = true;
+            chatSubmit.disabled = true;
+          }
           
           // Make sure project timer container is visible
           projectTimerContainer.classList.add('visible');
@@ -1221,10 +1257,13 @@
             if (message.finalQuestionBudget) {
               finalQuestionBudget = message.finalQuestionBudget;
             }
+            projectHelperEnabled = !!message.projectHelperEnabled;
+            projectHelperPrompt = message.projectHelperPrompt || projectHelperPrompt || '';
             
             console.log(`Received environment prompts. Initial prompt length: ${initialPrompt.length}`);
             console.log(`Instance ID: ${instanceId}`);
             console.log(`Question budgets → initial: ${initialQuestionBudget}, final: ${finalQuestionBudget}`);
+            console.log(`Project helper enabled: ${projectHelperEnabled}`);
             
             // Check timer status if instance ID is available
             if (instanceId) {
@@ -1236,6 +1275,8 @@
               // Force update of input state
               setTimeout(updateInputStateBasedOnPhase, 1000);
             }
+            
+            updateInputStateBasedOnPhase();
           }
         }
         // If we get timer status from server
@@ -1309,10 +1350,15 @@
             chatInput.disabled = false;
             chatSubmit.disabled = false;
           } else if (projectWorkStarted) {
-            // Always disable in project phase
-            console.log('Disabling chat input for project phase (via chatMessage)');
-            chatInput.disabled = true;
-            chatSubmit.disabled = true;
+            if (projectHelperEnabled) {
+              console.log('Enabling chat input for project phase (helper active) via chatMessage');
+              chatInput.disabled = false;
+              chatSubmit.disabled = false;
+            } else {
+              console.log('Disabling chat input for project phase (helper inactive) via chatMessage');
+              chatInput.disabled = true;
+              chatSubmit.disabled = true;
+            }
           } else if (initialInterviewStarted && !initialInterviewEnded) {
             // Enable in initial interview phase
             console.log('Enabling chat input for initial interview phase (via chatMessage)');
@@ -1371,10 +1417,15 @@
             chatInput.disabled = false;
             chatSubmit.disabled = false;
           } else if (projectWorkStarted) {
-            // Always disable in project phase
-            console.log('Disabling chat input for project phase');
-            chatInput.disabled = true;
-            chatSubmit.disabled = true;
+            if (projectHelperEnabled) {
+              console.log('Enabling chat input for project phase (helper active)');
+              chatInput.disabled = false;
+              chatSubmit.disabled = false;
+            } else {
+              console.log('Disabling chat input for project phase');
+              chatInput.disabled = true;
+              chatSubmit.disabled = true;
+            }
           } else if (initialInterviewStarted && !initialInterviewEnded) {
             // Enable in initial interview phase
             console.log('Enabling chat input for initial interview phase');
@@ -1467,7 +1518,10 @@
         
         // Base prompt depending on interview stage
         let basePrompt = '';
-        if (initialInterviewStarted && finalInterviewStarted) {
+        const helperPhaseActive = projectHelperEnabled && currentInterviewPhase === 'project';
+        if (helperPhaseActive) {
+          basePrompt = projectHelperPrompt || 'You are a friendly AI assistant helping the candidate during their project work. Offer guidance, debugging tips, and best practices without completing the entire task for them.';
+        } else if (initialInterviewStarted && finalInterviewStarted) {
           // Final interview mode
           basePrompt = finalPrompt;
         } else if (initialInterviewStarted) {
@@ -1485,12 +1539,16 @@
           systemMessages.push({ role: "system", content: "Project workspace content: " + workspaceContext });
         }
         
+        const relevantHistory = helperPhaseActive
+          ? chatHistory.filter((m) => m.phase === 'project')
+          : chatHistory;
+
         // Construct the payload with all messages using the standardized format
         const payload = {
           "payload": {
             "messages": [
               ...systemMessages,
-              ...chatHistory
+              ...relevantHistory
             ]
           }
         };
@@ -1509,7 +1567,8 @@
         vscode.postMessage({
           command: 'chatMessage',
           payload: payload,
-          instanceId
+          instanceId,
+          phase: currentInterviewPhase
         });
         
         // Clear input
@@ -1781,10 +1840,15 @@
         }
         
         if (projectWorkStarted && !finalInterviewStarted) {
-          // We're in the project phase - always disable chat
-          console.log('DISABLING CHAT INPUT: In project phase');
-          chatInput.disabled = true;
-          chatSubmit.disabled = true;
+          if (projectHelperEnabled) {
+            console.log('ENABLING CHAT INPUT: Project helper enabled during project phase');
+            chatInput.disabled = false;
+            chatSubmit.disabled = false;
+          } else {
+            console.log('DISABLING CHAT INPUT: Project helper disabled during project phase');
+            chatInput.disabled = true;
+            chatSubmit.disabled = true;
+          }
           
           // Show final interview button
           finalInterviewContainer.classList.add('visible');

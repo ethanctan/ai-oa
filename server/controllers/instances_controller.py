@@ -764,6 +764,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             raise ValueError('Test not found')
         
         test = dict(test)
+        test['project_helper_enabled'] = bool(test.get('project_helper_enabled'))
         print(f"Retrieved test details: {test}")
         
         # Generate a unique container name that matches nginx routing pattern
@@ -812,6 +813,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
             print(f"  - INITIAL_DURATION_MINUTES: {test.get('timer_duration', 10)}")
             print(f"  - ENABLE_PROJECT_TIMER: {test.get('enable_project_timer', 1)}")
             print(f"  - PROJECT_DURATION_MINUTES: {test.get('project_timer_duration', 60)}")
+            print(f"  - PROJECT_HELPER_ENABLED: {test.get('project_helper_enabled')}")
             print(f"  - INITIAL_QUESTION_BUDGET: {test.get('initial_question_budget', 'DEFAULT')}")
             print(f"  - FINAL_QUESTION_BUDGET: {test.get('final_question_budget', 'DEFAULT')}")
             
@@ -836,6 +838,7 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                 env_vars['FINAL_PROMPT'] = test['final_prompt']
             if test.get('qualitative_assessment_prompt'):
                 env_vars['ASSESSMENT_PROMPT'] = test['qualitative_assessment_prompt']
+            env_vars['PROJECT_HELPER_ENABLED'] = '1' if test.get('project_helper_enabled') else '0'
             
             # Add timer configuration
             env_vars['ENABLE_INITIAL_TIMER'] = '1' if test.get('enable_timer', 1) else '0'
@@ -966,7 +969,8 @@ def get_report(instance_id):
                 t.final_prompt,
                 t.qualitative_assessment_prompt,
                 t.quantitative_assessment_prompt,
-                t.target_github_repo
+                t.target_github_repo,
+                t.project_helper_enabled
             FROM test_instances ti
             JOIN tests t ON ti.test_id = t.id
             WHERE ti.id = %s
@@ -976,6 +980,7 @@ def get_report(instance_id):
             print(f"instance with ID {instance_id} not found")
             return {"message": f"Instance with ID {instance_id} not found"}
         test_data = dict(test_record)
+        project_helper_enabled = bool(test_data.get('project_helper_enabled'))
         
         # Check if a report already exists
         cursor.execute(
@@ -1041,6 +1046,7 @@ def get_report(instance_id):
             chat_history_list = []
 
         initial_log = []
+        project_log = []
         final_log = []
         current_phase = 'initial'
 
@@ -1071,11 +1077,16 @@ def get_report(instance_id):
 
                 if current_phase == 'initial':
                     initial_log.append(sanitized)
+                elif current_phase == 'project':
+                    project_log.append(sanitized)
                 elif current_phase == 'final':
                     final_log.append(sanitized)
 
         if initial_log:
             report_payload['initial_interview_log'] = initial_log
+        report_payload['project_helper_enabled'] = project_helper_enabled
+        if project_helper_enabled and project_log:
+            report_payload['project_helper_log'] = project_log
         if final_log:
             report_payload['final_interview_log'] = final_log
 

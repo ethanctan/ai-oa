@@ -108,6 +108,10 @@ def ensure_all_columns_exist(cursor, conn):
     if 'final_question_budget' not in tests_columns:
         cursor.execute("ALTER TABLE tests ADD COLUMN final_question_budget INTEGER DEFAULT 5")
         logger.info("Added final_question_budget to tests table")
+
+    if 'project_helper_enabled' not in tests_columns:
+        cursor.execute("ALTER TABLE tests ADD COLUMN project_helper_enabled BOOLEAN DEFAULT FALSE")
+        logger.info("Added project_helper_enabled to tests table")
     
     conn.commit()
 
@@ -124,6 +128,7 @@ def set_default_values(cursor, conn):
 
     cursor.execute("UPDATE tests SET initial_question_budget = 5 WHERE initial_question_budget IS NULL")
     cursor.execute("UPDATE tests SET final_question_budget = 5 WHERE final_question_budget IS NULL")
+    cursor.execute("UPDATE tests SET project_helper_enabled = FALSE WHERE project_helper_enabled IS NULL")
     
     # Set approved = 1 for companies that don't have it set
     cursor.execute("UPDATE companies SET approved = 1 WHERE approved IS NULL")

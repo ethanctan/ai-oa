@@ -15,6 +15,7 @@ def get_all_tests(company_id=None):
                     t.candidates_assigned, t.candidates_completed,
                     t.enable_timer, t.timer_duration,
                     t.initial_question_budget, t.final_question_budget,
+                    t.project_helper_enabled,
                     t.created_at, t.updated_at,
                     t.target_github_repo, t.target_github_token,
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
@@ -34,6 +35,7 @@ def get_all_tests(company_id=None):
                     t.candidates_assigned, t.candidates_completed,
                     t.enable_timer, t.timer_duration,
                     t.initial_question_budget, t.final_question_budget,
+                    t.project_helper_enabled,
                     t.created_at, t.updated_at,
                     t.target_github_repo, t.target_github_token,
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
@@ -51,6 +53,7 @@ def get_all_tests(company_id=None):
             # Convert created_at and updated_at to UTC ISO 8601
             test_dict["created_at"] = _convert_to_utc(test_dict["created_at"])
             test_dict["updated_at"] = _convert_to_utc(test_dict["updated_at"])
+            test_dict["project_helper_enabled"] = bool(test_dict.get("project_helper_enabled"))
 
             tests.append(test_dict)
         
@@ -75,6 +78,7 @@ def get_test(test_id, company_id=None):
                     t.enable_timer, t.timer_duration,
                     t.enable_project_timer, t.project_timer_duration,
                     t.initial_question_budget, t.final_question_budget,
+                    t.project_helper_enabled,
                     t.created_at, t.updated_at,
                     t.target_github_repo, t.target_github_token,
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
@@ -96,6 +100,7 @@ def get_test(test_id, company_id=None):
                     t.enable_timer, t.timer_duration,
                     t.enable_project_timer, t.project_timer_duration,
                     t.initial_question_budget, t.final_question_budget,
+                    t.project_helper_enabled,
                     t.created_at, t.updated_at,
                     t.target_github_repo, t.target_github_token,
                     COUNT(DISTINCT tc.candidate_id) as total_candidates
@@ -118,6 +123,7 @@ def get_test(test_id, company_id=None):
         # Convert created_at and updated_at to UTC ISO 8601
         test_dict["created_at"] = _convert_to_utc(test_dict["created_at"])
         test_dict["updated_at"] = _convert_to_utc(test_dict["updated_at"])
+        test_dict["project_helper_enabled"] = bool(test_dict.get("project_helper_enabled"))
         
         # Get candidates assigned to this test (also filter by company if provided)
         completion_expr = """
@@ -173,7 +179,10 @@ def get_test(test_id, company_id=None):
         
         candidates = []
         for row in cursor.fetchall():
-            candidates.append(dict(row))
+            candidate = dict(row)
+            if 'invited' in candidate:
+                candidate['invited'] = bool(candidate.get('invited'))
+            candidates.append(candidate)
         
         test_dict['candidates'] = candidates
         
@@ -204,11 +213,23 @@ def create_test(data):
         except (TypeError, ValueError):
             return default
 
+    def parse_bool(value, default=False):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in ('true', '1', 'yes', 'y', 'on')
+        if value is None:
+            return default
+        return bool(value)
+
     initial_question_budget = parse_budget(
         data.get('initialQuestionBudget', data.get('initial_question_budget')), 5
     )
     final_question_budget = parse_budget(
         data.get('finalQuestionBudget', data.get('final_question_budget')), 5
+    )
+    project_helper_enabled = parse_bool(
+        data.get('enableProjectHelper', data.get('projectHelperEnabled')), False
     )
     
     if not name:
@@ -231,9 +252,9 @@ def create_test(data):
                 candidates_assigned, candidates_completed,
                 enable_timer, timer_duration,
                 enable_project_timer, project_timer_duration,
-                initial_question_budget, final_question_budget,
+                initial_question_budget, final_question_budget, project_helper_enabled,
                 target_github_repo, target_github_token, company_id
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *
             ''',
             (
                 name,
@@ -251,6 +272,7 @@ def create_test(data):
                 project_timer_duration,
                 initial_question_budget,
                 final_question_budget,
+                project_helper_enabled,
                 data.get('targetGithubRepo', None),
                 data.get('targetGithubToken', None),
                 company_id
@@ -259,6 +281,7 @@ def create_test(data):
         
         # Get the inserted test directly from the INSERT statement
         new_test = dict(cursor.fetchone())
+        new_test['project_helper_enabled'] = bool(new_test.get('project_helper_enabled'))
         conn.commit()
         
         # Get the inserted test ID
@@ -326,6 +349,15 @@ def update_test(test_id, data, company_id=None):
     conn = get_connection()
     cursor = conn.cursor()
     
+    def parse_bool(value, default=False):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in ('true', '1', 'yes', 'y', 'on')
+        if value is None:
+            return default
+        return bool(value)
+    
     try:
         # Check if test exists and belongs to the company
         if company_id:
@@ -355,13 +387,18 @@ def update_test(test_id, data, company_id=None):
             'initialQuestionBudget': 'initial_question_budget',
             'finalQuestionBudget': 'final_question_budget',
             'candidatesAssigned': 'candidates_assigned',
-            'candidatesCompleted': 'candidates_completed'
+            'candidatesCompleted': 'candidates_completed',
+            'projectHelperEnabled': 'project_helper_enabled',
+            'enableProjectHelper': 'project_helper_enabled'
         }
         
         for js_field, db_field in field_mapping.items():
             if js_field in data:
+                value = data[js_field]
+                if db_field == 'project_helper_enabled':
+                    value = parse_bool(value)
                 update_fields.append(f'{db_field} = %s')
-                update_values.append(data[js_field])
+                update_values.append(value)
         
         if not update_fields:
             # Nothing to update
@@ -515,6 +552,8 @@ def get_test_candidates(test_id, company_id=None):
         assigned_candidates = []
         for row in cursor.fetchall():
             candidate = dict(row)
+            if 'invited' in candidate:
+                candidate['invited'] = bool(candidate.get('invited'))
             # Convert deadline to ISO format if it exists
             if candidate['deadline']:
                 try:

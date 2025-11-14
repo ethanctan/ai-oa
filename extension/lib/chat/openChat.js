@@ -41,6 +41,9 @@ let globalTimerConfig = {};
 let globalProjectTimerConfig = {};
 let globalInitialQuestionBudget = 5;
 let globalFinalQuestionBudget = 5;
+let globalProjectHelperEnabled = false;
+let globalProjectHelperPrompt = '';
+const DEFAULT_PROJECT_HELPER_PROMPT = `You are a friendly AI project assistant helping a software engineering candidate while they implement a coding assignment. Offer constructive guidance, answer questions about the codebase or requirements, and provide suggestions when asked. Do not write the full solution for them, but feel free to share snippets, best practices, debugging tips, or references that unblock their progress. Keep your responses conversational, concise, and encouraging. Never say "END" or attempt to terminate the conversation.`;
 
 function normalizePhaseName(value) {
   if (value === null || value === undefined) return null;
@@ -197,7 +200,7 @@ async function getEnvironmentVariables() {
     const result = await new Promise((resolve, reject) => {
       const { exec } = require('child_process');
       // Update grep pattern to include timer variables
-      exec('env | grep -E "INITIAL_PROMPT|FINAL_PROMPT|ASSESSMENT_PROMPT|INSTANCE_ID|ENABLE_INITIAL_TIMER|INITIAL_DURATION_MINUTES|ENABLE_PROJECT_TIMER|PROJECT_DURATION_MINUTES|INITIAL_QUESTION_BUDGET|FINAL_QUESTION_BUDGET"', (error, stdout, stderr) => {
+      exec('env | grep -E "INITIAL_PROMPT|FINAL_PROMPT|ASSESSMENT_PROMPT|INSTANCE_ID|ENABLE_INITIAL_TIMER|INITIAL_DURATION_MINUTES|ENABLE_PROJECT_TIMER|PROJECT_DURATION_MINUTES|INITIAL_QUESTION_BUDGET|FINAL_QUESTION_BUDGET|PROJECT_HELPER_ENABLED|PROJECT_HELPER_PROMPT"', (error, stdout, stderr) => {
         if (error) {
           console.error(`Error getting env variables: ${error.message}`);
           // Don't reject - just return empty if there's an issue
@@ -234,6 +237,17 @@ async function getEnvironmentVariables() {
     if (result.FINAL_QUESTION_BUDGET) {
       globalFinalQuestionBudget = parsePositiveInteger(result.FINAL_QUESTION_BUDGET, globalFinalQuestionBudget);
     }
+    if (result.PROJECT_HELPER_ENABLED) {
+      const helperEnabledRaw = result.PROJECT_HELPER_ENABLED.toString().trim().toLowerCase();
+      globalProjectHelperEnabled = ['1', 'true', 'yes', 'y', 'on'].includes(helperEnabledRaw);
+    } else {
+      globalProjectHelperEnabled = false;
+    }
+    if (result.PROJECT_HELPER_PROMPT) {
+      globalProjectHelperPrompt = result.PROJECT_HELPER_PROMPT;
+    } else if (!globalProjectHelperPrompt) {
+      globalProjectHelperPrompt = DEFAULT_PROJECT_HELPER_PROMPT;
+    }
 
     console.log('Populated globalTimerConfig:', globalTimerConfig);
     console.log('Populated globalProjectTimerConfig:', globalProjectTimerConfig);
@@ -241,6 +255,7 @@ async function getEnvironmentVariables() {
       initial: globalInitialQuestionBudget,
       final: globalFinalQuestionBudget
     });
+    console.log('Project helper enabled:', globalProjectHelperEnabled);
     
     return result;
   } catch (error) {
@@ -248,6 +263,10 @@ async function getEnvironmentVariables() {
     // Return default configs on error
     globalTimerConfig = { enableTimer: true, duration: 10 };
     globalProjectTimerConfig = { enableProjectTimer: true, projectDuration: 60 };
+    globalProjectHelperEnabled = false;
+    if (!globalProjectHelperPrompt) {
+      globalProjectHelperPrompt = DEFAULT_PROJECT_HELPER_PROMPT;
+    }
     return {};
   }
 }
@@ -403,7 +422,9 @@ function openChat() {
           assessmentPrompt: globalAssessmentPrompt,
           instanceId: instanceId,
           initialQuestionBudget: globalInitialQuestionBudget,
-          finalQuestionBudget: globalFinalQuestionBudget
+          finalQuestionBudget: globalFinalQuestionBudget,
+          projectHelperEnabled: globalProjectHelperEnabled,
+          projectHelperPrompt: globalProjectHelperPrompt
         });
       } catch (error) {
         global.chatPanel.webview.postMessage({ 
@@ -413,7 +434,9 @@ function openChat() {
           finalPrompt: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have now completed. IMPORTANT: Ask only ONE question at a time about their implementation, and wait for their response before asking another question. Start by asking them to explain their overall approach.',
           instanceId: instanceId,
           initialQuestionBudget: globalInitialQuestionBudget,
-          finalQuestionBudget: globalFinalQuestionBudget
+          finalQuestionBudget: globalFinalQuestionBudget,
+          projectHelperEnabled: globalProjectHelperEnabled,
+          projectHelperPrompt: globalProjectHelperPrompt || DEFAULT_PROJECT_HELPER_PROMPT
         });
       }
     }
@@ -502,14 +525,28 @@ function openChat() {
           console.log('Using FINAL interview prompt for this message');
           promptToUse = globalFinalPrompt;
           phaseName = 'final';
+        } else if (message.phase === 'project' ||
+            (message.payload && message.payload.phase === 'project') ||
+            (message.payload && message.payload.payload && message.payload.payload.messages &&
+             message.payload.payload.messages.some(m => m.phase === 'project'))) {
+          console.log('Using PROJECT helper prompt for this message');
+          promptToUse = globalProjectHelperPrompt || DEFAULT_PROJECT_HELPER_PROMPT;
+          phaseName = 'project';
         } else {
           console.log('Using INITIAL interview prompt for this message');
         }
         
-        const controlContext = buildInterviewControlContext({ phaseName, messages: payloadMessages });
-        const systemPrompt = buildSystemPrompt(promptToUse, controlContext.prompt);
+        const isProjectHelperPhase = normalizePhaseName(phaseName) === 'project';
+        let systemPrompt = promptToUse;
+        let controlContext = null;
 
-        console.log(`Using system prompt for ${phaseName} phase. Budget: ${controlContext.budget}, questions asked: ${controlContext.questionCount}.`);
+        if (!isProjectHelperPhase) {
+          controlContext = buildInterviewControlContext({ phaseName, messages: payloadMessages });
+          systemPrompt = buildSystemPrompt(promptToUse, controlContext.prompt);
+          console.log(`Using system prompt for ${phaseName} phase. Budget: ${controlContext.budget}, questions asked: ${controlContext.questionCount}.`);
+        } else {
+          console.log('Project helper phase detected; skipping interview control context.');
+        }
 
         // Create a new payload using the standardized format
         const newPayload = {
@@ -536,7 +573,7 @@ function openChat() {
         const data = await response.json();
         
         // Check if the AI is ending the interview
-        if (data.reply.trim() === 'END') {
+        if (!isProjectHelperPhase && data.reply.trim() === 'END') {
           console.log('AI has decided to end the interview with "END" message');
         }
         

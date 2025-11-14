@@ -36,6 +36,7 @@ export default function TestsAdmin() {
   const [assessmentType, setAssessmentType] = useState('qualitative');
   const [qualitativeCriteria, setQualitativeCriteria] = useState([{ title: '', description: '' }]);
   const [quantitativeCriteria, setQuantitativeCriteria] = useState([{ title: '', '1': '', '2': '', '3': '' }]);
+  const [projectHelperEnabled, setProjectHelperEnabled] = useState(false);
   
   // Separate state for candidates in different contexts
   const [newTestSelectedCandidates, setNewTestSelectedCandidates] = useState([]);
@@ -274,6 +275,7 @@ export default function TestsAdmin() {
       console.error('Error fetching candidates:', error);
     }
     
+    setProjectHelperEnabled(false);
     setShowNewTestForm(true);
   };
 
@@ -897,6 +899,30 @@ export default function TestsAdmin() {
               </div>
 
               <div className="space-y-4">
+                <h4 className="font-medium text-lg mt-6">Project Helper Chatbot</h4>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">
+                    Helper Availability
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-sm ${testData?.project_helper_enabled ? 'text-blue-600' : 'text-gray-500'}`}>
+                      {testData?.project_helper_enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      checked={Boolean(testData?.project_helper_enabled)}
+                      readOnly
+                      disabled
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500">
+                  When enabled, the candidate may chat with an AI helper during the project phase for guidance and troubleshooting.
+                </p>
+              </div>
+
+              <div className="space-y-4">
                 <h4 className="font-medium text-lg">Interview Question Budgets</h4>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1267,7 +1293,10 @@ export default function TestsAdmin() {
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-semibold">Create New Test</h3>
               <button 
-                onClick={() => setShowNewTestForm(false)}
+                onClick={() => {
+                  setShowNewTestForm(false);
+                  setProjectHelperEnabled(false);
+                }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 &times;
@@ -1300,6 +1329,7 @@ export default function TestsAdmin() {
                     timerDuration: timerDuration,
                     enableProjectTimer: enableProjectTimer,
                     projectTimerDuration: projectTimerDuration,
+                    enableProjectHelper: projectHelperEnabled,
                     initialQuestionBudget,
                     finalQuestionBudget,
                     githubRepo: formData.get('githubRepo') || '',
@@ -1362,6 +1392,7 @@ export default function TestsAdmin() {
                   // Close the modal and refresh
                   setShowNewTestForm(false);
                   setNewTestSelectedCandidates([]);
+                  setProjectHelperEnabled(false);
                   
                   // Refresh the tests list
                   await fetchTests();
@@ -1477,6 +1508,36 @@ export default function TestsAdmin() {
                 {/* Hidden field for timer configuration */}
                 <input type="hidden" name="timerConfigJson" id="timerConfigJson" />
               </div>
+
+            <div className="space-y-4">
+              <h4 className="font-medium text-lg">Project Helper Chatbot</h4>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">
+                  Enable Project Helper
+                </label>
+                <div className="flex items-center space-x-2">
+                  <span className={`text-sm ${projectHelperEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
+                    {projectHelperEnabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setProjectHelperEnabled(!projectHelperEnabled)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      projectHelperEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        projectHelperEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                When enabled, the candidate can chat with an AI helper during the project phase for guidance and troubleshooting.
+              </p>
+            </div>
 
               {/* GitHub Repo URL (Required) */}
               <div>
@@ -1998,7 +2059,10 @@ export default function TestsAdmin() {
               <div className="flex justify-end pt-6 space-x-4 border-t border-gray-200">
                 <button
                   type="button"
-                  onClick={() => setShowNewTestForm(false)}
+                  onClick={() => {
+                    setShowNewTestForm(false);
+                    setProjectHelperEnabled(false);
+                  }}
                   className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Cancel

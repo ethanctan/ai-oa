@@ -216,6 +216,24 @@ function ReportModal({ isOpen, report, onClose, isLoading = false, title = "Test
                   </details>
                 )}
 
+                {Array.isArray(report?.project_helper_log) && report.project_helper_log.length > 0 && (
+                  <details className="bg-gray-50 border border-gray-200 rounded p-4">
+                    <summary className="cursor-pointer font-semibold text-gray-900">
+                      Project Helper Log ({report.project_helper_log.length} messages)
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      {report.project_helper_log.map((entry, idx) => (
+                        <div key={`project-log-${idx}`} className="border-l-4 border-purple-200 pl-3">
+                          <div className="text-xs text-gray-500 mb-1">
+                            {renderTimestamp(entry.created_at) || 'Timestamp unknown'} · {entry.role === 'assistant' ? 'Helper' : 'Candidate'}
+                          </div>
+                          <div className="text-sm text-gray-800 whitespace-pre-wrap">{entry.content}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+
                 {Array.isArray(report?.final_interview_log) && report.final_interview_log.length > 0 && (
                   <details className="bg-gray-50 border border-gray-200 rounded p-4">
                     <summary className="cursor-pointer font-semibold text-gray-900">

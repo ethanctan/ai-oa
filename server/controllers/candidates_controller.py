@@ -251,6 +251,9 @@ def get_candidate_tests(candidate_id, company_id=None):
         ''', (candidate_id,))
         
         tests = [dict(row) for row in cursor.fetchall()]
+        for test in tests:
+            if 'invited' in test:
+                test['invited'] = bool(test.get('invited'))
         return tests
     finally:
         conn.close()
