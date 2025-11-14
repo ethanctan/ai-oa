@@ -312,11 +312,7 @@ export default function TestsAdmin() {
   };
 
   // Handle deleting an instance
-  const handleDeleteInstance = async (instanceId) => {
-    if (!confirm("Are you sure you want to delete this instance?")) {
-      return;
-    }
-    
+  const handleDeleteInstance = async (instanceId) => {    
     try {
       console.log(`Deleting instance with ID: ${instanceId}`);
       const response = await fetch(getApiEndpoint(`instances/${instanceId}/stop`), {
@@ -597,9 +593,6 @@ export default function TestsAdmin() {
 
   // Handle test deletion
   const handleDeleteTest = async (testId, testName) => {
-    if (!confirm(`Are you sure you want to delete the test: ${testName}? This will also delete all associated instances.`)) {
-      return;
-    }
     
     try {
       console.log(`Deleting test with ID: ${testId}`);
@@ -625,10 +618,6 @@ export default function TestsAdmin() {
   const handleRemoveSelected = async () => {
     if (selectedAssignedCandidates.length === 0) {
       alert('Please select at least one candidate to remove');
-      return;
-    }
-    
-    if (!confirm(`Are you sure you want to remove ${selectedAssignedCandidates.length} candidate(s) from this test?`)) {
       return;
     }
     
