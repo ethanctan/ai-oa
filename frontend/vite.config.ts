@@ -24,6 +24,18 @@ export default defineConfig(({ mode }) => {
           v3_singleFetch: true,
           v3_lazyRouteDiscovery: true,
         },
+        browserNodeBuiltinsPolyfill: {
+          modules: {
+            fs: true,
+            "node:fs": true,
+            process: true,
+            "node:process": true,
+            buffer: true,
+            "stream/web": true,
+            "node:stream/web": true,
+            worker_threads: true,
+          },
+        },
       }),
       tsconfigPaths(),
     ],

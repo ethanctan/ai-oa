@@ -34,7 +34,8 @@ frontend_origins = [
     'http://127.0.0.1:5173',  # Local development
     'http://localhost:3000',  # Alternative local port
     'https://*.vercel.app',   # Vercel deployments
-    'https://*.railway.app'   # Railway deployments
+    'https://*.railway.app',  # Railway deployments
+    'https://admin.verihire.me'  # Production admin UI
 ]
 
 # Get allowed origins from environment (when we deploy frontend)

@@ -34,11 +34,19 @@ app = Flask(__name__)
 app.url_map.strict_slashes = False
 
 # Configure CORS to support credentials and specific origins
-CORS(app, 
-     supports_credentials=True,
-     origins=['http://localhost:5173', 'http://127.0.0.1:5173'],
-     allow_headers=['Content-Type', 'Authorization', 'X-User-ID', 'X-Company-ID', 'X-Auth0-User-ID'],
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+allowed_origins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'https://admin.verihire.me'
+]
+
+CORS(
+    app,
+    supports_credentials=True,
+    origins=allowed_origins,
+    allow_headers=['Content-Type', 'Authorization', 'X-User-ID', 'X-Company-ID', 'X-Auth0-User-ID'],
+    methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+)
 
 # Request logging middleware removed to reduce log verbosity
 
