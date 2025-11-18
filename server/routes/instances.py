@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, redirect, render_template_string
-from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github, get_report, create_report, resolve_instance_id_by_test_and_candidate
+from controllers.instances_controller import get_all_instances, create_instance, get_instance, stop_instance, upload_project_to_github, get_project_from_github, get_report, create_report, resolve_instance_id_by_test_and_candidate
 from controllers.timer_controller import delete_timer, load_timers
 from controllers.email_controller import send_test_invitations
 from controllers.access_controller import validate_access_token_for_redirect, check_deadline_expired, get_instance_url, validate_instance_access
@@ -183,6 +183,15 @@ def upload_to_github_route(instance_id):
             
     except Exception as e:
         print(f'Error uploading to GitHub: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+# GET /instances/:instance_id/get-from-github - Get codebase tree and diff from GitHub
+@instances_bp.route('/<int:instance_id>/get-from-github', methods=['GET'])
+def get_from_github_route(instance_id):
+    try:
+        return get_project_from_github()
+    except Exception as e:
+        print(f'Error getting codebase from GitHub: {str(e)}')
         return jsonify({'error': str(e)}), 500
 
 # GET/POST /instances/:id/report - Get or create a report for an instance

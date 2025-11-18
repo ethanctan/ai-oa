@@ -727,6 +727,10 @@ def upload_project_to_github(instance_id, file_storage):
         if conn:
             conn.close()
 
+def get_project_from_github(instance_id):
+    return "placeholder"
+
+
 def create_docker_container(instance_id, test_id, candidate_id, company_id):
     """Create a Docker container for a test instance"""
     conn = None
