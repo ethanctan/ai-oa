@@ -1,5 +1,5 @@
 const vscode = require('vscode');
-const { openChat } = require('./lib/chat/openChat');
+const { openChat } = require('./src/chat/openChat');
 
 function activate(context) {
   console.log('AI Interviewer Extension activated');
