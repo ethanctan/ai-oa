@@ -810,6 +810,9 @@ export default function TestsAdmin() {
                   <label className="text-sm font-medium text-gray-700">
                     Initial Waiting Timer
                   </label>
+                  <p className="text-sm text-gray-500 mb-1">
+                    If enabled, the candidate will have time to look through the project files before beginning the initial interview.
+                  </p>
                   <div className="flex items-center space-x-2">
                     <span className={`text-sm ${enableInitialTimer ? 'text-blue-600' : 'text-gray-500'}`}>
                       {enableInitialTimer ? 'Enabled' : 'Disabled'}
@@ -842,7 +845,7 @@ export default function TestsAdmin() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Project Work Duration (minutes)
+                    Timer Duration (minutes)
                   </label>
                   <input
                     type="number"
@@ -1366,6 +1369,9 @@ export default function TestsAdmin() {
                     />
                   </div>
                 </div>
+                <p className="text-xs text-gray-500 mb-1">
+                    When enabled, the candidate will have a limited time to review the project files before starting the initial interview. When disabled, the candidate will have unlimited time.
+                  </p>
                 <div>
                   <label htmlFor="timerDuration" className="block text-sm font-medium text-gray-700 mb-1">
                     Timer Duration (minutes)
@@ -1381,6 +1387,7 @@ export default function TestsAdmin() {
                     className={`w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!timerEnabled ? 'bg-gray-100 text-gray-500' : ''}`}
                   />
                 </div>
+
 
                 <h4 className="font-medium text-lg mt-6">Project Work Timer Configuration</h4>
                 <div className="flex items-center justify-between">
@@ -1411,9 +1418,12 @@ export default function TestsAdmin() {
                     />
                   </div>
                 </div>
+                <p className="text-xs text-gray-500 mb-1">
+                    When enabled, the candidate will have a limited time to complete the project work phase. When disabled, the candidate will have unlimited time.
+                  </p>
                 <div>
                   <label htmlFor="projectTimerDuration" className="block text-sm font-medium text-gray-700 mb-1">
-                    Project Work Duration (minutes)
+                    Timer Duration (minutes)
                   </label>
                   <input 
                     type="number" 
@@ -1425,6 +1435,7 @@ export default function TestsAdmin() {
                     disabled={!projectTimerEnabled}
                     className={`w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!projectTimerEnabled ? 'bg-gray-100 text-gray-500' : ''}`}
                   />
+
                 </div>
                 {/* Hidden field for timer configuration */}
                 <input type="hidden" name="timerConfigJson" id="timerConfigJson" />
@@ -1456,12 +1467,11 @@ export default function TestsAdmin() {
                 </div>
               </div>
               <p className="text-xs text-gray-500">
-                When enabled, the candidate can chat with an AI helper during the project phase for guidance and troubleshooting.
+                When enabled, the candidate can chat with an AI helper during the project phase for guidance and troubleshooting. 
               </p>
             </div>
 
-              {/* GitHub Repo URL (Required) */}
-              <div>
+              <div className="space-y-2">
                  <label htmlFor="githubRepo" className="block text-sm font-medium text-gray-700 mb-1">
                    GitHub Repo URL
                  </label>
@@ -1473,10 +1483,12 @@ export default function TestsAdmin() {
                    placeholder="https://github.com/owner/repo.git" 
                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                  />
+                <p className="text-xs text-gray-500 mt-1">
+                  This repo should contain the project files for the candidate to work on.
+                </p>
               </div>
 
-              {/* GitHub Token (Required if repo is private) */}
-              <div>
+              <div className="space-y-2">
                  <label htmlFor="githubToken" className="block text-sm font-medium text-gray-700 mb-1">
                    GitHub Token <span className="text-red-500">(Required if target repo is private)</span>
                  </label>
@@ -1521,7 +1533,7 @@ export default function TestsAdmin() {
                   disabled={!targetGithubRepoEnabled}
                    className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!targetGithubRepoEnabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                 />
-                <p className="text-xs text-gray-500 mt-1">The completed project files will be uploaded here.</p>
+                <p className="text-xs text-gray-500 mt-1">Each submission will be uploaded here as a new directory.</p>
               </div>
 
               {/* Target GitHub Token */}
