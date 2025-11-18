@@ -19,6 +19,20 @@
     .err { color:#ef4444; }
   </style>
   <script>
+    function detectBrowser() {
+      const ua = navigator.userAgent || navigator.vendor || window.opera;
+      // Basic detection
+      const isEdge = ua.includes('Edg/');
+      const isChrome = /Chrome\//.test(ua) && !/Chromium\//.test(ua);
+      const isChromium = ua.includes('Chromium');
+      const isFirefox = ua.includes('Firefox/');
+      const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+      const isBrave = (navigator.brave && navigator.brave.isBrave) ? true : false;
+      
+      const chromiumBased = isEdge || isChrome || isChromium || isBrave;
+      return { chromiumBased, isFirefox, isSafari, ua };
+    }
+
     async function requestClipboard() {
       try {
         // Write and read to trigger permission prompt where applicable
@@ -49,6 +63,32 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       console.log('Page loaded, checking clipboard status...');
+      
+      const { chromiumBased, isFirefox, isSafari } = detectBrowser();
+      const warning = document.getElementById('browserWarning');
+      const clipboardSection = document.getElementById('clipboardSection');
+      const continueSection = document.getElementById('continueSection');
+      if (!chromiumBased) {
+        warning.style.display = 'block';
+        if (isSafari) {
+          warning.querySelector('strong').textContent = 'Unsupported Browser: Safari';
+          warning.querySelector('p').textContent = 'This assessment requires a Chromium-based browser (Chrome, Edge, Brave).';
+        } else if (isFirefox) {
+          warning.querySelector('strong').textContent = 'Unsupported Browser: Firefox';
+          warning.querySelector('p').textContent = 'This assessment requires a Chromium-based browser (Chrome, Edge, Brave).';
+        } else {
+          warning.querySelector('strong').textContent = 'Unsupported Browser';
+          warning.querySelector('p').textContent = 'To continue, please switch to Chrome, Edge, Brave, or another Chromium-based browser.';
+        }
+        if (clipboardSection) clipboardSection.style.display = 'none';
+        if (continueSection) continueSection.style.display = 'none';
+        return; // Prevent clipboard request and continue button
+      } else {
+        warning.style.display = 'none';
+        if (clipboardSection) clipboardSection.style.display = '';
+        if (continueSection) continueSection.style.display = '';
+      }
+
       maybeEnable();
       
       // Check if we already have clipboard permission
@@ -70,7 +110,12 @@
     <h1>Before you begin</h1>
     <p>To start your assessment, please grant the following permissions. This allows us to validate proper assessment conditions.</p>
 
-    <div class="section">
+    <div id="browserWarning" class="section" style="display:none; background:#2b1b1b; border:1px solid #ef4444; padding:12px; border-radius:8px;">
+      <strong>Unsupported Browser</strong>
+      <p>This assessment requires a Chromium-based browser. Please switch to Chrome, Edge, or Brave and refresh this page.</p>
+    </div>
+
+    <div id="clipboardSection" class="section">
       <div class="row">
         <strong>Clipboard Access:</strong>
         <span id="clipboardStatus" class="warn">pending</span>
@@ -80,7 +125,7 @@
     </div>
 
 
-    <div class="section">
+    <div id="continueSection" class="section">
       <button id="continueBtn" class="btn" disabled onclick="setConsentCookie()">Continue to Assessment</button>
     </div>
 

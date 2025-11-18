@@ -189,7 +189,7 @@ def upload_to_github_route(instance_id):
 @instances_bp.route('/<int:instance_id>/get-from-github', methods=['GET'])
 def get_from_github_route(instance_id):
     try:
-        return get_project_from_github()
+        return get_project_from_github(instance_id)
     except Exception as e:
         print(f'Error getting codebase from GitHub: {str(e)}')
         return jsonify({'error': str(e)}), 500

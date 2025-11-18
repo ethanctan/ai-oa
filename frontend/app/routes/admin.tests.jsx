@@ -1180,12 +1180,12 @@ export default function TestsAdmin() {
                     >
                       Manage Candidates
                     </button>
-                    <button 
+                    {/* <button 
                       className="text-green-600 hover:text-green-800 mr-3"
                       onClick={() => handleTryTest(test.id, test.name)}
                     >
                       Try Test
-                    </button>
+                    </button> */}
                     <button 
                       className="text-red-500 hover:text-red-700"
                       onClick={() => handleDeleteTest(test.id, test.name)}

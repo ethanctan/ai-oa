@@ -417,6 +417,7 @@
       // Global variables to store chat history, workspace context, and prompts
       let chatHistory = [];
       let workspaceContext = '';
+      let finalWorkspaceContext = '';
       let initialPrompt = '';
       let finalPrompt = '';
       let assessmentPrompt = '';
@@ -603,6 +604,80 @@
       // Retrieve all files immediately then every 30 seconds (reduced frequency to be less intrusive)
       requestWorkspaceContext();
       setInterval(requestWorkspaceContext, 30000);
+
+      function requestFinalWorkspaceContext() {
+        if (!instanceId) {
+          console.warn('Cannot fetch remote workspace context: no instance ID available.');
+          return Promise.resolve('');
+        }
+
+        return new Promise((resolve) => {
+          const listener = (event) => {
+            if (event.data.command === 'remoteWorkspaceContent') {
+              window.removeEventListener('message', listener);
+              if (event.data.error) {
+                console.error('Error getting remote workspace content:', event.data.error);
+                resolve('');
+                return;
+              }
+              const remoteContent = typeof event.data.content === 'string'
+                ? event.data.content
+                : (event.data.content ? JSON.stringify(event.data.content) : '');
+              finalWorkspaceContext = remoteContent || '';
+              console.log(`Received remote workspace content, length: ${finalWorkspaceContext.length}`);
+              resolve(finalWorkspaceContext);
+            }
+          };
+
+          window.addEventListener('message', listener);
+          vscode.postMessage({ command: 'getRemoteWorkspaceContent', instanceId });
+
+          setTimeout(() => {
+            window.removeEventListener('message', listener);
+            console.warn('Timed out waiting for remote workspace content.');
+            resolve(finalWorkspaceContext || '');
+          }, 10000);
+        });
+      }
+
+      function uploadWorkspaceBeforeFinal() {
+        if (!instanceId) {
+          console.warn('Cannot submit workspace: no instance ID available.');
+          return Promise.resolve(false);
+        }
+
+        return new Promise((resolve) => {
+          const requestId = `final-upload-${Date.now()}`;
+
+          const listener = (event) => {
+            const data = event.data || {};
+            if (data.command === 'workspaceSubmissionComplete' && (!data.requestId || data.requestId === requestId)) {
+              window.removeEventListener('message', listener);
+              if (!data.success) {
+                console.error('Workspace submission failed before final interview:', data.error);
+              } else {
+                console.log('Workspace submission completed before final interview.');
+              }
+              resolve(data.success !== false);
+            }
+          };
+
+          window.addEventListener('message', listener);
+
+          vscode.postMessage({
+            command: 'submitWorkspaceContent',
+            instanceId,
+            content: workspaceContext,
+            requestId
+          });
+
+          setTimeout(() => {
+            window.removeEventListener('message', listener);
+            console.warn('Timed out waiting for workspace submission confirmation.');
+            resolve(false);
+          }, 20000);
+        });
+      }
 
       // Function to check if timer already exists and get status upon initial load
       function checkTimerStatus() {
@@ -1754,7 +1829,7 @@
         });
         
         // Send an automatic first message
-        setTimeout(() => {
+        setTimeout(async () => {
           // Automatically send the first message from the user
           const initialUserMessage = "I am ready to start the final interview. I have completed the coding project.";
           
@@ -1772,9 +1847,25 @@
             systemMessages.push({ role: "system", content: 'You are a technical interviewer assessing a software engineering candidate. They have been provided with a coding project, which they have now completed. IMPORTANT: Ask only ONE question at a time about their implementation, and wait for their response before asking another question. Start by asking them to explain their overall approach.' });
           }
           
+          // Ensure the latest workspace is uploaded to GitHub before fetching
+          try {
+            await uploadWorkspaceBeforeFinal();
+          } catch (uploadError) {
+            console.error('Error uploading workspace prior to final interview:', uploadError);
+          }
+
+          let remoteWorkspaceContent = '';
+          try {
+            remoteWorkspaceContent = await requestFinalWorkspaceContext();
+          } catch (err) {
+            console.error('Failed to retrieve remote workspace content:', err);
+          }
+
+          const workspaceForFinal = remoteWorkspaceContent || workspaceContext;
+
           // Always include workspace content if available
-          if (workspaceContext) {
-            systemMessages.push({ role: "system", content: "Project workspace content: " + workspaceContext });
+          if (workspaceForFinal) {
+            systemMessages.push({ role: "system", content: "Project workspace content: " + workspaceForFinal });
           }
           
           // Construct the payload with all messages using the standardized format

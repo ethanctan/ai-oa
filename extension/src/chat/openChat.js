@@ -32,6 +32,51 @@ function getServerUrls() {
   };
 }
 
+function normalizeWorkspacePayload(payload) {
+  if (payload === null || payload === undefined) {
+    return '';
+  }
+  if (typeof payload === 'string') {
+    return payload;
+  }
+  if (typeof payload === 'object') {
+    if (typeof payload.workspaceContent === 'string') {
+      return payload.workspaceContent;
+    }
+    if (typeof payload.content === 'string') {
+      return payload.content;
+    }
+    if (Array.isArray(payload.tree)) {
+      const treeLines = payload.tree.map((entry) => {
+        if (typeof entry === 'string') {
+          return entry;
+        }
+        if (entry && typeof entry === 'object') {
+          const path = entry.path || entry.file || 'unknown';
+          const status = entry.status ? ` (${entry.status})` : '';
+          return `${path}${status}`;
+        }
+        return String(entry);
+      });
+      const header = 'Repository tree:';
+      const treeSection = treeLines.length ? `${header}\n- ${treeLines.join('\n- ')}` : '';
+      const diffSection = typeof payload.diff === 'string' ? `\nDiff:\n${payload.diff}` : '';
+      return `${treeSection}${diffSection}`.trim();
+    }
+    if (payload.diff) {
+      return typeof payload.diff === 'string'
+        ? payload.diff
+        : JSON.stringify(payload.diff, null, 2);
+    }
+    try {
+      return JSON.stringify(payload, null, 2);
+    } catch (error) {
+      return String(payload);
+    }
+  }
+  return String(payload);
+}
+
 // Global variables to store environment prompts - accessed throughout the module
 let globalInitialPrompt = '';
 let globalFinalPrompt = '';
@@ -342,6 +387,40 @@ function openChat() {
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', content });
       } catch (error) {
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', error: error.message });
+      }
+    }
+
+    if (message.command === 'getRemoteWorkspaceContent') {
+      try {
+        const targetInstanceId = message.instanceId || instanceId;
+        if (!targetInstanceId) {
+          throw new Error('No instance ID provided for remote workspace request');
+        }
+
+        const response = await fetch(`${SERVER_URL}/instances/${targetInstanceId}/get-from-github`);
+        if (!response.ok) {
+          throw new Error(`Server responded with ${response.status}`);
+        }
+
+        const rawBody = await response.text();
+        let payload;
+        try {
+          payload = JSON.parse(rawBody);
+        } catch {
+          payload = rawBody;
+        }
+
+        const normalizedContent = normalizeWorkspacePayload(payload);
+        global.chatPanel.webview.postMessage({
+          command: 'remoteWorkspaceContent',
+          content: normalizedContent
+        });
+      } catch (error) {
+        console.error('Failed to fetch remote workspace content:', error);
+        global.chatPanel.webview.postMessage({
+          command: 'remoteWorkspaceContent',
+          error: error.message || 'Unknown error retrieving remote workspace content'
+        });
       }
     }
 
@@ -671,14 +750,32 @@ function openChat() {
       console.log(`Submitting workspace content for instance: ${message.instanceId}`);
       
       // Submit but don't wait for response to continue with the interview
-      submitWorkspaceContent(message.instanceId, message.content)
-        .then(() => {
+      const submissionPromise = submitWorkspaceContent(message.instanceId, message.content)
+        .then((result) => {
           console.log('Workspace content submitted successfully');
+          if (global.chatPanel) {
+            global.chatPanel.webview.postMessage({
+              command: 'workspaceSubmissionComplete',
+              success: true,
+              requestId: message.requestId,
+              result
+            });
+          }
         })
         .catch(error => {
           console.error(`Error submitting workspace content: ${error.message}`);
-          // Just log to console, don't send error back to webview
+          if (global.chatPanel) {
+            global.chatPanel.webview.postMessage({
+              command: 'workspaceSubmissionComplete',
+              success: false,
+              requestId: message.requestId,
+              error: error.message
+            });
+          }
         });
+
+      // If the caller cares about the promise, return it; otherwise ignore.
+      return submissionPromise;
     }
     
     // Handle starting the final interview
