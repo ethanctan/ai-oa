@@ -810,9 +810,6 @@ export default function TestsAdmin() {
                   <label className="text-sm font-medium text-gray-700">
                     Initial Waiting Timer
                   </label>
-                  <p className="text-sm text-gray-500 mb-1">
-                    If enabled, the candidate will have time to look through the project files before beginning the initial interview.
-                  </p>
                   <div className="flex items-center space-x-2">
                     <span className={`text-sm ${enableInitialTimer ? 'text-blue-600' : 'text-gray-500'}`}>
                       {enableInitialTimer ? 'Enabled' : 'Disabled'}
@@ -869,9 +866,6 @@ export default function TestsAdmin() {
                     </span>
                   </div>
                 </div>
-                <p className="text-sm text-gray-500">
-                  When enabled, the candidate may chat with an AI helper during the project phase for guidance and troubleshooting.
-                </p>
               </div>
 
               <div className="space-y-4">
