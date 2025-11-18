@@ -39,7 +39,15 @@ frontend_origins = [
 ]
 
 # Get allowed origins from environment (when we deploy frontend)
-allowed_origins = os.environ.get('ALLOWED_ORIGINS', ','.join(frontend_origins)).split(',')
+env_origins = os.environ.get('ALLOWED_ORIGINS')
+if env_origins:
+    allowed_origins = [origin.strip() for origin in env_origins.split(',') if origin.strip()]
+else:
+    allowed_origins = frontend_origins.copy()
+
+# Always ensure production admin UI is included
+if 'https://admin.verihire.me' not in allowed_origins:
+    allowed_origins.append('https://admin.verihire.me')
 
 # Log CORS configuration
 logger.info("🔧 CORS Configuration:")
