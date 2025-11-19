@@ -66,8 +66,7 @@
       
       const { chromiumBased, isFirefox, isSafari } = detectBrowser();
       const warning = document.getElementById('browserWarning');
-      const clipboardSection = document.getElementById('clipboardSection');
-      const continueSection = document.getElementById('continueSection');
+      const consentContent = document.getElementById('consentContent');
       if (!chromiumBased) {
         warning.style.display = 'block';
         if (isSafari) {
@@ -80,13 +79,11 @@
           warning.querySelector('strong').textContent = 'Unsupported Browser';
           warning.querySelector('p').textContent = 'To continue, please switch to Chrome, Edge, Brave, or another Chromium-based browser.';
         }
-        if (clipboardSection) clipboardSection.style.display = 'none';
-        if (continueSection) continueSection.style.display = 'none';
+        if (consentContent) consentContent.style.display = 'none';
         return; // Prevent clipboard request and continue button
       } else {
         warning.style.display = 'none';
-        if (clipboardSection) clipboardSection.style.display = '';
-        if (continueSection) continueSection.style.display = '';
+        if (consentContent) consentContent.style.display = '';
       }
 
       maybeEnable();
@@ -107,29 +104,31 @@
 </head>
 <body>
   <div class="card">
-    <h1>Before you begin</h1>
-    <p>To start your assessment, please grant the following permissions. This allows us to validate proper assessment conditions.</p>
-
     <div id="browserWarning" class="section" style="display:none; background:#2b1b1b; border:1px solid #ef4444; padding:12px; border-radius:8px;">
       <strong>Unsupported Browser</strong>
       <p>This assessment requires a Chromium-based browser. Please switch to Chrome, Edge, or Brave and refresh this page.</p>
     </div>
 
-    <div id="clipboardSection" class="section">
-      <div class="row">
-        <strong>Clipboard Access:</strong>
-        <span id="clipboardStatus" class="warn">pending</span>
+    <div id="consentContent">
+      <h1>Before you begin</h1>
+      <p>To start your assessment, please grant the following permissions. This allows us to validate proper assessment conditions.</p>
+
+      <div id="clipboardSection" class="section">
+        <div class="row">
+          <strong>Clipboard Access:</strong>
+          <span id="clipboardStatus" class="warn">pending</span>
+        </div>
+        <p>We log copy/paste activity to ensure assessment integrity.</p>
+        <button class="btn" onclick="requestClipboard()">Grant Clipboard Access</button>
       </div>
-      <p>We log copy/paste activity to ensure assessment integrity.</p>
-      <button class="btn" onclick="requestClipboard()">Grant Clipboard Access</button>
+
+
+      <div id="continueSection" class="section">
+        <button id="continueBtn" class="btn" disabled onclick="setConsentCookie()">Continue to Assessment</button>
+      </div>
+
+      <p class="section"><small>If a prompt does not appear, your browser may have blocked popups. Try the buttons again.</small></p>
     </div>
-
-
-    <div id="continueSection" class="section">
-      <button id="continueBtn" class="btn" disabled onclick="setConsentCookie()">Continue to Assessment</button>
-    </div>
-
-    <p class="section"><small>If a prompt does not appear, your browser may have blocked popups. Try the buttons again.</small></p>
   </div>
 </body>
 </html>
