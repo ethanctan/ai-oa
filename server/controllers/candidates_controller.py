@@ -85,8 +85,8 @@ def create_candidate(data, company_id=None):
     cursor = conn.cursor()
     
     try:
-        # Check if email already exists in the same company
-        cursor.execute('SELECT id FROM candidates WHERE email = %s AND company_id = %s', (email, company_id))
+        # Check if email already exists in the same company (case-insensitive)
+        cursor.execute('SELECT id FROM candidates WHERE LOWER(email) = LOWER(%s) AND company_id = %s', (email, company_id))
         existing = cursor.fetchone()
         
         if existing:
@@ -134,10 +134,10 @@ def update_candidate(candidate_id, data, company_id=None):
             update_fields.append('name = %s')
             update_values.append(data['name'])
         
-        if 'email' in data:
-            # Check for email conflicts within the same company
-            cursor.execute('SELECT id FROM candidates WHERE email = %s AND company_id = %s AND id != %s', 
-                         (data['email'], company_id or 1, candidate_id))
+        if 'email' in data and company_id:
+            # Check for email conflicts within the same company (case-insensitive)
+            cursor.execute('SELECT id FROM candidates WHERE LOWER(email) = LOWER(%s) AND company_id = %s AND id != %s', 
+                         (data['email'], company_id, candidate_id))
             email_conflict = cursor.fetchone()
             if email_conflict:
                 raise ValueError(f"Email {data['email']} is already used by another candidate in your organization")
@@ -304,12 +304,12 @@ def create_candidates_from_file(df, company_id=None):
                     })
                     continue
                 
-                # Check for existing candidates with same email or name within the same company
+                # Check for existing candidates with same email (case-insensitive) within the same company
                 cursor.execute('''
                     SELECT id, name, email, tags 
                     FROM candidates 
-                    WHERE (email = %s OR name = %s) AND company_id = %s
-                ''', (email, name, company_id))
+                    WHERE LOWER(email) = LOWER(%s) AND company_id = %s
+                ''', (email, company_id))
                 existing = cursor.fetchall()
                 
                 if existing:

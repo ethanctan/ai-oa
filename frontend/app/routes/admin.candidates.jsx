@@ -270,6 +270,7 @@ export default function CandidatesAdmin() {
           </div>
           <p className="text-sm text-gray-500 mt-5">
             .csv and .xlsx files are supported. File should contain columns: 'Name', 'Email', and optional 'Tags' (semicolon-separated, e.g. "frontend developer; javascript").<br />
+            Duplicate detection is based strictly on the email address.
           </p>
         </div>
       </div>
