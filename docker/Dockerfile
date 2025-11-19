@@ -34,6 +34,9 @@ USER root
 # Copy chatbot extension VSIX file into the container
 COPY ai-oa-extension-0.1.0.vsix /tmp/ai-oa-extension-0.1.0.vsix
 
+# Copy custom favicon
+COPY favicon.ico /usr/lib/code-server/src/browser/media/favicon.ico
+
 # Copy startup script
 COPY startup.sh /usr/local/bin/startup.sh
 
