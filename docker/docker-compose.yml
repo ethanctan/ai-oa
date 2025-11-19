@@ -1,8 +1,6 @@
 services:
   nginx-proxy:
-    build:
-      context: .
-      dockerfile: nginx-proxy.Dockerfile
+    image: ectan/ai-oa-nginx-proxy:latest
     container_name: ai-oa-nginx-proxy
     ports:
       - "80:80"
