@@ -704,15 +704,7 @@ def upload_project_to_github(instance_id, file_storage):
                 finally:
                     os.chdir(original_cwd) # Important to change back CWD
 
-        try:
-            assignment_marked = _mark_test_assignment_completed(cursor, test_id, candidate_id)
-            if not assignment_marked:
-                print(f"Warning: No test_candidates row updated for test {test_id} and candidate {candidate_id}")
-        except Exception as completion_error:
-            conn.rollback()
-            raise completion_error
-        else:
-            conn.commit()
+        conn.commit()
 
         return {"success": True, "message": f"Project for candidate {candidate_id} uploaded successfully to {target_repo_url}/{submission_dir_name}"}
 

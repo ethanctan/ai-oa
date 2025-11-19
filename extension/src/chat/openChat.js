@@ -32,51 +32,6 @@ function getServerUrls() {
   };
 }
 
-function normalizeWorkspacePayload(payload) {
-  if (payload === null || payload === undefined) {
-    return '';
-  }
-  if (typeof payload === 'string') {
-    return payload;
-  }
-  if (typeof payload === 'object') {
-    if (typeof payload.workspaceContent === 'string') {
-      return payload.workspaceContent;
-    }
-    if (typeof payload.content === 'string') {
-      return payload.content;
-    }
-    if (Array.isArray(payload.tree)) {
-      const treeLines = payload.tree.map((entry) => {
-        if (typeof entry === 'string') {
-          return entry;
-        }
-        if (entry && typeof entry === 'object') {
-          const path = entry.path || entry.file || 'unknown';
-          const status = entry.status ? ` (${entry.status})` : '';
-          return `${path}${status}`;
-        }
-        return String(entry);
-      });
-      const header = 'Repository tree:';
-      const treeSection = treeLines.length ? `${header}\n- ${treeLines.join('\n- ')}` : '';
-      const diffSection = typeof payload.diff === 'string' ? `\nDiff:\n${payload.diff}` : '';
-      return `${treeSection}${diffSection}`.trim();
-    }
-    if (payload.diff) {
-      return typeof payload.diff === 'string'
-        ? payload.diff
-        : JSON.stringify(payload.diff, null, 2);
-    }
-    try {
-      return JSON.stringify(payload, null, 2);
-    } catch (error) {
-      return String(payload);
-    }
-  }
-  return String(payload);
-}
-
 // Global variables to store environment prompts - accessed throughout the module
 let globalInitialPrompt = '';
 let globalFinalPrompt = '';
@@ -238,6 +193,38 @@ function buildSystemPrompt(basePrompt, controlPrompt) {
   return `${sanitizedBase}\n\n${sanitizedControl}`.trim();
 }
 
+function extractWorkspaceContentFromUpload(payload) {
+  if (payload === null || payload === undefined) {
+    return '';
+  }
+
+  if (typeof payload === 'string') {
+    return payload;
+  }
+
+  if (typeof payload.workspaceContent === 'string') {
+    return payload.workspaceContent;
+  }
+
+  if (typeof payload.content === 'string') {
+    return payload.content;
+  }
+
+  if (typeof payload.code2prompt === 'string') {
+    return payload.code2prompt;
+  }
+
+  if (payload.data !== undefined) {
+    return extractWorkspaceContentFromUpload(payload.data);
+  }
+
+  if (payload.uploadResponse !== undefined) {
+    return extractWorkspaceContentFromUpload(payload.uploadResponse);
+  }
+
+  return '';
+}
+
 // Function to get environment variables 
 async function getEnvironmentVariables() {
   try {
@@ -387,40 +374,6 @@ function openChat() {
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', content });
       } catch (error) {
         global.chatPanel.webview.postMessage({ command: 'workspaceContent', error: error.message });
-      }
-    }
-
-    if (message.command === 'getRemoteWorkspaceContent') {
-      try {
-        const targetInstanceId = message.instanceId || instanceId;
-        if (!targetInstanceId) {
-          throw new Error('No instance ID provided for remote workspace request');
-        }
-
-        const response = await fetch(`${SERVER_URL}/instances/${targetInstanceId}/get-from-github`);
-        if (!response.ok) {
-          throw new Error(`Server responded with ${response.status}`);
-        }
-
-        const rawBody = await response.text();
-        let payload;
-        try {
-          payload = JSON.parse(rawBody);
-        } catch {
-          payload = rawBody;
-        }
-
-        const normalizedContent = normalizeWorkspacePayload(payload);
-        global.chatPanel.webview.postMessage({
-          command: 'remoteWorkspaceContent',
-          content: normalizedContent
-        });
-      } catch (error) {
-        console.error('Failed to fetch remote workspace content:', error);
-        global.chatPanel.webview.postMessage({
-          command: 'remoteWorkspaceContent',
-          error: error.message || 'Unknown error retrieving remote workspace content'
-        });
       }
     }
 
@@ -748,9 +701,8 @@ function openChat() {
     // Handle submitting workspace content
     if (message.command === 'submitWorkspaceContent') {
       console.log(`Submitting workspace content for instance: ${message.instanceId}`);
-      
-      // Submit but don't wait for response to continue with the interview
-      const submissionPromise = submitWorkspaceContent(message.instanceId, message.content)
+      const stopInstance = message.stopInstance !== false;
+      const submissionPromise = submitWorkspaceContent(message.instanceId, message.content, { stopInstance })
         .then((result) => {
           console.log('Workspace content submitted successfully');
           if (global.chatPanel) {
@@ -1523,7 +1475,7 @@ async function saveInterviewPhase(instanceId, phase) {
 }
 
 // Function to submit workspace content to the backend for report generation AND GitHub upload
-async function submitWorkspaceContent(instanceId, content) {
+async function submitWorkspaceContent(instanceId, content, options = {}) {
   if (!instanceId) {
     throw new Error('No instance ID provided for workspace submission');
   }
@@ -1614,13 +1566,44 @@ async function submitWorkspaceContent(instanceId, content) {
       // the browser or Node fetch will set it correctly with the boundary.
     });
 
-    const githubUploadData = await githubUploadResponse.json();
-    if (!githubUploadResponse.ok) {
-      console.error(`HTTP error uploading to GitHub: ${githubUploadResponse.status} - ${JSON.stringify(githubUploadData)}`);
-      throw new Error(githubUploadData.error || `GitHub upload failed with status ${githubUploadResponse.status}`);
+    const githubUploadRawBody = await githubUploadResponse.text();
+    let githubUploadData;
+    try {
+      githubUploadData = JSON.parse(githubUploadRawBody);
+    } catch (parseError) {
+      githubUploadData = githubUploadRawBody;
     }
 
-    console.log(`Project uploaded to GitHub successfully: ${JSON.stringify(githubUploadData)}`);
+    if (!githubUploadResponse.ok) {
+      const serverErrorMessage = (githubUploadData && typeof githubUploadData === 'object' && githubUploadData !== null && githubUploadData.error)
+        ? githubUploadData.error
+        : `GitHub upload failed with status ${githubUploadResponse.status}`;
+      const serialized = typeof githubUploadData === 'string'
+        ? githubUploadData.substring(0, 500)
+        : JSON.stringify(githubUploadData);
+      console.error(`HTTP error uploading to GitHub: ${githubUploadResponse.status} - ${serialized}`);
+      throw new Error(serverErrorMessage);
+    }
+
+    const workspaceContentFromUpload = extractWorkspaceContentFromUpload(githubUploadData);
+    const normalizedUploadResult = (githubUploadData && typeof githubUploadData === 'object' && !Array.isArray(githubUploadData))
+      ? { ...githubUploadData }
+      : {};
+
+    if (normalizedUploadResult.success === undefined) {
+      normalizedUploadResult.success = true;
+    }
+
+    normalizedUploadResult.uploadResponse = githubUploadData;
+    if (typeof normalizedUploadResult.workspaceContent !== 'string') {
+      normalizedUploadResult.workspaceContent = workspaceContentFromUpload || '';
+    }
+
+    if (normalizedUploadResult.workspaceContent) {
+      console.log(`Project uploaded to GitHub successfully with workspace payload length ${normalizedUploadResult.workspaceContent.length}.`);
+    } else {
+      console.log(`Project uploaded to GitHub successfully: ${JSON.stringify(githubUploadData)}`);
+    }
 
     // Persist phase marker: final_completed
     try {
@@ -1638,21 +1621,23 @@ async function submitWorkspaceContent(instanceId, content) {
       console.error(`Failed writing final_completed marker: ${e.message}`);
     }
 
-    // 3. Wind down the instance to conserve resources
-    try {
-      console.log('Requesting instance shutdown...');
-      const stopResponse = await fetch(`${SERVER_URL}/instances/${instanceId}/stop`, { method: 'POST' });
-      const stopData = await stopResponse.json().catch(() => ({}));
-      if (!stopResponse.ok) {
-        console.error(`Failed to stop instance: ${stopResponse.status} - ${JSON.stringify(stopData)}`);
-      } else {
-        console.log(`Instance stop response: ${JSON.stringify(stopData)}`);
+    // 3. Wind down the instance only when requested
+    if (options.stopInstance !== false) {
+      try {
+        console.log('Requesting instance shutdown...');
+        const stopResponse = await fetch(`${SERVER_URL}/instances/${instanceId}/stop`, { method: 'POST' });
+        const stopData = await stopResponse.json().catch(() => ({}));
+        if (!stopResponse.ok) {
+          console.error(`Failed to stop instance: ${stopResponse.status} - ${JSON.stringify(stopData)}`);
+        } else {
+          console.log(`Instance stop response: ${JSON.stringify(stopData)}`);
+        }
+      } catch (e) {
+        console.error(`Error calling stop instance: ${e.message}`);
       }
-    } catch (e) {
-      console.error(`Error calling stop instance: ${e.message}`);
     }
 
-    return githubUploadData; // Contains success and message from backend
+    return normalizedUploadResult; // Contains success flag, workspace content, and original response
 
   } catch (error) {
     console.error(`Error during GitHub upload process: ${error.message}`);

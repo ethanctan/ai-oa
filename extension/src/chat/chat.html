@@ -417,7 +417,7 @@
       // Global variables to store chat history, workspace context, and prompts
       let chatHistory = [];
       let workspaceContext = '';
-      let finalWorkspaceContext = '';
+      let finalInterviewWorkspaceContent = '';
       let initialPrompt = '';
       let finalPrompt = '';
       let assessmentPrompt = '';
@@ -605,60 +605,48 @@
       requestWorkspaceContext();
       setInterval(requestWorkspaceContext, 30000);
 
-      function requestFinalWorkspaceContext() {
-        if (!instanceId) {
-          console.warn('Cannot fetch remote workspace context: no instance ID available.');
-          return Promise.resolve('');
+      function extractWorkspaceContentFromResultPayload(resultPayload) {
+        if (!resultPayload) return '';
+        if (typeof resultPayload.workspaceContent === 'string') return resultPayload.workspaceContent;
+        if (typeof resultPayload === 'string') return resultPayload;
+        if (typeof resultPayload.content === 'string') return resultPayload.content;
+        if (typeof resultPayload.code2prompt === 'string') return resultPayload.code2prompt;
+        if (resultPayload.uploadResponse) {
+          return extractWorkspaceContentFromResultPayload(resultPayload.uploadResponse);
         }
-
-        return new Promise((resolve) => {
-          const listener = (event) => {
-            if (event.data.command === 'remoteWorkspaceContent') {
-              window.removeEventListener('message', listener);
-              if (event.data.error) {
-                console.error('Error getting remote workspace content:', event.data.error);
-                resolve('');
-                return;
-              }
-              const remoteContent = typeof event.data.content === 'string'
-                ? event.data.content
-                : (event.data.content ? JSON.stringify(event.data.content) : '');
-              finalWorkspaceContext = remoteContent || '';
-              console.log(`Received remote workspace content, length: ${finalWorkspaceContext.length}`);
-              resolve(finalWorkspaceContext);
-            }
-          };
-
-          window.addEventListener('message', listener);
-          vscode.postMessage({ command: 'getRemoteWorkspaceContent', instanceId });
-
-          setTimeout(() => {
-            window.removeEventListener('message', listener);
-            console.warn('Timed out waiting for remote workspace content.');
-            resolve(finalWorkspaceContext || '');
-          }, 10000);
-        });
+        if (resultPayload.data) {
+          return extractWorkspaceContentFromResultPayload(resultPayload.data);
+        }
+        return '';
       }
 
       function uploadWorkspaceBeforeFinal() {
         if (!instanceId) {
           console.warn('Cannot submit workspace: no instance ID available.');
-          return Promise.resolve(false);
+          return Promise.resolve({ success: false, workspaceContent: '' });
         }
 
         return new Promise((resolve) => {
           const requestId = `final-upload-${Date.now()}`;
+          const finish = (success, workspaceContent = '') => {
+            resolve({ success, workspaceContent });
+          };
 
           const listener = (event) => {
             const data = event.data || {};
             if (data.command === 'workspaceSubmissionComplete' && (!data.requestId || data.requestId === requestId)) {
               window.removeEventListener('message', listener);
+              let workspaceContent = '';
               if (!data.success) {
                 console.error('Workspace submission failed before final interview:', data.error);
               } else {
                 console.log('Workspace submission completed before final interview.');
+                workspaceContent = extractWorkspaceContentFromResultPayload(data.result);
+                if (workspaceContent) {
+                  finalInterviewWorkspaceContent = workspaceContent;
+                }
               }
-              resolve(data.success !== false);
+              finish(data.success !== false, workspaceContent);
             }
           };
 
@@ -668,13 +656,14 @@
             command: 'submitWorkspaceContent',
             instanceId,
             content: workspaceContext,
-            requestId
+            requestId,
+            stopInstance: false
           });
 
           setTimeout(() => {
             window.removeEventListener('message', listener);
             console.warn('Timed out waiting for workspace submission confirmation.');
-            resolve(false);
+            finish(false);
           }, 20000);
         });
       }
@@ -1849,19 +1838,15 @@
           
           // Ensure the latest workspace is uploaded to GitHub before fetching
           try {
-            await uploadWorkspaceBeforeFinal();
+            const uploadResult = await uploadWorkspaceBeforeFinal();
+            if (uploadResult && uploadResult.workspaceContent) {
+              finalInterviewWorkspaceContent = uploadResult.workspaceContent;
+            }
           } catch (uploadError) {
             console.error('Error uploading workspace prior to final interview:', uploadError);
           }
 
-          let remoteWorkspaceContent = '';
-          try {
-            remoteWorkspaceContent = await requestFinalWorkspaceContext();
-          } catch (err) {
-            console.error('Failed to retrieve remote workspace content:', err);
-          }
-
-          const workspaceForFinal = remoteWorkspaceContent || workspaceContext;
+          const workspaceForFinal = finalInterviewWorkspaceContent || workspaceContext || '';
 
           // Always include workspace content if available
           if (workspaceForFinal) {
