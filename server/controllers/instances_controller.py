@@ -572,6 +572,23 @@ def stop_instance(instance_id):
     finally:
         conn.close()
 
+def _git_clone_sparse(repo_url: str, target_dir: str, token: str=None):
+    """Clones a project repository to a target directory."""
+    repo_url_for_clone = repo_url
+    if token:
+        if repo_url_for_clone.startswith('https://'):
+            repo_url_for_clone = f"https://x-access-token:{token}@{repo_url_for_clone[8:]}"
+        else:
+            # Fallback or handle other protocols if necessary, for now assume https
+            repo_url_for_clone = f"https://x-access-token:{token}@{repo_url_for_clone}"
+    
+    try:
+        exec_command(f"git clone --sparse --depth 1 {repo_url_for_clone} {str(target_dir)}")
+        print(f"Cloned target repo {repo_url} to {target_dir}")
+    except Exception as e:
+        raise Exception(f"Failed to clone target repository {repo_url}: {str(e)}")
+
+
 def upload_project_to_github(instance_id, file_storage):
     """Uploads the candidate's project files to the specified target GitHub repository."""
     conn = get_connection()
@@ -634,19 +651,7 @@ def upload_project_to_github(instance_id, file_storage):
                 clone_dir_path = Path(clone_dir_base_path)
                 
                 # Clone the target repository
-                repo_url_for_clone = target_repo_url
-                if target_repo_token:
-                    if repo_url_for_clone.startswith('https://'):
-                        repo_url_for_clone = f"https://x-access-token:{target_repo_token}@{repo_url_for_clone[8:]}"
-                    else:
-                        # Fallback or handle other protocols if necessary, for now assume https
-                        repo_url_for_clone = f"https://x-access-token:{target_repo_token}@{repo_url_for_clone}"
-                
-                try:
-                    exec_command(f"git clone --depth 1 {repo_url_for_clone} {str(clone_dir_path)}")
-                    print(f"Cloned target repo {target_repo_url} to {clone_dir_path}")
-                except Exception as e:
-                    raise Exception(f"Failed to clone target repository {target_repo_url}: {str(e)}")
+                _git_clone_sparse(target_repo_url, clone_dir_path, target_repo_token)
 
                 # Define the subdirectory for the candidate's submission
                 submission_dir_name = f"submission_candidate_{candidate_id}_instance_{instance_id}"
