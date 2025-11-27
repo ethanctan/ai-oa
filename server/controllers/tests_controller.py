@@ -485,7 +485,7 @@ def delete_test(test_id, company_id=None):
                     'DELETE FROM instance_access_tokens WHERE instance_id = ANY(%s)',
                     (instance_ids,)
                 )
-
+        
         # Delete test instances
         instance_count = len(instances)
         if instance_count > 0:
@@ -552,7 +552,7 @@ def get_test_candidates(test_id, company_id=None):
                   AND ti.candidate_id = tc.candidate_id
             ) AS invited
         """
-
+        
         # Get candidates assigned to test (only from the same company)
         if company_id:
             cursor.execute(f'''

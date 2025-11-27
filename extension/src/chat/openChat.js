@@ -1602,7 +1602,7 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
     if (normalizedUploadResult.workspaceContent) {
       console.log(`Project uploaded to GitHub successfully with workspace payload length ${normalizedUploadResult.workspaceContent.length}.`);
     } else {
-      console.log(`Project uploaded to GitHub successfully: ${JSON.stringify(githubUploadData)}`);
+    console.log(`Project uploaded to GitHub successfully: ${JSON.stringify(githubUploadData)}`);
     }
 
     // Persist phase marker: final_completed
@@ -1623,17 +1623,17 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
 
     // 3. Wind down the instance only when requested
     if (options.stopInstance !== false) {
-      try {
-        console.log('Requesting instance shutdown...');
-        const stopResponse = await fetch(`${SERVER_URL}/instances/${instanceId}/stop`, { method: 'POST' });
-        const stopData = await stopResponse.json().catch(() => ({}));
-        if (!stopResponse.ok) {
-          console.error(`Failed to stop instance: ${stopResponse.status} - ${JSON.stringify(stopData)}`);
-        } else {
-          console.log(`Instance stop response: ${JSON.stringify(stopData)}`);
-        }
-      } catch (e) {
-        console.error(`Error calling stop instance: ${e.message}`);
+    try {
+      console.log('Requesting instance shutdown...');
+      const stopResponse = await fetch(`${SERVER_URL}/instances/${instanceId}/stop`, { method: 'POST' });
+      const stopData = await stopResponse.json().catch(() => ({}));
+      if (!stopResponse.ok) {
+        console.error(`Failed to stop instance: ${stopResponse.status} - ${JSON.stringify(stopData)}`);
+      } else {
+        console.log(`Instance stop response: ${JSON.stringify(stopData)}`);
+      }
+    } catch (e) {
+      console.error(`Error calling stop instance: ${e.message}`);
       }
     }
 

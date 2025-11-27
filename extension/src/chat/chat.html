@@ -1847,7 +1847,7 @@
           }
 
           const workspaceForFinal = finalInterviewWorkspaceContent || workspaceContext || '';
-
+          
           // Always include workspace content if available
           if (workspaceForFinal) {
             systemMessages.push({ role: "system", content: "Project workspace content: " + workspaceForFinal });

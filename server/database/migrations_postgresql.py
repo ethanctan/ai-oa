@@ -100,7 +100,7 @@ def ensure_all_columns_exist(cursor, conn):
     if 'created_by_user_id' not in tests_columns:
         cursor.execute("ALTER TABLE tests ADD COLUMN created_by_user_id BIGINT REFERENCES users(id)")
         logger.info("Added created_by_user_id to tests table")
-
+    
     if 'initial_question_budget' not in tests_columns:
         cursor.execute("ALTER TABLE tests ADD COLUMN initial_question_budget INTEGER DEFAULT 5")
         logger.info("Added initial_question_budget to tests table")

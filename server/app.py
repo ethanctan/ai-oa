@@ -42,9 +42,9 @@ allowed_origins = [
 
 CORS(
     app,
-    supports_credentials=True,
+     supports_credentials=True,
     origins=allowed_origins,
-    allow_headers=['Content-Type', 'Authorization', 'X-User-ID', 'X-Company-ID', 'X-Auth0-User-ID'],
+     allow_headers=['Content-Type', 'Authorization', 'X-User-ID', 'X-Company-ID', 'X-Auth0-User-ID'],
     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 )
 

@@ -1218,27 +1218,21 @@ def create_report(instance_id, workspace_content):
         if test_data['initial_prompt'] or test_data['final_prompt']:
             chat_history_list = get_chat_history(instance_id)
             chat_history = ",\n".join(str(msg) for msg in chat_history_list)
-            input_data += "<input_chat_logs>\n" + chat_history + "\n/<input_chat_logs>\n"
+            input_data += "<input_chat_logs>\n" + chat_history + "\n</input_chat_logs>\n"
         
         if test_data['initial_prompt']:
             field_definitions['initial_interview_summary'] = (
                 str,
                 Field(title="Initial Interview Summary", description="Summary of the initial interview chat logs.")
             )
-            # initial_interview = "placeholder initial" 
-            # report_instructions += "- Initial Interview Summary, based on the content of <input_initial_interview>\n"
-            # input_data += "<input_initial_interview>\n" + initial_interview + "\n</input_initial_interview>\n"
-            report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> before 'PHASE_MARKER: initial'"
+            report_instructions += "- Initial Interview Summary, based on the content of <input_chat_logs> before 'PHASE_MARKER: project_started'\n"
         
         if test_data['final_prompt']:
             field_definitions['final_interview_summary'] = (
                 str,
                 Field(title="Final Interview Summary", description="Summary of the final interview chat logs.")
             )
-            # final_interview = "placeholder final" 
-            # report_instructions += "- Final Interview Summary, based on the content of <input_final_interview>\n"
-            # input_data += "<input_final_interview>\n" + final_interview + "\n</input_final_interview>\n"
-            report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> after 'PHASE_MARKER: final_started'"
+            report_instructions += "- Final Interview Summary, based on the content of <input_chat_logs> after 'PHASE_MARKER: final_started'\n"
 
         if project_helper_enabled:
             field_definitions['project_helper_summary'] = (
