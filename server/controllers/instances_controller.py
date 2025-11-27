@@ -1124,9 +1124,9 @@ def create_report(instance_id, workspace_content):
 
     You will be given a codebase that the candidate has written.
     You may be given a chat history of the candidate's responses to your questions in an initial interview, before they start coding, and a final interview, after they have finished coding.
-    You may also be given a list of qualitative and quantitative criteria that you will use to evaluate the candidate's performance.
+    You may also be given a list of qualitative and quantitative criteria that you will use to evaluate the candidate's performance. Use all the criteria exactly as given to you; if any of the criteria have spelling or grammar errors, do NOT correct them.
 
-    Your main task is to generate a structured evaluation report in the exact JSON format described in the schema.
+    Your task is to generate a structured evaluation report in the exact JSON format described in the schema.
 
     Use only the information provided to you to generate the report.
     If the schema requires a field that you do not have information for, do NOT include false information. Instead, raise this warning in the "report_warnings" field of the report.
