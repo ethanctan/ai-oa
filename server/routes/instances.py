@@ -129,8 +129,15 @@ def get_instances():
 @instances_bp.route('/', methods=['POST'])
 def instances_create():
     try:
-        data = request.json
-        instance = create_instance(data)
+        data = request.json or {}
+        test_id = data.get('testId') or data.get('test_id')
+        candidate_id = data.get('candidateId') or data.get('candidate_id')
+        company_id = data.get('companyId') or data.get('company_id')
+
+        if not all([test_id, candidate_id, company_id]):
+            return jsonify({'error': 'test_id, candidate_id, and company_id are required'}), 400
+
+        instance = create_instance(test_id, candidate_id, company_id)
         return jsonify(instance)
     except Exception as e:
         print(f'Error creating instance: {str(e)}')
