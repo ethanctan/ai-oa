@@ -1,6 +1,10 @@
 from database.db_postgresql import get_connection
 import time
 
+'''
+Note: Nothing in this file is currently used.
+'''
+
 def get_report(instance_id):
     """
     Get a report for a test instance
