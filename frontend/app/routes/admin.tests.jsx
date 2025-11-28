@@ -67,6 +67,7 @@ export default function TestsAdmin() {
   const [selectedAvailableTags, setSelectedAvailableTags] = useState([]);
   const [selectAllAssignedShown, setSelectAllAssignedShown] = useState(false);
   const [selectAllAvailableShown, setSelectAllAvailableShown] = useState(false);
+  const [availableSearchQuery, setAvailableSearchQuery] = useState('');
   const [testSearchQuery, setTestSearchQuery] = useState('');
 
   const interpretCompletion = (value) => {
@@ -116,6 +117,10 @@ export default function TestsAdmin() {
     return Array.from(tags).sort();
   }, [testCandidates]);
 
+  const filteredAvailableCandidates = useMemo(() => {
+    return filterAvailableCandidates(testCandidates.available || []);
+  }, [testCandidates.available, selectedAvailableTags, availableSearchQuery]);
+
   const filteredTests = useMemo(() => {
     if (!testSearchQuery.trim()) return tests;
     const term = testSearchQuery.trim().toLowerCase();
@@ -146,14 +151,82 @@ export default function TestsAdmin() {
     });
   };
 
-  // Add function to filter available candidates by tags
-  const filterAvailableCandidatesByTags = (candidates) => {
-    if (!selectedAvailableTags.length) return candidates;
-    return candidates.filter(candidate => {
-      if (!candidate.tags) return false;
-      const candidateTags = candidate.tags.split(';').map(tag => tag.trim());
-      return selectedAvailableTags.some(tag => candidateTags.includes(tag));
+  // Candidate search helpers for available candidates filtering
+  const parseCandidateSearchQuery = (rawInput) => {
+    if (!rawInput || !rawInput.trim()) return null;
+    const lowered = rawInput.toLowerCase();
+    const fieldTerms = { name: [], email: [], tag: [] };
+    const fieldPattern = /(\w+):"([^"]*)"/g;
+    const matches = [...lowered.matchAll(fieldPattern)];
+
+    matches.forEach(([, field, value]) => {
+      const normalizedValue = value.trim();
+      if (!normalizedValue) return;
+      let normalizedField = field.trim().toLowerCase();
+      if (normalizedField === 'tags') normalizedField = 'tag';
+      if (fieldTerms[normalizedField]) {
+        fieldTerms[normalizedField].push(normalizedValue);
+      }
     });
+
+    const remainder = lowered.replace(fieldPattern, ' ');
+    const generalTerms = remainder.split(/\s+/).filter(Boolean);
+
+    return { fieldTerms, generalTerms };
+  };
+
+  const candidateMatchesSearch = (candidate, parsedQuery) => {
+    if (!parsedQuery) return true;
+    const { fieldTerms, generalTerms } = parsedQuery;
+    const name = (candidate.name || '').toLowerCase();
+    const email = (candidate.email || '').toLowerCase();
+    const tagsList = (candidate.tags || '')
+      .split(';')
+      .map(tag => tag.trim().toLowerCase())
+      .filter(Boolean);
+    const tagsJoined = tagsList.join(' ');
+
+    if (fieldTerms.name.length && !fieldTerms.name.every(term => name.includes(term))) {
+      return false;
+    }
+
+    if (fieldTerms.email.length && !fieldTerms.email.every(term => email.includes(term))) {
+      return false;
+    }
+
+    if (fieldTerms.tag.length) {
+      const tagMatch = fieldTerms.tag.every(term =>
+        tagsList.some(tag => tag.includes(term))
+      );
+      if (!tagMatch) return false;
+    }
+
+    if (generalTerms.length) {
+      const matchesAllGenerals = generalTerms.every(term =>
+        name.includes(term) || email.includes(term) || tagsJoined.includes(term)
+      );
+      if (!matchesAllGenerals) return false;
+    }
+
+    return true;
+  };
+
+  const filterAvailableCandidates = (candidates = []) => {
+    let filtered = candidates;
+    if (selectedAvailableTags.length) {
+      filtered = filtered.filter(candidate => {
+        if (!candidate.tags) return false;
+        const candidateTags = candidate.tags.split(';').map(tag => tag.trim());
+        return selectedAvailableTags.some(tag => candidateTags.includes(tag));
+      });
+    }
+
+    const parsedSearch = parseCandidateSearchQuery(availableSearchQuery);
+    if (parsedSearch) {
+      filtered = filtered.filter(candidate => candidateMatchesSearch(candidate, parsedSearch));
+    }
+
+    return filtered;
   };
 
   // Add function to handle tag selection (for new test form)
@@ -2491,13 +2564,33 @@ export default function TestsAdmin() {
                     )}
                   </div>
 
+                  {/* Search Row */}
+                  <div className="mb-4">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={availableSearchQuery}
+                        onChange={(e) => setAvailableSearchQuery(e.target.value)}
+                        placeholder="Search..."
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <span className="absolute left-3 top-2.5 text-gray-400">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
+                        </svg>
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Examples: <code>name:"john doe"</code>, <code>email:"jane@company.com"</code>, <code>tag:"rust engineer"</code>
+                    </p>
+                  </div>
 
                   <div className="bg-gray-50 px-4 py-2 flex justify-between items-center rounded-t-md">
                     <span className="text-sm text-gray-600">
-                      {filterAvailableCandidatesByTags(testCandidates.available).length} candidates shown
+                      {filteredAvailableCandidates.length} candidates shown
                     </span>
                     <button
-                      onClick={() => handleSelectAllAvailableShown(filterAvailableCandidatesByTags(testCandidates.available))}
+                      onClick={() => handleSelectAllAvailableShown(filteredAvailableCandidates)}
                       className="inline-flex items-center px-3 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
                       {selectAllAvailableShown ? 'Deselect All Shown' : 'Select All Shown'}
@@ -2524,7 +2617,7 @@ export default function TestsAdmin() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {filterAvailableCandidatesByTags(testCandidates.available).map((candidate) => (
+                          {filteredAvailableCandidates.map((candidate) => (
                             <tr key={candidate.id} className="bg-white">
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <input 
