@@ -11,6 +11,7 @@ from database.db_postgresql import get_connection
 from controllers.timer_controller import delete_timer, start_instance_timer
 from controllers.chat_controller import get_chat_history, create_report_completion
 from pydantic import Field, BaseModel, create_model, validator
+from code2prompt_rs import Code2Prompt
 
 # Base directory for project repositories
 BASE_PROJECTS_DIR = Path(__file__).parent.parent / 'projects'
@@ -572,7 +573,7 @@ def stop_instance(instance_id):
     finally:
         conn.close()
 
-def _git_clone_sparse(repo_url: str, target_dir: str, token: str=None):
+def _git_clone_sparse(repo_url: str, target_dir: Path, token: str):
     """Clones a project repository to a target directory."""
     repo_url_for_clone = repo_url
     if token:
@@ -671,15 +672,27 @@ def upload_project_to_github(instance_id, file_storage):
                 
                 print(f"Copied project files to {submission_path}")
 
+                # Code2Prompt codebase
+                config = {
+                    "path": f"{submission_path}",
+                    "include_patterns": ["*"],
+                    "exclude_patterns": [], # TODO: ignore common non-source files
+                    # "include_patterns": ["*.rs"],
+                    # "exclude_patterns": ["tests/*"],
+                }
+                c2p = Code2Prompt(**config)
+                codebase = c2p.generate()
+
                 # Git operations: add, commit, push
                 original_cwd = os.getcwd()
                 os.chdir(clone_dir_path)
                 try:
                     exec_command("git config user.name \"Automated Uploader\"")
                     exec_command("git config user.email \"uploader@example.com\"") # Placeholder because git requires an uploader email
-                    exec_command("git add .")
-                    commit_message = f"feat: Upload project submission for candidate {candidate_name} (ID: {candidate_id}), Instance: {instance_id}"
+                    exec_command("git add . --sparse")
+                    commit_message = f"Upload project submission for candidate {candidate_name} (ID: {candidate_id}), Instance: {instance_id}"
                     exec_command(f'git commit -m "{commit_message}"' )
+                    diff = exec_command("git diff HEAD^")
                     
                     # Determine current branch
                     current_branch = exec_command("git rev-parse --abbrev-ref HEAD").strip()
@@ -711,7 +724,7 @@ def upload_project_to_github(instance_id, file_storage):
 
         conn.commit()
 
-        return {"success": True, "message": f"Project for candidate {candidate_id} uploaded successfully to {target_repo_url}/{submission_dir_name}"}
+        return {"success": True, "message": f"<codebase>\n{codebase}\n</codebase>,\n <codebase_diff>\n{diff}\n</codebase_diff>"}
 
     except ValueError as ve:
         print(f'ValueError in upload_project_to_github: {str(ve)}')
