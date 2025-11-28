@@ -575,14 +575,12 @@ def get_test_candidates(test_id, company_id=None):
             if 'invited' in candidate:
                 candidate['invited'] = bool(candidate.get('invited'))
             # Convert deadline to ISO format if it exists
-            if candidate['deadline']:
-                try:
-                    # Parse SQLite datetime and convert to UTC ISO
-                    dt = datetime.strptime(candidate['deadline'], '%Y-%m-%d %H:%M:%S')
-                    dt = dt.replace(tzinfo=timezone.utc)
-                    candidate['deadline'] = dt.isoformat()
-                except ValueError as e:
-                    print(f"Warning: Could not parse deadline for candidate {candidate['id']}: {str(e)}")
+            if candidate.get('deadline'):
+                normalized_deadline = _deadline_to_iso(candidate['deadline'])
+                if normalized_deadline:
+                    candidate['deadline'] = normalized_deadline
+                else:
+                    print(f"Warning: Could not parse deadline for candidate {candidate['id']}: {candidate['deadline']}")
                     candidate['deadline'] = None
             assigned_candidates.append(candidate)
         
@@ -743,14 +741,12 @@ def update_candidate_deadline(test_id, candidate_id, deadline, company_id=None):
             ''', (test_id, candidate_id))
         
         updated_candidate = dict(cursor.fetchone())
-        if updated_candidate['deadline']:
-            try:
-                # Parse SQLite datetime and convert to UTC ISO
-                dt = datetime.strptime(updated_candidate['deadline'], '%Y-%m-%d %H:%M:%S')
-                dt = dt.replace(tzinfo=timezone.utc)
-                updated_candidate['deadline'] = dt.isoformat()
-            except ValueError as e:
-                print(f"Warning: Could not parse deadline for candidate {candidate_id}: {str(e)}")
+        if updated_candidate.get('deadline'):
+            normalized_deadline = _deadline_to_iso(updated_candidate['deadline'])
+            if normalized_deadline:
+                updated_candidate['deadline'] = normalized_deadline
+            else:
+                print(f"Warning: Could not parse deadline for candidate {candidate_id}: {updated_candidate['deadline']}")
                 updated_candidate['deadline'] = None
         # If deadline is None, leave it as None
         
@@ -893,3 +889,22 @@ def _convert_to_utc(raw_ts):
         return dt.isoformat()
     except (ValueError, TypeError):
         return None 
+
+def _deadline_to_iso(value):
+    """Normalize deadline values (string or datetime) to ISO 8601 in UTC."""
+    if not value:
+        return None
+    dt = None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.strptime(str(value), "%Y-%m-%d %H:%M:%S")
+        except (TypeError, ValueError):
+            try:
+                dt = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+            except ValueError:
+                return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
