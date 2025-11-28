@@ -1128,31 +1128,29 @@ export default function TestsAdmin() {
 
   return (
     <div>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
-        <div className="flex-1">
-          <h2 className="text-2xl font-semibold">Tests</h2>
-          <div className="mt-3 relative max-w-sm">
-            <input
-              type="text"
-              value={testSearchQuery}
-              onChange={(e) => setTestSearchQuery(e.target.value)}
-              placeholder="Search tests by name"
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
-            <span className="absolute left-3 top-2.5 text-gray-400">
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
-              </svg>
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center">
-          <button
-            onClick={handleCreateTestClick}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md w-full md:w-auto"
-          >
-            Create New Test
-          </button>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-semibold">Tests</h2>
+        <button
+          onClick={handleCreateTestClick}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md w-full md:w-auto md:ml-4"
+        >
+          Create New Test
+        </button>
+      </div>
+      <div className="mb-6">
+        <div className="relative max-w-sm">
+          <input
+            type="text"
+            value={testSearchQuery}
+            onChange={(e) => setTestSearchQuery(e.target.value)}
+            placeholder="Search tests by name"
+            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          />
+          <span className="absolute left-3 top-2.5 text-gray-400">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
+            </svg>
+          </span>
         </div>
       </div>
 

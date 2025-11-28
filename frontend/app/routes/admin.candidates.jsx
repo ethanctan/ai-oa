@@ -316,25 +316,6 @@ export default function CandidatesAdmin() {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-6">
         <div className="flex-1 w-full">
           <h2 className="text-2xl font-semibold">Candidates</h2>
-          <div className="mt-3">
-            <div className="relative">
-              <input
-                type="text"
-                value={candidateSearchQuery}
-                onChange={(e) => setCandidateSearchQuery(e.target.value)}
-                placeholder='Search by name, email, or tag (e.g. name:"john doe")'
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-              <span className="absolute left-3 top-2.5 text-gray-400">
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
-                </svg>
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Examples: <code>name:"john doe"</code>, <code>email:"jane@company.com"</code>, <code>tag:"rust engineer"</code>
-            </p>
-          </div>
         </div>
         <div className="flex flex-col items-end w-full md:w-auto">
           <div className="relative w-full md:w-auto">
@@ -360,6 +341,25 @@ export default function CandidatesAdmin() {
             Duplicate detection is based strictly on the email address.
           </p>
         </div>
+      </div>
+      <div className="mb-6">
+        <div className="relative">
+          <input
+            type="text"
+            value={candidateSearchQuery}
+            onChange={(e) => setCandidateSearchQuery(e.target.value)}
+            placeholder='Search by name, email, or tag (e.g. name:"john doe")'
+            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          />
+          <span className="absolute left-3 top-2.5 text-gray-400">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
+            </svg>
+          </span>
+        </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Examples: <code>name:"john doe"</code>, <code>email:"jane@company.com"</code>, <code>tag:"rust engineer"</code>
+        </p>
       </div>
 
       {uploadStatus && (
