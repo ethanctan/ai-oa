@@ -1143,7 +1143,7 @@ export default function TestsAdmin() {
             type="text"
             value={testSearchQuery}
             onChange={(e) => setTestSearchQuery(e.target.value)}
-            placeholder="Search tests by name"
+            placeholder="Search..."
             className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           />
           <span className="absolute left-3 top-2.5 text-gray-400">
@@ -1160,10 +1160,10 @@ export default function TestsAdmin() {
           <table className="w-full bg-white rounded-lg overflow-hidden">
           <thead className="bg-gray-100">
             <tr>
-              <th className="py-3 px-4 text-left font-medium text-gray-600">Test Name</th>
+              <th className="py-3 px-4 text-left font-medium text-gray-600">Name</th>
               <th className="py-3 px-4 text-left font-medium text-gray-600">Created</th>
-              <th className="py-3 px-4 text-left font-medium text-gray-600">Candidates Assigned</th>
-              <th className="py-3 px-4 text-left font-medium text-gray-600">Completion Rate</th>
+              <th className="py-3 px-4 text-left font-medium text-gray-600">Candidates</th>
+              <th className="py-3 px-4 text-left font-medium text-gray-600">Completion</th>
               <th className="py-3 px-4 text-left font-medium text-gray-600">Actions</th>
             </tr>
           </thead>

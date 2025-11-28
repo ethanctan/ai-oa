@@ -33,7 +33,7 @@ export default function Admin() {
     return (
         <div className="p-4 max-w-7xl mx-auto">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+                <h1 className="text-3xl font-bold">Verihire</h1>
                 <div className="flex items-center space-x-4">
                     <span className="text-sm text-gray-600">
                         Welcome, {user?.name || user?.email}
