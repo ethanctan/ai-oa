@@ -2475,10 +2475,10 @@ export default function TestsAdmin() {
                   <div className="flex items-center space-x-4 mb-4">
                     <div className="flex-1">
                       <label htmlFor="available-deadline-date" className="block text-sm font-medium text-gray-700">
-                        Deadline (Optional)
+                        Deadline
                       </label>
                       <p className="text-xs text-gray-500 mt-1">
-                        If set, deadline will be midnight EST on the selected date. Leave blank for no deadline.
+                        Candidates assigned below will be given a deadline of midnight EST on the selected date. Leave blank for no deadline.
                       </p>
                       <input
                         type="date"
