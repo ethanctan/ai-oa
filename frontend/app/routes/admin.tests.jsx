@@ -29,7 +29,6 @@ export default function TestsAdmin() {
   const [projectTimerEnabled, setProjectTimerEnabled] = useState(true);
   
   // State for optional field toggles
-  const [targetGithubRepoEnabled, setTargetGithubRepoEnabled] = useState(true);
   const [targetGithubTokenEnabled, setTargetGithubTokenEnabled] = useState(true);
   const [initialPromptEnabled, setInitialPromptEnabled] = useState(true);
   const [finalPromptEnabled, setFinalPromptEnabled] = useState(true);
@@ -215,10 +214,10 @@ export default function TestsAdmin() {
     let filtered = candidates;
     if (selectedAvailableTags.length) {
       filtered = filtered.filter(candidate => {
-        if (!candidate.tags) return false;
-        const candidateTags = candidate.tags.split(';').map(tag => tag.trim());
-        return selectedAvailableTags.some(tag => candidateTags.includes(tag));
-      });
+      if (!candidate.tags) return false;
+      const candidateTags = candidate.tags.split(';').map(tag => tag.trim());
+      return selectedAvailableTags.some(tag => candidateTags.includes(tag));
+    });
     }
 
     const parsedSearch = parseCandidateSearchQuery(availableSearchQuery);
@@ -396,7 +395,7 @@ export default function TestsAdmin() {
   };
 
   // Handle deleting an instance
-  const handleDeleteInstance = async (instanceId) => {    
+  const handleDeleteInstance = async (instanceId) => {
     try {
       console.log(`Deleting instance with ID: ${instanceId}`);
       const response = await fetch(getApiEndpoint(`instances/${instanceId}/stop`), {
@@ -796,8 +795,6 @@ export default function TestsAdmin() {
     setTimerEnabled,
     projectTimerEnabled,
     setProjectTimerEnabled,
-    targetGithubRepoEnabled,
-    setTargetGithubRepoEnabled,
     targetGithubTokenEnabled,
     setTargetGithubTokenEnabled,
     initialPromptEnabled,
@@ -922,8 +919,8 @@ export default function TestsAdmin() {
                     <span className={`text-sm ${enableProjectTimer ? 'text-blue-600' : 'text-gray-500'}`}>
                       {enableProjectTimer ? 'Enabled' : 'Disabled'}
                     </span>
+                    </div>
                   </div>
-                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Timer Duration (minutes)
@@ -965,7 +962,7 @@ export default function TestsAdmin() {
                     disabled
                     readOnly
                   />
-                </div>
+                  </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Final Interview Question Budget
@@ -1343,7 +1340,7 @@ export default function TestsAdmin() {
                   
                   const initialQuestionBudget = Math.max(1, parseInt(formData.get('initialQuestionBudget'), 10) || 5);
                   const finalQuestionBudget = Math.max(1, parseInt(formData.get('finalQuestionBudget'), 10) || 5);
-
+                  
                   // Create the payload object for the API
                   const payload = {
                     instanceName: formData.get('instanceName'),
@@ -1360,8 +1357,10 @@ export default function TestsAdmin() {
                   };
 
                   // Add optional fields based on toggles
-                  if (targetGithubRepoEnabled) {
-                    payload.targetGithubRepo = formData.get('targetGithubRepo');
+                  payload.targetGithubRepo = (formData.get('targetGithubRepo') || '').trim();
+                  if (!payload.targetGithubRepo) {
+                    alert('Target GitHub repo is required.');
+                    return;
                   }
                   if (targetGithubTokenEnabled) {
                     payload.targetGithubToken = formData.get('targetGithubToken');
@@ -1601,35 +1600,15 @@ export default function TestsAdmin() {
 
               {/* Target GitHub Repo URL */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Target GitHub Repo URL (for Upload)
-                  </label>
-                   <div className="flex items-center space-x-2">
-                    <span className={`text-sm ${targetGithubRepoEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
-                      {targetGithubRepoEnabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setTargetGithubRepoEnabled(!targetGithubRepoEnabled)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                        targetGithubRepoEnabled ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          targetGithubRepoEnabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Target GitHub Repo URL (for Upload) <span className="text-red-500">*</span>
+                </label>
                 <input 
                   type="text" 
                   name="targetGithubRepo" 
                   placeholder="https://github.com/owner/target-repo.git" 
-                  disabled={!targetGithubRepoEnabled}
-                   className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!targetGithubRepoEnabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  required
                 />
                 <p className="text-xs text-gray-500 mt-1">Each submission will be uploaded here as a new directory.</p>
               </div>
@@ -2323,7 +2302,7 @@ export default function TestsAdmin() {
                           }
 
                           return (
-                            <tr key={candidate.id}>
+                          <tr key={candidate.id}>
                               <td className="px-4 py-3 whitespace-nowrap">
                                 <input 
                                   type="checkbox" 
@@ -2332,27 +2311,27 @@ export default function TestsAdmin() {
                                   className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
                                 />
                               </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                {candidate.name}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                {candidate.email}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                {candidate.tags ? (
-                                  candidate.tags.split(';').map((tag, index) => (
-                                    <span 
-                                      key={index} 
-                                      className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1"
-                                    >
-                                      {tag.trim()}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="text-gray-500">No tags</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {candidate.name}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {candidate.email}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {candidate.tags ? (
+                                candidate.tags.split(';').map((tag, index) => (
+                                  <span 
+                                    key={index} 
+                                    className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1"
+                                  >
+                                    {tag.trim()}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-gray-500">No tags</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
                                 <span className={`px-2 py-1 rounded text-xs ${statusClass}`}>
                                   {statusText}
                                 </span>
@@ -2360,43 +2339,43 @@ export default function TestsAdmin() {
                               <td className="px-4 py-3 whitespace-nowrap">
                                 {isCompleted ? (
                                   (() => {
-                                    const toNum = (v) => (v === null || v === undefined || v === '') ? null : Number(v);
-                                    const currentTestNum = toNum(currentTestId);
-                                    const candidateNum = toNum(candidate.id);
-                                    const matchingInstance = instances.find(inst => {
-                                      const testIdVal = toNum(inst.test_id ?? inst.testId ?? inst.TestId);
-                                      const candidateIdVal = toNum(inst.candidate_id ?? inst.candidateId ?? inst.CandidateId);
-                                      return testIdVal === currentTestNum && candidateIdVal === candidateNum;
-                                    });
-                                    const instanceId = matchingInstance ? (matchingInstance.id || matchingInstance.Id) : null;
-                                    return (
-                                      <button
-                                        onClick={async () => {
-                                          try {
-                                            if (instanceId) {
-                                              handleViewReport(instanceId);
+                                  const toNum = (v) => (v === null || v === undefined || v === '') ? null : Number(v);
+                                  const currentTestNum = toNum(currentTestId);
+                                  const candidateNum = toNum(candidate.id);
+                                  const matchingInstance = instances.find(inst => {
+                                    const testIdVal = toNum(inst.test_id ?? inst.testId ?? inst.TestId);
+                                    const candidateIdVal = toNum(inst.candidate_id ?? inst.candidateId ?? inst.CandidateId);
+                                    return testIdVal === currentTestNum && candidateIdVal === candidateNum;
+                                  });
+                                  const instanceId = matchingInstance ? (matchingInstance.id || matchingInstance.Id) : null;
+                                  return (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          if (instanceId) {
+                                            handleViewReport(instanceId);
+                                            return;
+                                          }
+                                          const resp = await api.get(`/instances/resolve?test_id=${currentTestNum}&candidate_id=${candidateNum}`);
+                                          if (resp.ok) {
+                                            const data = await resp.json();
+                                            if (data && data.id) {
+                                              handleViewReport(data.id);
                                               return;
                                             }
-                                            const resp = await api.get(`/instances/resolve?test_id=${currentTestNum}&candidate_id=${candidateNum}`);
-                                            if (resp.ok) {
-                                              const data = await resp.json();
-                                              if (data && data.id) {
-                                                handleViewReport(data.id);
-                                                return;
-                                              }
-                                            }
-                                            console.log('[ManageCandidates][Report] No instance for candidate', { currentTestId, candidateId: candidate.id, instances });
-                                            alert('No instance/report available yet for this candidate.');
-                                          } catch (err) {
-                                            console.error('[ManageCandidates][Report] resolve error', err);
-                                            alert('Error resolving report.');
                                           }
-                                        }}
-                                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-purple-600 hover:text-purple-800 bg-transparent"
-                                      >
-                                        View Report
-                                      </button>
-                                    );
+                                          console.log('[ManageCandidates][Report] No instance for candidate', { currentTestId, candidateId: candidate.id, instances });
+                                          alert('No instance/report available yet for this candidate.');
+                                        } catch (err) {
+                                          console.error('[ManageCandidates][Report] resolve error', err);
+                                          alert('Error resolving report.');
+                                        }
+                                      }}
+                                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-purple-600 hover:text-purple-800 bg-transparent"
+                                    >
+                                      View Report
+                                    </button>
+                                  );
                                   })()
                                 ) : (
                                   <span className="text-xs text-gray-400 italic">Report unavailable</span>
