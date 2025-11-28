@@ -116,10 +116,6 @@ export default function TestsAdmin() {
     return Array.from(tags).sort();
   }, [testCandidates]);
 
-  const filteredAvailableCandidates = useMemo(() => {
-    return filterAvailableCandidates(testCandidates.available || []);
-  }, [testCandidates.available, selectedAvailableTags, availableSearchQuery]);
-
   const filteredTests = useMemo(() => {
     if (!testSearchQuery.trim()) return tests;
     const term = testSearchQuery.trim().toLowerCase();
@@ -227,6 +223,10 @@ export default function TestsAdmin() {
 
     return filtered;
   };
+
+  const filteredAvailableCandidates = useMemo(() => {
+    return filterAvailableCandidates(testCandidates.available || []);
+  }, [testCandidates.available, selectedAvailableTags, availableSearchQuery]);
 
   // Add function to handle tag selection (for new test form)
   const handleTagSelection = (tag) => {
