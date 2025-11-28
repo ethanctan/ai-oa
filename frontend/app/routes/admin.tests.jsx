@@ -1602,7 +1602,7 @@ export default function TestsAdmin() {
               {/* Target GitHub Repo URL */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  Target GitHub Repo URL (for Upload) <span className="text-red-500">*</span>
+                  Submission GitHub Repo URL (Submissions will be uploaded here) <span className="text-red-500">*</span>
                 </label>
                 <input 
                   type="text" 
