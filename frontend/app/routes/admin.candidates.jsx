@@ -1,7 +1,66 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSubmit } from "@remix-run/react";
 import { useAuthenticatedApi } from "../hooks/useAuthenticatedApi";
 import ReportModal from "../components/ReportModal";
+
+const parseCandidateSearchQuery = (rawInput) => {
+  if (!rawInput || !rawInput.trim()) return null;
+  const lowered = rawInput.toLowerCase();
+  const fieldTerms = { name: [], email: [], tag: [] };
+  const fieldPattern = /(\w+):"([^"]*)"/g;
+  const matches = [...lowered.matchAll(fieldPattern)];
+
+  matches.forEach(([, field, value]) => {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) return;
+    let normalizedField = field.trim().toLowerCase();
+    if (normalizedField === 'tags') normalizedField = 'tag';
+    if (fieldTerms[normalizedField]) {
+      fieldTerms[normalizedField].push(normalizedValue);
+    }
+  });
+
+  const remainder = lowered.replace(fieldPattern, ' ');
+  const generalTerms = remainder.split(/\s+/).filter(Boolean);
+
+  return { fieldTerms, generalTerms };
+};
+
+const candidateMatchesSearch = (candidate, parsedQuery) => {
+  if (!parsedQuery) return true;
+  const { fieldTerms, generalTerms } = parsedQuery;
+  const name = (candidate.name || '').toLowerCase();
+  const email = (candidate.email || '').toLowerCase();
+  const tagsList = (candidate.tags || '')
+    .split(';')
+    .map(tag => tag.trim().toLowerCase())
+    .filter(Boolean);
+  const tagsJoined = tagsList.join(' ');
+
+  if (fieldTerms.name.length && !fieldTerms.name.every(term => name.includes(term))) {
+    return false;
+  }
+
+  if (fieldTerms.email.length && !fieldTerms.email.every(term => email.includes(term))) {
+    return false;
+  }
+
+  if (fieldTerms.tag.length) {
+    const tagMatch = fieldTerms.tag.every(term =>
+      tagsList.some(tag => tag.includes(term))
+    );
+    if (!tagMatch) return false;
+  }
+
+  if (generalTerms.length) {
+    const matchesAllGenerals = generalTerms.every(term =>
+      name.includes(term) || email.includes(term) || tagsJoined.includes(term)
+    );
+    if (!matchesAllGenerals) return false;
+  }
+
+  return true;
+};
 
 export default function CandidatesAdmin() {
   const [candidates, setCandidates] = useState([]);
@@ -20,6 +79,7 @@ export default function CandidatesAdmin() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [currentReport, setCurrentReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [candidateSearchQuery, setCandidateSearchQuery] = useState('');
   const submit = useSubmit();
   const api = useAuthenticatedApi();
 
@@ -215,6 +275,12 @@ export default function CandidatesAdmin() {
     }
   };
 
+  const filteredCandidates = useMemo(() => {
+    const parsed = parseCandidateSearchQuery(candidateSearchQuery);
+    if (!parsed) return candidates;
+    return candidates.filter(candidate => candidateMatchesSearch(candidate, parsed));
+  }, [candidates, candidateSearchQuery]);
+
   // Show loading state
   if (loading) {
     return (
@@ -247,10 +313,31 @@ export default function CandidatesAdmin() {
 
   return (
     <div>
-      <div className="flex justify-between items-start mb-6">
-        <h2 className="text-2xl font-semibold">Candidates</h2>
-        <div className="flex flex-col items-end">
-          <div className="relative">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-6">
+        <div className="flex-1 w-full">
+          <h2 className="text-2xl font-semibold">Candidates</h2>
+          <div className="mt-3">
+            <div className="relative">
+              <input
+                type="text"
+                value={candidateSearchQuery}
+                onChange={(e) => setCandidateSearchQuery(e.target.value)}
+                placeholder='Search by name, email, or tag (e.g. name:"john doe")'
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              <span className="absolute left-3 top-2.5 text-gray-400">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
+                </svg>
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Examples: <code>name:"john doe"</code>, <code>email:"jane@company.com"</code>, <code>tag:"rust engineer"</code>
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col items-end w-full md:w-auto">
+          <div className="relative w-full md:w-auto">
             <input
               type="file"
               accept=".csv,.xlsx,.xls"
@@ -261,14 +348,14 @@ export default function CandidatesAdmin() {
             />
             <label
               htmlFor="file-upload"
-              className={`bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded cursor-pointer ${
+              className={`bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded cursor-pointer block text-center ${
                 isUploading ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
               {isUploading ? 'Uploading...' : 'Upload Candidates'}
             </label>
           </div>
-          <p className="text-sm text-gray-500 mt-5">
+          <p className="text-sm text-gray-500 mt-5 text-right">
             .csv and .xlsx files are supported. File should contain columns: 'Name', 'Email', and optional 'Tags' (semicolon-separated, e.g. "frontend developer; javascript").<br />
             Duplicate detection is based strictly on the email address.
           </p>
@@ -441,34 +528,42 @@ export default function CandidatesAdmin() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {candidates.map((candidate) => (
-              <tr key={candidate.id}>
-                <td className="py-3 px-4">{candidate.name}</td>
-                <td className="py-3 px-4">{candidate.email}</td>
-                <td className="py-3 px-4">
-                  {candidate.tags ? (
-                    candidate.tags.split(';').map((tag, index) => (
-                      <span 
-                        key={index} 
-                        className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1"
-                      >
-                        {tag.trim()}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-gray-500">No tags</span>
-                  )}
-                </td>
-                <td className="py-3 px-4">
-                  <button 
-                    className="text-blue-600 hover:text-blue-800 font-medium"
-                    onClick={() => handleOpenManageModal(candidate)}
-                  >
-                    Manage
-                  </button>
+            {filteredCandidates.length > 0 ? (
+              filteredCandidates.map((candidate) => (
+                <tr key={candidate.id}>
+                  <td className="py-3 px-4">{candidate.name}</td>
+                  <td className="py-3 px-4">{candidate.email}</td>
+                  <td className="py-3 px-4">
+                    {candidate.tags ? (
+                      candidate.tags.split(';').map((tag, index) => (
+                        <span 
+                          key={index} 
+                          className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-1 mb-1"
+                        >
+                          {tag.trim()}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-500">No tags</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">
+                    <button 
+                      className="text-blue-600 hover:text-blue-800 font-medium"
+                      onClick={() => handleOpenManageModal(candidate)}
+                    >
+                      Manage
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="py-4 px-4 text-center text-gray-500">
+                  {candidateSearchQuery ? 'No candidates match your search.' : 'No candidates available.'}
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
