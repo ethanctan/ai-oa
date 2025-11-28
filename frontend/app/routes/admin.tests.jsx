@@ -29,7 +29,6 @@ export default function TestsAdmin() {
   const [projectTimerEnabled, setProjectTimerEnabled] = useState(true);
   
   // State for optional field toggles
-  const [targetGithubTokenEnabled, setTargetGithubTokenEnabled] = useState(true);
   const [initialPromptEnabled, setInitialPromptEnabled] = useState(true);
   const [finalPromptEnabled, setFinalPromptEnabled] = useState(true);
   const [assessmentType, setAssessmentType] = useState('qualitative');
@@ -795,8 +794,6 @@ export default function TestsAdmin() {
     setTimerEnabled,
     projectTimerEnabled,
     setProjectTimerEnabled,
-    targetGithubTokenEnabled,
-    setTargetGithubTokenEnabled,
     initialPromptEnabled,
     setInitialPromptEnabled,
     finalPromptEnabled,
@@ -874,7 +871,7 @@ export default function TestsAdmin() {
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Test Name
+                  Test Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -1362,8 +1359,10 @@ export default function TestsAdmin() {
                     alert('Target GitHub repo is required.');
                     return;
                   }
-                  if (targetGithubTokenEnabled) {
-                    payload.targetGithubToken = formData.get('targetGithubToken');
+                  payload.targetGithubToken = (formData.get('targetGithubToken') || '').trim();
+                  if (!payload.targetGithubToken) {
+                    alert('Target GitHub token is required.');
+                    return;
                   }
                   if (initialPromptEnabled) {
                     payload.initialPrompt = formData.get('initialPrompt');
@@ -1570,7 +1569,7 @@ export default function TestsAdmin() {
 
               <div className="space-y-2">
                  <label htmlFor="githubRepo" className="block text-sm font-medium text-gray-700 mb-1">
-                   GitHub Repo URL
+                   GitHub Repo URL <span className="text-red-500">*</span>
                  </label>
                  <input 
                    type="text" 
@@ -1587,13 +1586,14 @@ export default function TestsAdmin() {
 
               <div className="space-y-2">
                  <label htmlFor="githubToken" className="block text-sm font-medium text-gray-700 mb-1">
-                   GitHub Token <span className="text-red-500">(Required if target repo is private)</span>
+                   GitHub Token <span className="text-red-500">*</span>
                  </label>
                  <input 
                    type="text" 
                    id="githubToken"
                    name="githubToken" 
                    placeholder="Personal Access Token" 
+                   required
                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                  />
               </div>
@@ -1615,35 +1615,15 @@ export default function TestsAdmin() {
 
               {/* Target GitHub Token */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                   <label className="block text-sm font-medium text-gray-700">
-                    Target GitHub Token (for Upload) <span className="text-red-500">(Token with code write access always required!)</span>
-                  </label>
-                   <div className="flex items-center space-x-2">
-                    <span className={`text-sm ${targetGithubTokenEnabled ? 'text-blue-600' : 'text-gray-500'}`}>
-                      {targetGithubTokenEnabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setTargetGithubTokenEnabled(!targetGithubTokenEnabled)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                        targetGithubTokenEnabled ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          targetGithubTokenEnabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Target GitHub Token (for Upload) <span className="text-red-500">*</span> <span className="text-red-500">(Token with code write access always required!)</span>
+                </label>
                 <input 
                   type="text" 
                   name="targetGithubToken" 
                   placeholder="Personal Access Token with repo write access" 
-                  disabled={!targetGithubTokenEnabled}
-                   className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${!targetGithubTokenEnabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 
@@ -2301,6 +2281,7 @@ export default function TestsAdmin() {
                             statusClass = 'bg-gray-200 text-gray-700';
                           }
 
+                          const deadlineEditable = !isCompleted;
                           return (
                           <tr key={candidate.id}>
                               <td className="px-4 py-3 whitespace-nowrap">
@@ -2382,7 +2363,7 @@ export default function TestsAdmin() {
                                 )}
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap">
-                                {editingDeadline === candidate.id ? (
+                                {deadlineEditable && editingDeadline === candidate.id ? (
                                   <div className="flex items-center space-x-2">
                                     <input
                                       type="date"
@@ -2428,27 +2409,33 @@ export default function TestsAdmin() {
                                           })
                                         : 'No deadline set'}
                                     </span>
-                                    <button
-                                      onClick={() => {
-                                        setEditingDeadline(candidate.id);
-                                        if (candidate.deadline) {
-                                          const date = new Date(candidate.deadline);
-                                          setAssignedDeadlineDate({ 
-                                            ...assignedDeadlineDate, 
-                                            [candidate.id]: date.toISOString().split('T')[0] 
-                                          });
-                                        } else {
-                                          // Initialize with empty string for no deadline
-                                          setAssignedDeadlineDate({ 
-                                            ...assignedDeadlineDate, 
-                                            [candidate.id]: '' 
-                                          });
-                                        }
-                                      }}
-                                      className="inline-flex items-center px-2 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                    >
-                                      {candidate.deadline ? 'Edit' : 'Set Deadline'}
-                                    </button>
+                                    {deadlineEditable ? (
+                                      <button
+                                        onClick={() => {
+                                          setEditingDeadline(candidate.id);
+                                          if (candidate.deadline) {
+                                            const date = new Date(candidate.deadline);
+                                            setAssignedDeadlineDate({ 
+                                              ...assignedDeadlineDate, 
+                                              [candidate.id]: date.toISOString().split('T')[0] 
+                                            });
+                                          } else {
+                                            // Initialize with empty string for no deadline
+                                            setAssignedDeadlineDate({ 
+                                              ...assignedDeadlineDate, 
+                                              [candidate.id]: '' 
+                                            });
+                                          }
+                                        }}
+                                        className="inline-flex items-center px-2 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                      >
+                                        {candidate.deadline ? 'Edit' : 'Set Deadline'}
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs text-gray-400 italic">
+                                        Deadline locked after completion
+                                      </span>
+                                    )}
                                   </div>
                                 )}
                               </td>
