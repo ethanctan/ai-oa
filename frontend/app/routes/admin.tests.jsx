@@ -1586,8 +1586,7 @@ export default function TestsAdmin() {
 
               <div className="space-y-2">
                  <label htmlFor="githubToken" className="block text-sm font-medium text-gray-700 mb-1">
-                   GitHub Token 
-                   <span className="text-red-500">
+                   GitHub Token <span className="text-red-500">
                     (Read access required if repo is private)
                   </span>
                  </label>
