@@ -682,11 +682,7 @@ def upload_project_to_github(instance_id, file_storage):
                 }
                 c2p = Code2Prompt(**config)
                 codebase_rendered = c2p.generate()
-                if hasattr(codebase_rendered, "prompt"):
-                    codebase_text = codebase_rendered.prompt
-                else:
-                    codebase_text = str(codebase_rendered) # naive fallback
-
+                codebase_text = codebase_rendered.prompt
                 # Git operations: add, commit, push
                 original_cwd = os.getcwd()
                 os.chdir(clone_dir_path)
