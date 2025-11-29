@@ -585,7 +585,8 @@ export default function TestsAdmin() {
           return {
             ...candidate,
             deadline,
-            test_completed: false
+            test_completed: false,
+            invited: true
           };
         })
       );
