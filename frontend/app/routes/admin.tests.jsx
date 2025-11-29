@@ -698,9 +698,15 @@ export default function TestsAdmin() {
       const response = await api.get('/tests/');
       const testsData = await response.json();
       console.log('Fetched tests:', testsData);
-      setTests(testsData);
+      const normalizedTests = Array.isArray(testsData)
+        ? testsData
+        : Array.isArray(testsData?.tests)
+          ? testsData.tests
+          : [];
+      setTests(normalizedTests);
     } catch (error) {
       console.error('Error fetching tests:', error);
+      setTests([]);
     }
   };
   

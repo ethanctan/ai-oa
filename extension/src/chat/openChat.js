@@ -745,7 +745,10 @@ function openChat() {
     if (message.command === 'submitWorkspaceContent') {
       console.log(`Submitting workspace content for instance: ${message.instanceId}`);
       const stopInstance = message.stopInstance !== false;
-      const submissionPromise = submitWorkspaceContent(message.instanceId, message.content, { stopInstance })
+      const submissionPromise = submitWorkspaceContent(message.instanceId, message.content, { 
+        stopInstance,
+        skipReport: message.skipReport === true
+      })
         .then((result) => {
           console.log('Workspace content submitted successfully');
           if (global.chatPanel) {

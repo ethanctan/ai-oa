@@ -1480,6 +1480,11 @@
               } else {
                 // In final phase, show completion message and permanently disable input
                 appendMessage('system', 'Final interview complete. Thank you for your participation. You may now safely close this window.', true);
+                vscode.postMessage({
+                  command: 'saveInterviewPhase',
+                  instanceId,
+                  phase: 'final_completed'
+                });
                 finalInterviewTrulyEnded = true;
                 // Submit final report when final interview ends
                 submitFinalReport();
@@ -1806,6 +1811,13 @@
         // Mark final interview as started
         finalInterviewStarted = true;
         currentInterviewPhase = 'final';
+        
+        // Persist phase marker: final_started
+        vscode.postMessage({
+          command: 'saveInterviewPhase',
+          instanceId,
+          phase: 'final_started'
+        });
         
         // Hide the final interview button container
         finalInterviewContainer.classList.remove('visible');
