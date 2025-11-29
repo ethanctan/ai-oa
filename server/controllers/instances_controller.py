@@ -1234,15 +1234,7 @@ def create_report(instance_id, workspace_content, workspace_diff=None):
         # Check if a report already exists
         cursor.execute('SELECT * FROM reports WHERE instance_id = %s', (instance_id,))
         existing_report = cursor.fetchone()
-        
-        if existing_report:
-            # Update existing report
-            # cursor.execute(
-            #     'UPDATE reports SET content = %s WHERE instance_id = %s',
-            #     (content, instance_id)
-            # )
-            print("Report already exists, ignoring")
-            return json.loads(existing_report)
+        report_exists = existing_report is not None
         
         # Create new report
         print("Creating new report")
@@ -1409,10 +1401,16 @@ def create_report(instance_id, workspace_content, workspace_diff=None):
         print("api returned")
         print(report)
         
-        cursor.execute(
-            'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())',
-            (instance_id, test_data['company_id'], json.dumps(report))
-        ) #TODO: no way to update reports, updated and created are the same
+        if report_exists:
+            cursor.execute(
+                'UPDATE reports SET content = %s, updated_at = NOW() WHERE instance_id = %s',
+                (json.dumps(report), instance_id)
+            )
+        else:
+            cursor.execute(
+                'INSERT INTO reports (instance_id, company_id, content, created_at, updated_at) VALUES (%s, %s, %s, NOW(), NOW())',
+                (instance_id, test_data['company_id'], json.dumps(report))
+            )
 
         try:
             if test_data.get('test_id') and test_data.get('candidate_id'):
