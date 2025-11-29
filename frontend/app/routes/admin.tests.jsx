@@ -573,7 +573,7 @@ export default function TestsAdmin() {
         selectedAvailable.map(async candidate => {
           const response = await api.post(`/tests/${currentTestId}/candidates/${candidate.id}`, { deadline });
           if (!response.ok) {
-            throw new Error(`Failed to assign test to ${candidate.name}`);
+            throw new Error(`Failed to send test to ${candidate.name}`);
           }
           const result = await response.json();
           return {
@@ -1926,8 +1926,7 @@ export default function TestsAdmin() {
               </div>
 
               <div>
-                <h4 className="font-medium text-lg mb-2">Select Candidates to Assign Test (Optional)</h4>
-                <p className="text-sm text-gray-500 mb-2">Note: Candidates will be assigned to the test, but the test will not be sent automatically. Use the "Manage Candidates" button after creating the test to set deadlines and send the test to candidates.</p>
+                <h4 className="font-medium text-lg mb-2">Select Candidates to Send Test To (Optional)</h4>
                 
                 {/* Tag Filter Section */}
                 <div className="mb-4">
@@ -2047,7 +2046,7 @@ export default function TestsAdmin() {
                   className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   {newTestSelectedCandidates.length > 0 
-                    ? `Create & Assign Test to ${newTestSelectedCandidates.length} Candidates` 
+                    ? `Create & Send Test to ${newTestSelectedCandidates.length} Candidates` 
                     : "Create Test"}
                 </button>
               </div>
@@ -2063,7 +2062,7 @@ export default function TestsAdmin() {
             <div className="flex justify-between items-center mb-6">
             <div className="flex flex-col space-y-2">
               <h3 className="text-xl font-semibold">Manage Candidates</h3>
-              <p className="text-sm text-gray-500">Assign available candidates under 'Available Candidates', then send email invitations under 'Assigned Candidates'.</p>
+              <p className="text-sm text-gray-500">See 'Assigned Candidates' for all candidates who have been emailed this assessment. See 'Available Candidates' for all other candidates.</p>
             </div>
               <button 
                 onClick={handleCloseManageCandidates}
@@ -2186,8 +2185,15 @@ export default function TestsAdmin() {
                     )}
                   </div>
 
-                  <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600 rounded-t-md">
-                    {filteredAssignedCandidates.length} candidates shown
+                  <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600 rounded-t-md flex flex-col gap-1">
+                    <span>{filteredAssignedCandidates.length} candidates shown</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAllAssignedShown(filteredAssignedCandidates)}
+                      className="text-xs text-blue-600 hover:text-blue-800 text-left"
+                    >
+                      {selectAllAssignedShown ? 'Deselect All Shown' : 'Select All Shown'}
+                    </button>
                   </div>
 
                   <div className="overflow-x-auto">
@@ -2195,17 +2201,8 @@ export default function TestsAdmin() {
                       <table className="w-full border border-gray-300 rounded-md overflow-hidden">
                       <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              <div className="flex flex-col items-start gap-1">
-                                <span>Select</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSelectAllAssignedShown(filteredAssignedCandidates)}
-                                  className="text-xs text-blue-600 hover:text-blue-800"
-                                >
-                                  {selectAllAssignedShown ? 'Deselect All Shown' : 'Select All Shown'}
-                                </button>
-                              </div>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Select
                             </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Name
@@ -2424,8 +2421,8 @@ export default function TestsAdmin() {
                   }`}
                 >
                   {availableDeadlineDate 
-                    ? `Assign Test with Deadline to Selected Candidates (${manageCandidatesSelection.length})`
-                    : `Assign Test to Selected Candidates (${manageCandidatesSelection.length})`
+                    ? `Send Test with Deadline to Selected Candidates (${manageCandidatesSelection.length})`
+                    : `Send Test to Selected Candidates (${manageCandidatesSelection.length})`
                   }
                 </button>
               </div>
@@ -2509,8 +2506,15 @@ export default function TestsAdmin() {
                     </p>
                   </div>
 
-                  <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600 rounded-t-md">
-                    {filteredAvailableCandidates.length} candidates shown
+                  <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600 rounded-t-md flex flex-col gap-1">
+                    <span>{filteredAvailableCandidates.length} candidates shown</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAllAvailableShown(filteredAvailableCandidates)}
+                      className="text-xs text-blue-600 hover:text-blue-800 text-left"
+                    >
+                      {selectAllAvailableShown ? 'Deselect All Shown' : 'Select All Shown'}
+                    </button>
                   </div>
 
                   <div className="overflow-x-auto overflow-y-auto max-h-96">
@@ -2519,16 +2523,7 @@ export default function TestsAdmin() {
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              <div className="flex flex-col items-start gap-1">
-                                <span>Select</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSelectAllAvailableShown(filteredAvailableCandidates)}
-                                  className="text-xs text-blue-600 hover:text-blue-800"
-                                >
-                                  {selectAllAvailableShown ? 'Deselect All Shown' : 'Select All Shown'}
-                                </button>
-                              </div>
+                              Select
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Name
