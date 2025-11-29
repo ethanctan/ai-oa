@@ -693,39 +693,62 @@ def upload_project_to_github(instance_id, file_storage):
                 # Git operations: add, commit, push
                 original_cwd = os.getcwd()
                 os.chdir(clone_dir_path)
+                diff_text = ""
+                commit_created = False
+                parent_commit_available = False
                 try:
                     exec_command("git config user.name \"Automated Uploader\"")
                     exec_command("git config user.email \"uploader@example.com\"") # Placeholder because git requires an uploader email
                     exec_command("git add . --sparse")
-                    commit_message = f"Upload project submission for candidate {candidate_name} (ID: {candidate_id}), Instance: {instance_id}"
-                    exec_command(f'git commit -m "{commit_message}"' )
-                    diff_output = exec_command("git diff HEAD^")
-                    diff_text = diff_output if isinstance(diff_output, str) else str(diff_output)
-                    
-                    # Determine current branch
-                    current_branch = exec_command("git rev-parse --abbrev-ref HEAD").strip()
-                    
-                    # Use x-access-token URL for pushes when token is available
-                    if target_repo_token:
-                        push_url = target_repo_url
-                        if push_url.startswith('https://'):
-                            push_url = f"https://x-access-token:{target_repo_token}@{push_url[8:]}"
-                        else:
-                            push_url = f"https://x-access-token:{target_repo_token}@{push_url}"
-                        exec_command(f"git push {push_url} {current_branch}")
+                    status_output = exec_command("git status --short")
+                    has_changes = bool(status_output.strip())
+
+                    if not has_changes:
+                        print("No git changes detected; skipping commit and push.")
+                        diff_text = "No diff – workspace matches template state."
                     else:
-                        exec_command(f"git push origin {current_branch}")
-                    print(f"Successfully pushed changes to {target_repo_url} on branch {current_branch}")
+                        commit_message = f"Upload project submission for candidate {candidate_name} (ID: {candidate_id}), Instance: {instance_id}"
+                        exec_command(f'git commit -m "{commit_message}"' )
+                        commit_created = True
+
+                        try:
+                            exec_command("git rev-parse --verify HEAD^")
+                            parent_commit_available = True
+                        except Exception:
+                            parent_commit_available = False
+
+                        diff_command = "git diff HEAD^ HEAD" if parent_commit_available else "git show HEAD"
+                        diff_output = exec_command(diff_command)
+                        diff_text = diff_output if isinstance(diff_output, str) else str(diff_output)
+
+                        # Determine current branch
+                        current_branch = exec_command("git rev-parse --abbrev-ref HEAD").strip()
+                        
+                        # Use x-access-token URL for pushes when token is available
+                        if target_repo_token:
+                            push_url = target_repo_url
+                            if push_url.startswith('https://'):
+                                push_url = f"https://x-access-token:{target_repo_token}@{push_url[8:]}"
+                            else:
+                                push_url = f"https://x-access-token:{target_repo_token}@{push_url}"
+                            exec_command(f"git push {push_url} {current_branch}")
+                        else:
+                            exec_command(f"git push origin {current_branch}")
+                        print(f"Successfully pushed changes to {target_repo_url} on branch {current_branch}")
+
+                    if not diff_text:
+                        # Create an explicit empty diff so downstream consumers know there were no changes
+                        diff_text = "No diff – workspace matches template state."
                 except Exception as e:
                     # Attempt to reset if commit/push fails to avoid leaving repo in bad state
-                    # Check if there are any commits to reset before attempting
-                    try:
-                        # Check if HEAD^ exists. If `git rev-parse HEAD^` fails, there is no parent commit.
-                        exec_command("git rev-parse --verify HEAD^") 
-                        exec_command("git reset --hard HEAD^") # Revert last commit if push failed and parent exists
-                        print("Git state reset to HEAD^ after push failure.")
-                    except Exception as reset_e:
-                        print(f"Could not reset git state after push failure (or no parent commit to reset to): {reset_e}")
+                    if commit_created and parent_commit_available:
+                        try:
+                            exec_command("git reset --hard HEAD^") # Revert last commit if push failed and parent exists
+                            print("Git state reset to HEAD^ after push failure.")
+                        except Exception as reset_e:
+                            print(f"Could not reset git state after push failure: {reset_e}")
+                    else:
+                        print("Skipping git reset because no commit was created or no parent commit is available.")
                     raise Exception(f"Git operations failed: {str(e)}")
                 finally:
                     os.chdir(original_cwd) # Important to change back CWD
