@@ -82,6 +82,7 @@ export default function TestsAdmin() {
   const [newTestSubmitting, setNewTestSubmitting] = useState(false);
   const [newTestStatus, setNewTestStatus] = useState(null);
   const [assignSending, setAssignSending] = useState(false);
+  const [testsPageStatus, setTestsPageStatus] = useState(null);
 
   // Use ref to track modal state for polling without causing re-renders
   const isAnyModalOpenRef = useRef(false);
@@ -1182,6 +1183,42 @@ export default function TestsAdmin() {
           Create New Test
         </button>
       </div>
+
+      {testsPageStatus && (
+        <div
+          className={`mb-6 p-4 rounded-lg border ${
+            testsPageStatus.type === 'success'
+              ? 'bg-green-50 border-green-200 text-green-900'
+              : 'bg-red-50 border-red-200 text-red-900'
+          }`}
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="font-medium">{testsPageStatus.message}</p>
+              {testsPageStatus.description && (
+                <p className="text-sm mt-1">{testsPageStatus.description}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setTestsPageStatus(null)}
+              className="text-sm font-semibold"
+            >
+              ✕
+            </button>
+          </div>
+          {testsPageStatus.successList?.length > 0 && (
+            <div className="mt-3">
+              <p className="text-sm font-medium text-green-800">Emails sent to:</p>
+              <ul className="text-sm text-green-800 ml-4 list-disc">
+                {testsPageStatus.successList.map((result, index) => (
+                  <li key={index}>{result.candidate_email}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
       <div className="mb-6">
         <div className="relative max-w-sm">
           <input
@@ -1299,27 +1336,6 @@ export default function TestsAdmin() {
               </button>
             </div>
 
-            {newTestStatus && (
-              <div
-                className={`mb-6 p-4 rounded-lg border ${
-                  newTestStatus.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-800'
-                    : 'bg-red-50 border-red-200 text-red-800'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <p className="text-sm font-medium">{newTestStatus.message}</p>
-                  <button
-                    type="button"
-                    onClick={() => setNewTestStatus(null)}
-                    className="text-xs font-semibold"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            )}
-
             <Form 
               method="post" 
               className="space-y-6"
@@ -1420,34 +1436,38 @@ export default function TestsAdmin() {
                   }
 
                   const newTestId = result?.id;
+                  let inviteResultData = null;
                   if (newTestId && newTestSelectedCandidates.length > 0) {
                     try {
-                      const inviteResult = await sendInvitations({
+                      inviteResultData = await sendInvitations({
                         testId: newTestId,
                         candidateIds: newTestSelectedCandidates,
                         deadline: null
                       });
-                      if (inviteResult) {
-                        setNewTestStatus({
-                          type: 'success',
-                          message: inviteResult.message || `Sent ${inviteResult.results?.success?.length ?? newTestSelectedCandidates.length} invitation(s).`
-                        });
-                      }
                     } catch (inviteError) {
                       setNewTestStatus({
                         type: 'error',
                         message: `Test created, but failed to send invitations: ${inviteError.message}`
                       });
+                      setNewTestSubmitting(false);
+                      return;
                     }
-                  } else {
-                    setNewTestStatus({
-                      type: 'success',
-                      message: 'Test created successfully.'
-                    });
                   }
+
+                  const successList = inviteResultData?.results?.success || [];
+                  setTestsPageStatus({
+                    type: 'success',
+                    message: `Test "${payload.instanceName || 'Untitled'}" created successfully.`,
+                    description: successList.length
+                      ? (inviteResultData?.message || `Sent invitations to ${successList.length} candidate(s).`)
+                      : 'No candidates were emailed as part of this action.',
+                    successList
+                  });
 
                   console.log('Test created successfully:', result);
 
+                  setShowNewTestForm(false);
+                  setNewTestStatus(null);
                   setNewTestSelectedCandidates([]);
                   setProjectHelperEnabled(false);
                   
@@ -2089,6 +2109,21 @@ export default function TestsAdmin() {
                 </div>
               </div>
 
+              {newTestStatus && newTestStatus.type === 'error' && (
+                <div className="mt-6 p-4 rounded-lg bg-red-50 border border-red-200 text-red-800">
+                  <div className="flex items-start justify-between">
+                    <p className="text-sm font-medium">{newTestStatus.message}</p>
+                    <button
+                      type="button"
+                      onClick={() => setNewTestStatus(null)}
+                      className="text-xs font-semibold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end pt-6 space-x-4 border-t border-gray-200">
                 <button
                   type="button"
@@ -2136,46 +2171,6 @@ export default function TestsAdmin() {
               </button>
             </div>
             
-            {/* Email Results Display */}
-            {emailResults && (
-              <div
-                className={`mb-6 p-4 rounded-lg border ${
-                  emailResults.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-900'
-                    : 'bg-red-50 border-red-200 text-red-900'
-                }`}
-              >
-                <h4 className="font-medium mb-2">Email Invitation Results</h4>
-                <p className="mb-2">{emailResults.message}</p>
-                {emailResults.successList?.length > 0 && (
-                  <div className="mb-2">
-                    <p className="text-sm font-medium text-green-700">Successfully sent to:</p>
-                    <ul className="text-sm text-green-700 ml-4">
-                      {emailResults.successList.map((result, index) => (
-                        <li key={index}>• {result.candidate_name} ({result.candidate_email})</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {emailResults.errorList?.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-red-700">Failed to send to:</p>
-                    <ul className="text-sm text-red-700 ml-4">
-                      {emailResults.errorList.map((error, index) => (
-                        <li key={index}>• Candidate ID {error.candidate_id}: {error.error}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <button
-                  onClick={() => setEmailResults(null)}
-                  className="mt-2 px-3 py-1 text-sm font-medium bg-transparent border border-transparent rounded-md"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-
             {/* Deadline Update Results Display */}
             {deadlineUpdateResult && (
               <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200">
@@ -2498,6 +2493,43 @@ export default function TestsAdmin() {
                   }
                 </button>
               </div>
+              {emailResults && (
+                <div
+                  className={`mb-4 p-4 rounded-lg border ${
+                    emailResults.type === 'success'
+                      ? 'bg-green-50 border-green-200 text-green-900'
+                      : 'bg-red-50 border-red-200 text-red-900'
+                  }`}
+                >
+                  <p className="font-medium mb-2">{emailResults.message}</p>
+                  {emailResults.successList?.length > 0 && (
+                    <div className="mb-2">
+                      <p className="text-sm font-medium text-green-700">Successfully sent to:</p>
+                      <ul className="text-sm text-green-700 ml-4">
+                        {emailResults.successList.map((result, index) => (
+                          <li key={index}>• {result.candidate_name} ({result.candidate_email})</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {emailResults.errorList?.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-red-700">Failed to send to:</p>
+                      <ul className="text-sm text-red-700 ml-4">
+                        {emailResults.errorList.map((error, index) => (
+                          <li key={index}>• Candidate ID {error.candidate_id}: {error.error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setEmailResults(null)}
+                    className="mt-2 px-3 py-1 text-sm font-medium bg-transparent border border-transparent rounded-md"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
               {testCandidates.available.length > 0 ? (
                 <div className="space-y-4">
 
