@@ -839,12 +839,19 @@ def create_docker_container(instance_id, test_id, candidate_id, company_id):
                 'SERVER_URL': 'https://ai-oa-production.up.railway.app' 
             }
             
-            # Add GitHub repo info if available
+            # Add GitHub pull repo info if available
             if test.get('github_repo'):
                 env_vars['GITHUB_REPO'] = test['github_repo']
                 if test.get('github_token'):
                     env_vars['GITHUB_TOKEN'] = test['github_token']
             
+            # Add GitHub target repo info if available
+            if test.get('target_github_repo'):
+                env_vars['TARGET_GITHUB_REPO'] = test['target_github_repo']
+                if test.get('target_github_token'):
+                    env_vars['TARGET_GITHUB_TOKEN'] = test['target_github_token']
+                env_vars['SUBMISSION_DIR'] = f"submission_candidate_{candidate_id}_instance_{instance_id}"
+
             # Add test prompts and timer configuration for the extension
             if test.get('initial_prompt'):
                 env_vars['INITIAL_PROMPT'] = test['initial_prompt']
