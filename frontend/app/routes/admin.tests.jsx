@@ -546,23 +546,23 @@ export default function TestsAdmin() {
   // Update handleSendToSelected to use midnight EST
   const handleSendToSelected = async () => {
     if (assignSending) return;
-    const selectedAvailable = testCandidates.available.filter(c => manageCandidatesSelection.includes(c.id));
-
-    if (selectedAvailable.length === 0) {
-      setError('Please select at least one candidate');
-      return;
-    }
-
-    const date = availableDeadlineDate;
-    let deadline = null;
-    
-    if (date) {
-      deadline = getMidnightEST(date);
-      if (new Date(deadline) < new Date()) {
-        setError('The midnight EST deadline for the selected date has already passed. Please choose a future date.');
+      const selectedAvailable = testCandidates.available.filter(c => manageCandidatesSelection.includes(c.id));
+      
+      if (selectedAvailable.length === 0) {
+        setError('Please select at least one candidate');
         return;
       }
-    }
+
+      const date = availableDeadlineDate;
+      let deadline = null;
+      
+      if (date) {
+        deadline = getMidnightEST(date);
+        if (new Date(deadline) < new Date()) {
+          setError('The midnight EST deadline for the selected date has already passed. Please choose a future date.');
+          return;
+        }
+      }
 
     setAssignSending(true);
     setError(null);
@@ -1663,9 +1663,9 @@ export default function TestsAdmin() {
 
               {/* Target GitHub Repo URL */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700">
                   Submission GitHub Repo URL (Submissions will be uploaded here) <span className="text-red-500">*</span>
-                </label>
+                  </label>
                 <input 
                   type="text" 
                   name="targetGithubRepo" 
@@ -1678,9 +1678,9 @@ export default function TestsAdmin() {
 
               {/* Target GitHub Token */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+                   <label className="block text-sm font-medium text-gray-700">
                   Target GitHub Token (for Upload) <span className="text-red-500">*</span> <span className="text-red-500">(Code write access required)</span>
-                </label>
+                  </label>
                 <input 
                   type="text" 
                   name="targetGithubToken" 
@@ -2035,24 +2035,22 @@ export default function TestsAdmin() {
                 </div>
 
                 <div className="border border-gray-300 rounded-md overflow-hidden">
-                <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600">
-                  {filteredNewTestCandidates.length} candidates shown
-                </div>
+                <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600 flex flex-col gap-1">
+                  <span>{filteredNewTestCandidates.length} candidates shown</span>
+                    <button
+                    type="button"
+                    onClick={() => handleSelectAllShown(filteredNewTestCandidates)}
+                    className="text-xs text-blue-600 hover:text-blue-800 text-left"
+                    >
+                      {selectAllShown ? 'Deselect All Shown' : 'Select All Shown'}
+                    </button>
+                  </div>
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <div className="flex flex-col items-start gap-1">
-                          <span>Select</span>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectAllShown(filteredNewTestCandidates)}
-                            className="text-xs text-blue-600 hover:text-blue-800"
-                          >
-                            {selectAllShown ? 'Deselect All Shown' : 'Select All Shown'}
-                          </button>
-                        </div>
-                      </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Select
+                        </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Name
                         </th>
@@ -2146,7 +2144,7 @@ export default function TestsAdmin() {
                     ? 'Sending...'
                     : newTestSelectedCandidates.length > 0 
                       ? `Create & Send Test to ${newTestSelectedCandidates.length} Candidates` 
-                      : "Create Test"}
+                    : "Create Test"}
                 </button>
               </div>
             </Form>
@@ -2170,7 +2168,7 @@ export default function TestsAdmin() {
                 &times;
               </button>
             </div>
-            
+
             {/* Deadline Update Results Display */}
             {deadlineUpdateResult && (
               <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200">
@@ -2219,8 +2217,8 @@ export default function TestsAdmin() {
             {/* Assigned Candidates Section */}
             <div className="mb-8">
       <div className="mb-2">
-        <h4 className="font-medium text-lg">Assigned Candidates</h4>
-      </div>
+                <h4 className="font-medium text-lg">Assigned Candidates</h4>
+              </div>
               {testCandidates.assigned && testCandidates.assigned.length > 0 ? (
                 <div className="space-y-4">
                   {/* Tag Filter Section for Assigned Candidates */}
@@ -2266,8 +2264,8 @@ export default function TestsAdmin() {
                       <table className="w-full border border-gray-300 rounded-md overflow-hidden">
                       <thead className="bg-gray-50">
                         <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Select
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Select
                             </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Name
@@ -2434,27 +2432,27 @@ export default function TestsAdmin() {
                                         : 'No deadline set'}
                                     </span>
                                     {deadlineEditable ? (
-                                      <button
-                                        onClick={() => {
-                                          setEditingDeadline(candidate.id);
-                                          if (candidate.deadline) {
-                                            const date = new Date(candidate.deadline);
-                                            setAssignedDeadlineDate({ 
-                                              ...assignedDeadlineDate, 
-                                              [candidate.id]: date.toISOString().split('T')[0] 
-                                            });
-                                          } else {
-                                            // Initialize with empty string for no deadline
-                                            setAssignedDeadlineDate({ 
-                                              ...assignedDeadlineDate, 
-                                              [candidate.id]: '' 
-                                            });
-                                          }
-                                        }}
-                                        className="inline-flex items-center px-2 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                      >
-                                        {candidate.deadline ? 'Edit' : 'Set Deadline'}
-                                      </button>
+                                    <button
+                                      onClick={() => {
+                                        setEditingDeadline(candidate.id);
+                                        if (candidate.deadline) {
+                                          const date = new Date(candidate.deadline);
+                                          setAssignedDeadlineDate({ 
+                                            ...assignedDeadlineDate, 
+                                            [candidate.id]: date.toISOString().split('T')[0] 
+                                          });
+                                        } else {
+                                          // Initialize with empty string for no deadline
+                                          setAssignedDeadlineDate({ 
+                                            ...assignedDeadlineDate, 
+                                            [candidate.id]: '' 
+                                          });
+                                        }
+                                      }}
+                                      className="inline-flex items-center px-2 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                    >
+                                      {candidate.deadline ? 'Edit' : 'Set Deadline'}
+                                    </button>
                                     ) : null}
                                   </div>
                                 )}
@@ -2603,7 +2601,7 @@ export default function TestsAdmin() {
                         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z" />
                         </svg>
-                      </span>
+                    </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
                       Examples: <code>name:"john doe"</code>, <code>email:"jane@company.com"</code>, <code>tag:"rust engineer"</code>
