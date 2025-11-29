@@ -2035,23 +2035,21 @@ export default function TestsAdmin() {
                 </div>
 
                 <div className="border border-gray-300 rounded-md overflow-hidden">
-                <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600">
-                  {filteredNewTestCandidates.length} candidates shown
+                <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600 flex flex-col gap-1">
+                  <span>{filteredNewTestCandidates.length} candidates shown</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAllShown(filteredNewTestCandidates)}
+                    className="text-xs text-blue-600 hover:text-blue-800 text-left"
+                  >
+                    {selectAllShown ? 'Deselect All Shown' : 'Select All Shown'}
+                  </button>
                 </div>
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <div className="flex flex-col items-start gap-1">
-                          <span>Select</span>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectAllShown(filteredNewTestCandidates)}
-                            className="text-xs text-blue-600 hover:text-blue-800"
-                          >
-                            {selectAllShown ? 'Deselect All Shown' : 'Select All Shown'}
-                          </button>
-                        </div>
+                        Select
                       </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Name

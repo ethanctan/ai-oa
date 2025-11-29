@@ -54,45 +54,50 @@ clone_repo_with_auth() {
     fi
 }
 
-# Function to clone target repository to temp directory
-clone_target_repo_to_temp() {
-    local temp_dir="$1"
+# Function to clone target repository if needed
+clone_target_repo_if_needed() {
     if [ -n "$TARGET_GITHUB_REPO" ]; then
         echo "Found TARGET_GITHUB_REPO: $TARGET_GITHUB_REPO"
-        echo "Cloning target repository to temp directory..."
         
-        cd /tmp
-        if clone_repo_with_auth "$TARGET_GITHUB_REPO" "$TARGET_GITHUB_TOKEN" "$temp_dir" "true"; then
-            echo "Successfully cloned target repository to temp directory"
-            sudo chown -R coder:coder "$temp_dir"
-            return 0
+        # Only clone if project directory is empty
+        if [ ! "$(ls -A /home/coder/project 2>/dev/null)" ]; then
+            echo "Project directory is empty, cloning target repository..."
+            
+            cd /home/coder
+            if clone_repo_with_auth "$TARGET_GITHUB_REPO" "$TARGET_GITHUB_TOKEN" temp_repo "true"; then
+                sudo mv temp_repo/* /home/coder/project/ 2>/dev/null || true
+                sudo mv temp_repo/.* /home/coder/project/ 2>/dev/null || true
+                rm -rf temp_repo
+            else
+                echo "⚠️ Target repository clone failed, continuing anyway..."
+            fi
+            
+            # Ensure correct ownership
+            sudo chown -R coder:coder /home/coder/project
         else
-            echo "⚠️ Target repository clone failed"
-            return 1
+            echo "Project directory not empty, skipping target repo clone"
         fi
     else
         echo "ℹ️ No TARGET_GITHUB_REPO specified, skipping target repo clone"
-        return 1
     fi
 }
 
-# Function to commit and push submission directory to target repo from temp directory
+# Function to commit and push submission directory to target repo
 commit_and_push_submission_dir() {
-    local temp_dir="$1"
-    if [ -n "$TARGET_GITHUB_REPO" ] && [ -d "$temp_dir/.git" ]; then
+    if [ -n "$TARGET_GITHUB_REPO" ] && [ -d "/home/coder/project/.git" ]; then
         local submission_dir="${SUBMISSION_DIR:-submission}"
-        local submission_path="$temp_dir/$submission_dir"
+        local submission_path="/home/coder/project/$submission_dir"
         
         # Only proceed if submission directory exists and has content
         if [ -d "$submission_path" ] && [ "$(ls -A "$submission_path" 2>/dev/null)" ]; then
-            echo "Committing and pushing $submission_dir to target repository from temp directory..."
+            echo "Committing and pushing $submission_dir to target repository..."
             
             # Prepare commit message
             local commit_message="Upload project template"
             
             # Run git commands as coder user
             sudo -u coder bash <<EOF
-cd "$temp_dir"
+cd /home/coder/project
 
 # Configure git user if not already configured
 if [ -z "\$(git config user.name)" ]; then
@@ -142,120 +147,67 @@ EOF
     fi
 }
 
-# Function to clone template repository into temp directory's submission subdirectory
+# Function to clone template repository into subdirectory if needed
 # This copies the contents (excluding .git) so they can be committed to TARGET_GITHUB_REPO
-clone_template_repo_to_temp() {
-    local temp_dir="$1"
+clone_template_repo_if_needed() {
     if [ -n "$GITHUB_REPO" ]; then
         echo "Found GITHUB_REPO: $GITHUB_REPO"
         
         # Determine submission directory name
         local submission_dir="${SUBMISSION_DIR:-submission}"
-        local submission_path="$temp_dir/$submission_dir"
+        local submission_path="/home/coder/project/$submission_dir"
         
-        echo "Cloning template repository contents into $submission_path..."
-        
-        # Ensure parent directory exists
-        sudo mkdir -p "$submission_path"
-        sudo chown coder:coder "$submission_path"
-        
-        cd /tmp
-        if clone_repo_with_auth "$GITHUB_REPO" "$GITHUB_TOKEN" temp_template_repo "false"; then
-            # Copy contents excluding .git directory so files can be committed to TARGET_GITHUB_REPO
-            # Use rsync if available (preferred), otherwise use cp with explicit exclusion
-            if command -v rsync >/dev/null 2>&1; then
-                sudo rsync -a --exclude='.git' temp_template_repo/ "$submission_path/"
+        # Only clone if submission directory doesn't exist or is empty
+        if [ ! -d "$submission_path" ] || [ ! "$(ls -A "$submission_path" 2>/dev/null)" ]; then
+            echo "Cloning template repository contents into $submission_path..."
+            
+            # Ensure parent directory exists
+            sudo mkdir -p "$submission_path"
+            sudo chown coder:coder "$submission_path"
+            
+            cd /home/coder
+            if clone_repo_with_auth "$GITHUB_REPO" "$GITHUB_TOKEN" temp_submission "false"; then
+                # Copy contents excluding .git directory so files can be committed to TARGET_GITHUB_REPO
+                # Use rsync if available (preferred), otherwise use cp with explicit exclusion
+                if command -v rsync >/dev/null 2>&1; then
+                    sudo rsync -a --exclude='.git' temp_submission/ "$submission_path/"
+                else
+                    # Fallback: use shopt to handle hidden files and copy everything except .git
+                    (
+                        cd temp_submission
+                        shopt -s dotglob nullglob
+                        for item in *; do
+                            if [ "$item" != ".git" ]; then
+                                sudo cp -r "$item" "$submission_path/"
+                            fi
+                        done
+                    )
+                fi
+                
+                # Clean up temp directory
+                rm -rf temp_submission
+                
+                # Ensure correct ownership
+                sudo chown -R coder:coder "$submission_path"
+                echo "Successfully copied template repository contents into $submission_dir (ready to commit to target repo)"
+                
+                # Commit and push to target repository
+                commit_and_push_submission_dir || echo "⚠️ Failed to commit/push submission directory, continuing anyway..."
             else
-                # Fallback: use shopt to handle hidden files and copy everything except .git
-                (
-                    cd temp_template_repo
-                    shopt -s dotglob nullglob
-                    for item in *; do
-                        if [ "$item" != ".git" ]; then
-                            sudo cp -r "$item" "$submission_path/"
-                        fi
-                    done
-                )
+                echo "⚠️ Submission repository clone failed, continuing anyway..."
             fi
-            
-            # Clean up temp directory
-            rm -rf temp_template_repo
-            
-            # Ensure correct ownership
-            sudo chown -R coder:coder "$submission_path"
-            echo "Successfully copied template repository contents into $submission_dir (ready to commit to target repo)"
-            return 0
         else
-            echo "⚠️ Submission repository clone failed"
-            return 1
+            echo "Submission directory $submission_dir not empty, skipping clone"
         fi
     else
         echo "ℹ️ No GITHUB_REPO specified, skipping template repo clone"
-        return 1
     fi
 }
 
-# Function to copy submission directory contents from temp to project directory
-copy_submission_to_project() {
-    local temp_dir="$1"
-    local submission_dir="${SUBMISSION_DIR:-submission}"
-    local temp_submission_path="$temp_dir/$submission_dir"
-    local project_path="/home/coder/project"
-    
-    if [ -d "$temp_submission_path" ] && [ "$(ls -A "$temp_submission_path" 2>/dev/null)" ]; then
-        echo "Copying contents of $submission_dir from temp directory to /home/coder/project/..."
-        
-        # Ensure project directory exists
-        sudo mkdir -p "$project_path"
-        
-        # Copy contents directly into project directory (not into a subdirectory)
-        # Use rsync if available, otherwise use cp
-        if command -v rsync >/dev/null 2>&1; then
-            sudo rsync -a "$temp_submission_path/" "$project_path/"
-        else
-            # Fallback: use cp with shopt to handle hidden files
-            (
-                cd "$temp_submission_path"
-                shopt -s dotglob nullglob
-                for item in *; do
-                    sudo cp -r "$item" "$project_path/"
-                done
-            )
-        fi
-        
-        # Ensure correct ownership
-        sudo chown -R coder:coder "$project_path"
-        echo "Successfully copied $submission_dir contents to /home/coder/project/"
-    else
-        echo "ℹ️ Submission directory $submission_dir is empty or doesn't exist in temp directory, nothing to copy"
-    fi
-}
-
-# Main workflow: clone to temp directory, commit/push, then copy submission to project
-TEMP_WORK_DIR="/tmp/target_repo_work_$$"
-
-# Only proceed if project directory is empty
-if [ ! "$(ls -A /home/coder/project 2>/dev/null)" ]; then
-    # Clone target repository to temp directory
-    if clone_target_repo_to_temp "$TEMP_WORK_DIR"; then
-        # Clone template repository into temp directory's submission subdirectory
-        clone_template_repo_to_temp "$TEMP_WORK_DIR" || echo "⚠️ Template repo clone failed, continuing anyway..."
-        
-        # Commit and push from temp directory
-        commit_and_push_submission_dir "$TEMP_WORK_DIR" || echo "⚠️ Failed to commit/push, continuing anyway..."
-        
-        # Copy only submission directory contents to project directory
-        copy_submission_to_project "$TEMP_WORK_DIR"
-        
-        # Clean up temp directory
-        rm -rf "$TEMP_WORK_DIR"
-        echo "Cleaned up temp work directory"
-    else
-        echo "⚠️ Target repository clone failed, project directory will remain empty"
-    fi
-else
-    echo "Project directory not empty, skipping repository operations"
-fi
+# Clone repositories as root (for permissions)
+# First clone the target repo, then clone the submission repo into a subdirectory
+clone_target_repo_if_needed
+clone_template_repo_if_needed
 
 echo "Starting code-server on HTTP port 80..."
 
