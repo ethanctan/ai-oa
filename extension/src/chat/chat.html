@@ -605,8 +605,22 @@
       requestWorkspaceContext();
       setInterval(requestWorkspaceContext, 30000);
 
+      function buildCombinedWorkspaceContent(codebase, diff) {
+        let combined = '';
+        if (codebase) {
+          combined += `<codebase>\n${codebase}\n</codebase>`;
+        }
+        if (diff) {
+          combined += `${combined ? '\n' : ''}<codebase_diff>\n${diff}\n</codebase_diff>`;
+        }
+        return combined.trim();
+      }
+
       function extractWorkspaceContentFromResultPayload(resultPayload) {
         if (!resultPayload) return '';
+        if (typeof resultPayload.codebase === 'string' || typeof resultPayload.diff === 'string') {
+          return buildCombinedWorkspaceContent(resultPayload.codebase || '', resultPayload.diff || '');
+        }
         if (typeof resultPayload.workspaceContent === 'string') return resultPayload.workspaceContent;
         if (typeof resultPayload === 'string') return resultPayload;
         if (typeof resultPayload.content === 'string') return resultPayload.content;

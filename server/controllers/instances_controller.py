@@ -724,7 +724,15 @@ def upload_project_to_github(instance_id, file_storage):
 
         conn.commit()
 
-        return {"success": True, "message": f"<codebase>\n{codebase}\n</codebase>,\n <codebase_diff>\n{diff}\n</codebase_diff>"}
+        combined_workspace = f"<codebase>\n{codebase}\n</codebase>\n<codebase_diff>\n{diff}\n</codebase_diff>"
+
+        return {
+            "success": True,
+            "message": f"Project for candidate {candidate_id} uploaded successfully to {target_repo_url}/{submission_dir_name}",
+            "codebase": codebase,
+            "diff": diff,
+            "workspaceContent": combined_workspace
+        }
 
     except ValueError as ve:
         print(f'ValueError in upload_project_to_github: {str(ve)}')
@@ -1132,7 +1140,7 @@ def get_report(instance_id):
     finally:
         conn.close()
 
-def create_report(instance_id, workspace_content):
+def create_report(instance_id, workspace_content, workspace_diff=None):
     """
     Create a new report for a test instance
     
@@ -1239,6 +1247,9 @@ def create_report(instance_id, workspace_content):
         )
         report_instructions += "- Code Summary, based on the content of <input_codebase>\n"
         input_data += "<input_codebase>\n" + workspace_content + "\n</input_codebase>\n"
+        if workspace_diff:
+            report_instructions += "- Change Summary, based on <input_code_diff>\n"
+            input_data += "<input_code_diff>\n" + workspace_diff + "\n</input_code_diff>\n"
         
         if test_data['initial_prompt'] or test_data['final_prompt']:
             chat_history_list = get_chat_history(instance_id)

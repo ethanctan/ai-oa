@@ -193,25 +193,64 @@ function buildSystemPrompt(basePrompt, controlPrompt) {
   return `${sanitizedBase}\n\n${sanitizedControl}`.trim();
 }
 
+function buildCombinedWorkspaceContent(codebase, diff) {
+  let combined = '';
+  if (codebase) {
+    combined += `<codebase>\n${codebase}\n</codebase>`;
+  }
+  if (diff) {
+    combined += `${combined ? '\n' : ''}<codebase_diff>\n${diff}\n</codebase_diff>`;
+  }
+  return combined.trim();
+}
+
+function getStringValue(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  return '';
+}
+
+function getCodebaseFromUpload(payload) {
+  if (!payload) return '';
+  if (typeof payload === 'string') return payload;
+  if (typeof payload.codebase === 'string') return payload.codebase;
+  if (typeof payload.code2prompt === 'string') return payload.code2prompt;
+  if (typeof payload.workspaceContent === 'string') {
+    const match = payload.workspaceContent.match(/<codebase>\s*([\s\S]*?)\s*<\/codebase>/i);
+    if (match) return match[1];
+    return payload.workspaceContent;
+  }
+  if (typeof payload.content === 'string') return payload.content;
+  if (payload.data !== undefined) return getCodebaseFromUpload(payload.data);
+  if (payload.uploadResponse !== undefined) return getCodebaseFromUpload(payload.uploadResponse);
+  return '';
+}
+
+function getDiffFromUpload(payload) {
+  if (!payload) return '';
+  if (typeof payload.diff === 'string') return payload.diff;
+  if (typeof payload.workspaceContent === 'string') {
+    const match = payload.workspaceContent.match(/<codebase_diff>\s*([\s\S]*?)\s*<\/codebase_diff>/i);
+    if (match) return match[1];
+  }
+  if (payload.data !== undefined) return getDiffFromUpload(payload.data);
+  if (payload.uploadResponse !== undefined) return getDiffFromUpload(payload.uploadResponse);
+  return '';
+}
+
 function extractWorkspaceContentFromUpload(payload) {
   if (payload === null || payload === undefined) {
     return '';
   }
 
+  const codebase = getCodebaseFromUpload(payload);
+  const diff = getDiffFromUpload(payload);
+  if (codebase || diff) {
+    return buildCombinedWorkspaceContent(codebase, diff);
+  }
+
   if (typeof payload === 'string') {
     return payload;
-  }
-
-  if (typeof payload.workspaceContent === 'string') {
-    return payload.workspaceContent;
-  }
-
-  if (typeof payload.content === 'string') {
-    return payload.content;
-  }
-
-  if (typeof payload.code2prompt === 'string') {
-    return payload.code2prompt;
   }
 
   if (payload.data !== undefined) {
@@ -223,6 +262,10 @@ function extractWorkspaceContentFromUpload(payload) {
   }
 
   return '';
+}
+
+function extractWorkspaceDiffFromUpload(payload) {
+  return getDiffFromUpload(payload);
 }
 
 // Function to get environment variables 
@@ -1485,29 +1528,39 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
   // Get server URLs dynamically
   const { SERVER_URL } = getServerUrls();
 
-  // 1. Submit for report generation (existing functionality)
-  if (content) {
-    console.log(`Submitting for report, content size: ${content.length} chars`);
+  let reportWorkspaceContent = content || '';
+  let reportWorkspaceDiff = '';
+
+  async function submitReportPayload(contentValue, diffValue) {
+    if (!contentValue) {
+      console.warn('Report submission skipped: no workspace content available.');
+      return;
+    }
+
+    const reportBody = {
+      instanceId,
+      workspaceContent: contentValue,
+      timestamp: new Date().toISOString()
+    };
+    if (diffValue) {
+      reportBody.workspaceDiff = diffValue;
+    }
+
     try {
+      console.log(`Submitting for report, content size: ${contentValue.length} chars, diff size: ${diffValue.length} chars`);
       const reportResponse = await fetch(`${SERVER_URL}/instances/${instanceId}/report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instanceId,
-          workspaceContent: content,
-          timestamp: new Date().toISOString()
-        })
+        body: JSON.stringify(reportBody)
       });
       if (!reportResponse.ok) {
         console.error(`HTTP error submitting for report: ${reportResponse.status} - ${await reportResponse.text()}`);
-        // Don't throw here, attempt GitHub upload regardless
       } else {
         const reportData = await reportResponse.json();
         console.log(`Workspace content submitted for report successfully: ${JSON.stringify(reportData)}`);
       }
     } catch (error) {
       console.error(`Error submitting workspace content for report: ${error.message}`);
-      // Don't throw here, attempt GitHub upload regardless
     }
   }
 
@@ -1586,6 +1639,7 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
     }
 
     const workspaceContentFromUpload = extractWorkspaceContentFromUpload(githubUploadData);
+    const workspaceDiffFromUpload = extractWorkspaceDiffFromUpload(githubUploadData);
     const normalizedUploadResult = (githubUploadData && typeof githubUploadData === 'object' && !Array.isArray(githubUploadData))
       ? { ...githubUploadData }
       : {};
@@ -1603,6 +1657,13 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
       console.log(`Project uploaded to GitHub successfully with workspace payload length ${normalizedUploadResult.workspaceContent.length}.`);
     } else {
     console.log(`Project uploaded to GitHub successfully: ${JSON.stringify(githubUploadData)}`);
+    }
+
+    if (workspaceContentFromUpload) {
+      reportWorkspaceContent = workspaceContentFromUpload;
+    }
+    if (workspaceDiffFromUpload) {
+      reportWorkspaceDiff = workspaceDiffFromUpload;
     }
 
     // Persist phase marker: final_completed
@@ -1637,12 +1698,16 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
       }
     }
 
+    // After successful upload, submit for report generation using enriched content/diff
+    await submitReportPayload(reportWorkspaceContent, reportWorkspaceDiff);
+
     return normalizedUploadResult; // Contains success flag, workspace content, and original response
 
   } catch (error) {
     console.error(`Error during GitHub upload process: ${error.message}`);
     // Depending on requirements, you might re-throw or handle differently
     // For now, let's not make the whole submission fail if only GitHub upload fails
+    await submitReportPayload(reportWorkspaceContent, reportWorkspaceDiff);
     return { success: false, error: error.message }; 
   }
 }

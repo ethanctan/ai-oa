@@ -218,7 +218,8 @@ def instance_report(instance_id):
             if not data:
                 return jsonify({'error': 'Instance content is required to generate a report'}), 400
             workspace_content = data['workspaceContent']
-            report = create_report(instance_id, workspace_content)
+            workspace_diff = data.get('workspaceDiff')
+            report = create_report(instance_id, workspace_content, workspace_diff)
             return jsonify(report)
         except Exception as e:
             print(f'Error creating report: {str(e)}')
