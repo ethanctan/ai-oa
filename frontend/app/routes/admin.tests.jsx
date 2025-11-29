@@ -79,6 +79,9 @@ export default function TestsAdmin() {
   // Add state for email sending
   const [emailResults, setEmailResults] = useState(null);
   const [deadlineUpdateResult, setDeadlineUpdateResult] = useState(null);
+  const [newTestSubmitting, setNewTestSubmitting] = useState(false);
+  const [newTestStatus, setNewTestStatus] = useState(null);
+  const [assignSending, setAssignSending] = useState(false);
 
   // Use ref to track modal state for polling without causing re-renders
   const isAnyModalOpenRef = useRef(false);
@@ -353,19 +356,9 @@ export default function TestsAdmin() {
   
   // Close modals when navigation state changes
   useEffect(() => {
-    // Improved navigation detection for test creation success
     if (navigation.state === "idle" && navigation.formMethod === "POST" && navigation.formAction === "/admin/tests") {
       console.log("Test creation completed, refreshing data");
-      setShowNewTestForm(false);
-      setNewTestSelectedCandidates([]);
-      
-      // Immediately refresh the tests list
       fetchTests();
-      
-      // Show success message
-      setTimeout(() => {
-        alert("Test created successfully! Use 'Try Test' to test it or 'Manage Candidates' to send it to candidates.");
-      }, 100);
     }
   }, [navigation.state, navigation.formMethod, navigation.formAction]);
   
@@ -380,6 +373,8 @@ export default function TestsAdmin() {
     }
     
     setProjectHelperEnabled(false);
+    setNewTestStatus(null);
+    setNewTestSubmitting(false);
     setShowNewTestForm(true);
   };
 
@@ -475,6 +470,7 @@ export default function TestsAdmin() {
     setEmailResults(null);
     setDeadlineUpdateResult(null);
     setError(null);
+    setAssignSending(false);
     // Reset tag filter states
     setSelectedAssignedTags([]);
     setSelectedAvailableTags([]);
@@ -548,34 +544,37 @@ export default function TestsAdmin() {
 
   // Update handleSendToSelected to use midnight EST
   const handleSendToSelected = async () => {
-    try {
-      const selectedAvailable = testCandidates.available.filter(c => manageCandidatesSelection.includes(c.id));
-      
-      if (selectedAvailable.length === 0) {
-        setError('Please select at least one candidate');
+    if (assignSending) return;
+    const selectedAvailable = testCandidates.available.filter(c => manageCandidatesSelection.includes(c.id));
+
+    if (selectedAvailable.length === 0) {
+      setError('Please select at least one candidate');
+      return;
+    }
+
+    const date = availableDeadlineDate;
+    let deadline = null;
+    
+    if (date) {
+      deadline = getMidnightEST(date);
+      if (new Date(deadline) < new Date()) {
+        setError('The midnight EST deadline for the selected date has already passed. Please choose a future date.');
         return;
       }
+    }
 
-      const date = availableDeadlineDate;
-      let deadline = null;
-      
-      // Only validate deadline if one is provided
-      if (date) {
-        deadline = getMidnightEST(date);
-        if (new Date(deadline) < new Date()) {
-          setError('The midnight EST deadline for the selected date has already passed. Please choose a future date.');
-          return;
-        }
-      }
+    setAssignSending(true);
+    setError(null);
+    setEmailResults(null);
 
-      // Assign each selected candidate with the deadline (or null if no deadline)
+    try {
       const assignments = await Promise.all(
         selectedAvailable.map(async candidate => {
           const response = await api.post(`/tests/${currentTestId}/candidates/${candidate.id}`, { deadline });
           if (!response.ok) {
             throw new Error(`Failed to send test to ${candidate.name}`);
           }
-          const result = await response.json();
+          await response.json();
           return {
             ...candidate,
             deadline,
@@ -584,16 +583,13 @@ export default function TestsAdmin() {
         })
       );
 
-      // Update the testCandidates state with the new assignments
       setTestCandidates(prev => ({
         assigned: [...prev.assigned, ...assignments],
         available: prev.available.filter(c => !manageCandidatesSelection.includes(c.id))
       }));
       
-      // Clear the selection and deadline
       setManageCandidatesSelection([]);
       setAvailableDeadlineDate('');
-      setError(null);
 
       try {
         const inviteResult = await sendInvitations({
@@ -602,16 +598,33 @@ export default function TestsAdmin() {
           deadline
         });
         if (inviteResult) {
-          setEmailResults(inviteResult);
+          setEmailResults({
+            type: 'success',
+            message: inviteResult.message || `Sent invitations to ${selectedAvailable.length} candidate(s).`,
+            successList: inviteResult.results?.success || [],
+            errorList: inviteResult.results?.errors || []
+          });
           setTimeout(fetchInstances, 1000);
         }
       } catch (inviteError) {
         console.error('Error sending invitations after assignment:', inviteError);
-        setError(inviteError.message || 'Failed to send invitation emails for the selected candidates.');
+        setEmailResults({
+          type: 'error',
+          message: inviteError.message || 'Failed to send invitation emails for the selected candidates.',
+          successList: [],
+          errorList: []
+        });
       }
     } catch (err) {
       console.error('Error assigning candidates:', err);
-      setError(err.message || 'Failed to assign candidates');
+      setEmailResults({
+        type: 'error',
+        message: err.message || 'Failed to send test to the selected candidates.',
+        successList: [],
+        errorList: []
+      });
+    } finally {
+      setAssignSending(false);
     }
   };
 
@@ -1277,6 +1290,8 @@ export default function TestsAdmin() {
                 onClick={() => {
                   setShowNewTestForm(false);
                   setProjectHelperEnabled(false);
+                  setNewTestStatus(null);
+                  setNewTestSubmitting(false);
                 }}
                 className="text-gray-500 hover:text-gray-700"
               >
@@ -1284,11 +1299,35 @@ export default function TestsAdmin() {
               </button>
             </div>
 
+            {newTestStatus && (
+              <div
+                className={`mb-6 p-4 rounded-lg border ${
+                  newTestStatus.type === 'success'
+                    ? 'bg-green-50 border-green-200 text-green-800'
+                    : 'bg-red-50 border-red-200 text-red-800'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <p className="text-sm font-medium">{newTestStatus.message}</p>
+                  <button
+                    type="button"
+                    onClick={() => setNewTestStatus(null)}
+                    className="text-xs font-semibold"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
+
             <Form 
               method="post" 
               className="space-y-6"
               onSubmit={async (event) => {
                 event.preventDefault(); // Prevent default browser submission
+                setNewTestStatus(null);
+                if (newTestSubmitting) return;
+                setNewTestSubmitting(true);
                 
                 try {
                   // Get the form data to extract timer configuration
@@ -1321,12 +1360,20 @@ export default function TestsAdmin() {
                   // Add optional fields based on toggles
                   payload.targetGithubRepo = (formData.get('targetGithubRepo') || '').trim();
                   if (!payload.targetGithubRepo) {
-                    alert('Target GitHub repo is required.');
+                    setNewTestStatus({
+                      type: 'error',
+                      message: 'Target GitHub repo is required.'
+                    });
+                    setNewTestSubmitting(false);
                     return;
                   }
                   payload.targetGithubToken = (formData.get('targetGithubToken') || '').trim();
                   if (!payload.targetGithubToken) {
-                    alert('Target GitHub token is required.');
+                    setNewTestStatus({
+                      type: 'error',
+                      message: 'Target GitHub token is required.'
+                    });
+                    setNewTestSubmitting(false);
                     return;
                   }
                   if (initialPromptEnabled) {
@@ -1381,19 +1428,26 @@ export default function TestsAdmin() {
                         deadline: null
                       });
                       if (inviteResult) {
-                        const successCount = inviteResult.results?.success?.length ?? newTestSelectedCandidates.length;
-                        const errorCount = inviteResult.results?.errors?.length ?? 0;
-                        alert(inviteResult.message || `Sent ${successCount} invitation(s)${errorCount ? ` (${errorCount} failed)` : ''}.`);
+                        setNewTestStatus({
+                          type: 'success',
+                          message: inviteResult.message || `Sent ${inviteResult.results?.success?.length ?? newTestSelectedCandidates.length} invitation(s).`
+                        });
                       }
                     } catch (inviteError) {
-                      alert(`Test created, but failed to send invitations: ${inviteError.message}`);
+                      setNewTestStatus({
+                        type: 'error',
+                        message: `Test created, but failed to send invitations: ${inviteError.message}`
+                      });
                     }
+                  } else {
+                    setNewTestStatus({
+                      type: 'success',
+                      message: 'Test created successfully.'
+                    });
                   }
 
                   console.log('Test created successfully:', result);
 
-                  // Close the modal and refresh
-                  setShowNewTestForm(false);
                   setNewTestSelectedCandidates([]);
                   setProjectHelperEnabled(false);
                   
@@ -1402,7 +1456,12 @@ export default function TestsAdmin() {
                   
                 } catch (error) {
                   console.error('Error creating test:', error);
-                  alert(`Failed to create test: ${error.message}`);
+                  setNewTestStatus({
+                    type: 'error',
+                    message: `Failed to create test: ${error.message}`
+                  });
+                } finally {
+                  setNewTestSubmitting(false);
                 }
               }}
             >
@@ -2036,6 +2095,8 @@ export default function TestsAdmin() {
                   onClick={() => {
                     setShowNewTestForm(false);
                     setProjectHelperEnabled(false);
+                    setNewTestStatus(null);
+                    setNewTestSubmitting(false);
                   }}
                   className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
@@ -2043,11 +2104,14 @@ export default function TestsAdmin() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  disabled={newTestSubmitting}
+                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {newTestSelectedCandidates.length > 0 
-                    ? `Create & Send Test to ${newTestSelectedCandidates.length} Candidates` 
-                    : "Create Test"}
+                  {newTestSubmitting
+                    ? 'Sending...'
+                    : newTestSelectedCandidates.length > 0 
+                      ? `Create & Send Test to ${newTestSelectedCandidates.length} Candidates` 
+                      : "Create Test"}
                 </button>
               </div>
             </Form>
@@ -2074,24 +2138,30 @@ export default function TestsAdmin() {
             
             {/* Email Results Display */}
             {emailResults && (
-              <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
-                <h4 className="font-medium text-blue-900 mb-2">Email Invitation Results</h4>
-                <p className="text-blue-800 mb-2">{emailResults.message}</p>
-                {emailResults.results.success.length > 0 && (
+              <div
+                className={`mb-6 p-4 rounded-lg border ${
+                  emailResults.type === 'success'
+                    ? 'bg-green-50 border-green-200 text-green-900'
+                    : 'bg-red-50 border-red-200 text-red-900'
+                }`}
+              >
+                <h4 className="font-medium mb-2">Email Invitation Results</h4>
+                <p className="mb-2">{emailResults.message}</p>
+                {emailResults.successList?.length > 0 && (
                   <div className="mb-2">
                     <p className="text-sm font-medium text-green-700">Successfully sent to:</p>
-                    <ul className="text-sm text-green-600 ml-4">
-                      {emailResults.results.success.map((result, index) => (
+                    <ul className="text-sm text-green-700 ml-4">
+                      {emailResults.successList.map((result, index) => (
                         <li key={index}>• {result.candidate_name} ({result.candidate_email})</li>
                       ))}
                     </ul>
                   </div>
                 )}
-                {emailResults.results.errors.length > 0 && (
+                {emailResults.errorList?.length > 0 && (
                   <div>
                     <p className="text-sm font-medium text-red-700">Failed to send to:</p>
-                    <ul className="text-sm text-red-600 ml-4">
-                      {emailResults.results.errors.map((error, index) => (
+                    <ul className="text-sm text-red-700 ml-4">
+                      {emailResults.errorList.map((error, index) => (
                         <li key={index}>• Candidate ID {error.candidate_id}: {error.error}</li>
                       ))}
                     </ul>
@@ -2099,7 +2169,7 @@ export default function TestsAdmin() {
                 )}
                 <button
                   onClick={() => setEmailResults(null)}
-                  className="mt-2 px-3 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="mt-2 px-3 py-1 text-sm font-medium bg-transparent border border-transparent rounded-md"
                 >
                   Dismiss
                 </button>
@@ -2413,16 +2483,18 @@ export default function TestsAdmin() {
                 <h3 className="text-lg font-medium text-gray-900">Available Candidates</h3>
                 <button
                   onClick={handleSendToSelected}
-                  disabled={manageCandidatesSelection.length === 0}
+                  disabled={assignSending || manageCandidatesSelection.length === 0}
                   className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${
-                    manageCandidatesSelection.length === 0
+                    assignSending || manageCandidatesSelection.length === 0
                       ? 'bg-gray-400 text-white cursor-not-allowed'
                       : 'bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
                   }`}
                 >
-                  {availableDeadlineDate 
-                    ? `Send Test with Deadline to Selected Candidates (${manageCandidatesSelection.length})`
-                    : `Send Test to Selected Candidates (${manageCandidatesSelection.length})`
+                  {assignSending
+                    ? 'Sending...'
+                    : availableDeadlineDate 
+                      ? `Send Test with Deadline to Selected Candidates (${manageCandidatesSelection.length})`
+                      : `Send Test to Selected Candidates (${manageCandidatesSelection.length})`
                   }
                 </button>
               </div>
