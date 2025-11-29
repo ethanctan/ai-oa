@@ -633,6 +633,11 @@ def upload_project_to_github(instance_id, file_storage):
         if not target_repo_url:
             return {"success": False, "message": "No target GitHub repository configured for this test."}
 
+        # Release DB resources before long-running file operations
+        cursor.close()
+        conn.close()
+        conn = None
+
         # Proceed with file handling and Git operations
         # Create a temporary directory to store the uploaded zip and its extracted contents
         with tempfile.TemporaryDirectory() as temp_dir_base_path:
@@ -723,8 +728,6 @@ def upload_project_to_github(instance_id, file_storage):
                 finally:
                     os.chdir(original_cwd) # Important to change back CWD
 
-        conn.commit()
-
         combined_workspace = f"<codebase>\n{codebase_text}\n</codebase>\n<codebase_diff>\n{diff_text}\n</codebase_diff>"
 
         return {
@@ -739,11 +742,12 @@ def upload_project_to_github(instance_id, file_storage):
         print(f'ValueError in upload_project_to_github: {str(ve)}')
         return {"success": False, "message": str(ve)}
     except Exception as e:
-        conn.rollback() # Rollback if any DB operations were pending, though none here currently.
+        if conn and not conn.closed:
+            conn.rollback() # Rollback if any DB operations were pending, though none here currently.
         print(f'Error in upload_project_to_github: {str(e)}')
         return {"success": False, "message": f"An unexpected error occurred: {str(e)}"}
     finally:
-        if conn:
+        if conn and not conn.closed:
             conn.close()
 
 def get_project_from_github(instance_id):
