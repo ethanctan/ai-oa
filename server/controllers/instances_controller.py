@@ -631,6 +631,8 @@ def upload_project_to_github(instance_id, file_storage):
         target_repo_token = test_details['target_github_token']
 
         if not target_repo_url:
+            cursor.close()
+            conn.close()
             return {"success": False, "message": "No target GitHub repository configured for this test."}
 
         # Release DB resources before long-running file operations
