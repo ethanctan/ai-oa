@@ -368,9 +368,15 @@ export default function TestsAdmin() {
     try {
       const response = await api.get('/candidates/');
       const data = await response.json();
-      setCandidates(data);
+      const normalizedCandidates = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.candidates)
+          ? data.candidates
+          : [];
+      setCandidates(normalizedCandidates);
     } catch (error) {
       console.error('Error fetching candidates:', error);
+      setCandidates([]);
     }
     
     setProjectHelperEnabled(false);
