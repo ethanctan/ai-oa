@@ -1530,6 +1530,7 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
 
   let reportWorkspaceContent = content || '';
   let reportWorkspaceDiff = '';
+  const shouldSubmitReport = options.skipReport ? false : true;
 
   async function submitReportPayload(contentValue, diffValue) {
     if (!contentValue) {
@@ -1699,7 +1700,9 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
     }
 
     // After successful upload, submit for report generation using enriched content/diff
-    await submitReportPayload(reportWorkspaceContent, reportWorkspaceDiff);
+    if (shouldSubmitReport) {
+      await submitReportPayload(reportWorkspaceContent, reportWorkspaceDiff);
+    }
 
     return normalizedUploadResult; // Contains success flag, workspace content, and original response
 
@@ -1707,7 +1710,9 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
     console.error(`Error during GitHub upload process: ${error.message}`);
     // Depending on requirements, you might re-throw or handle differently
     // For now, let's not make the whole submission fail if only GitHub upload fails
-    await submitReportPayload(reportWorkspaceContent, reportWorkspaceDiff);
+    if (shouldSubmitReport) {
+      await submitReportPayload(reportWorkspaceContent, reportWorkspaceDiff);
+    }
     return { success: false, error: error.message }; 
   }
 }
