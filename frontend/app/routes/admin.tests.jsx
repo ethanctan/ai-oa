@@ -77,7 +77,6 @@ export default function TestsAdmin() {
   };
 
   // Add state for email sending
-  const [isSendingEmails, setIsSendingEmails] = useState(false);
   const [emailResults, setEmailResults] = useState(null);
   const [deadlineUpdateResult, setDeadlineUpdateResult] = useState(null);
 
@@ -227,6 +226,9 @@ export default function TestsAdmin() {
     return filterAvailableCandidates(testCandidates.available || []);
   }, [testCandidates.available, selectedAvailableTags, availableSearchQuery]);
 
+  const filteredNewTestCandidates = filterCandidatesByTags(candidates);
+  const filteredAssignedCandidates = filterAssignedCandidatesByTags(testCandidates.assigned || []);
+
   // Add function to handle tag selection (for new test form)
   const handleTagSelection = (tag) => {
     setSelectedTags(prev => 
@@ -301,6 +303,26 @@ export default function TestsAdmin() {
       setManageCandidatesSelection(prev => [...new Set([...prev, ...newIds])]);
     }
     setSelectAllAvailableShown(!selectAllAvailableShown);
+  };
+
+  const sendInvitations = async ({ testId, candidateIds, deadline }) => {
+    const normalizedIds = (candidateIds || [])
+      .map((id) => Number(id))
+      .filter((id) => !Number.isNaN(id));
+    if (!testId || normalizedIds.length === 0) {
+      return null;
+    }
+
+    const response = await api.post('/instances/send-invitations', {
+      testId,
+      candidateIds: normalizedIds,
+      deadline: deadline || null,
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to send invitations');
+    }
+    return result;
   };
 
   // Helper function to get midnight EST for a given date
@@ -572,6 +594,21 @@ export default function TestsAdmin() {
       setManageCandidatesSelection([]);
       setAvailableDeadlineDate('');
       setError(null);
+
+      try {
+        const inviteResult = await sendInvitations({
+          testId: currentTestId,
+          candidateIds: selectedAvailable.map((c) => c.id),
+          deadline
+        });
+        if (inviteResult) {
+          setEmailResults(inviteResult);
+          setTimeout(fetchInstances, 1000);
+        }
+      } catch (inviteError) {
+        console.error('Error sending invitations after assignment:', inviteError);
+        setError(inviteError.message || 'Failed to send invitation emails for the selected candidates.');
+      }
     } catch (err) {
       console.error('Error assigning candidates:', err);
       setError(err.message || 'Failed to assign candidates');
@@ -696,44 +733,6 @@ export default function TestsAdmin() {
     }
   };
 
-  // Add handler for removing candidates
-  const handleRemoveSelected = async () => {
-    if (selectedAssignedCandidates.length === 0) {
-      alert('Please select at least one candidate to remove');
-      return;
-    }
-    
-    try {
-      const results = await Promise.all(
-        selectedAssignedCandidates.map(async candidateId => {
-          const response = await api.delete(`/tests/${currentTestId}/candidates/${candidateId}`);
-          return await response.json();
-        })
-      );
-      
-      // Check if all removals were successful
-      const allSuccessful = results.every(result => result.success);
-      
-      if (allSuccessful) {
-        alert(`Successfully removed ${selectedAssignedCandidates.length} candidate(s) from the test`);
-        // Refresh the candidates list
-        const response = await api.get(`/tests/${currentTestId}/candidates/`);
-        if (response.ok) {
-          const data = await response.json();
-          setTestCandidates(data);
-        }
-        // Clear selection
-        setSelectedAssignedCandidates([]);
-        // Refresh tests list to update counts
-        fetchTests();
-      } else {
-        alert('Some candidates could not be removed. Please try again.');
-      }
-    } catch (error) {
-      alert(`Error removing candidates: ${error.message}`);
-    }
-  };
-
   // Add handler for selecting assigned candidates to remove
   const toggleAssignedCandidateSelection = (candidateId) => {
     setSelectedAssignedCandidates(prev => 
@@ -744,40 +743,6 @@ export default function TestsAdmin() {
   };
 
   // Add handler for sending email invitations
-  const handleSendEmailInvitations = async () => {
-    if (selectedAssignedCandidates.length === 0) {
-      alert('Please select at least one candidate to send invitations to');
-      return;
-    }
-
-    setIsSendingEmails(true);
-    setEmailResults(null);
-
-    try {
-      const response = await api.post('/instances/send-invitations', {
-        testId: currentTestId,
-        candidateIds: selectedAssignedCandidates,
-        deadline: testCandidates.assigned.find(c => selectedAssignedCandidates.includes(c.id))?.deadline
-      });
-
-      const result = await response.json();
-
-      if (response.ok) {
-        setEmailResults(result);
-        setSelectedAssignedCandidates([]);
-        
-        // Refresh instances to show newly created instances
-        setTimeout(fetchInstances, 1000);
-      } else {
-        throw new Error(result.error || 'Failed to send invitations');
-      }
-    } catch (error) {
-      alert(`Error sending email invitations: ${error.message}`);
-    } finally {
-      setIsSendingEmails(false);
-    }
-  };
-
   // TestFormModal component for both creating and viewing tests
   // TODO: Right now this is just used for viewing test details. Eventually want to use this for test creation to avoid code reuse.
   const TestFormModal = ({ 
@@ -1407,6 +1372,24 @@ export default function TestsAdmin() {
                     throw new Error(result.error || 'Failed to create test');
                   }
 
+                  const newTestId = result?.id;
+                  if (newTestId && newTestSelectedCandidates.length > 0) {
+                    try {
+                      const inviteResult = await sendInvitations({
+                        testId: newTestId,
+                        candidateIds: newTestSelectedCandidates,
+                        deadline: null
+                      });
+                      if (inviteResult) {
+                        const successCount = inviteResult.results?.success?.length ?? newTestSelectedCandidates.length;
+                        const errorCount = inviteResult.results?.errors?.length ?? 0;
+                        alert(inviteResult.message || `Sent ${successCount} invitation(s)${errorCount ? ` (${errorCount} failed)` : ''}.`);
+                      }
+                    } catch (inviteError) {
+                      alert(`Test created, but failed to send invitations: ${inviteError.message}`);
+                    }
+                  }
+
                   console.log('Test created successfully:', result);
 
                   // Close the modal and refresh
@@ -1974,23 +1957,24 @@ export default function TestsAdmin() {
                 </div>
 
                 <div className="border border-gray-300 rounded-md overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-2 flex justify-between items-center">
-                    <span className="text-sm text-gray-600">
-                      {filterCandidatesByTags(candidates).length} candidates shown
-                    </span>
-                    <button
-                      onClick={() => handleSelectAllShown(filterCandidatesByTags(candidates))}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      {selectAllShown ? 'Deselect All Shown' : 'Select All Shown'}
-                    </button>
-                  </div>
+                <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600">
+                  {filteredNewTestCandidates.length} candidates shown
+                </div>
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Select
-                        </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div className="flex flex-col items-start gap-1">
+                          <span>Select</span>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectAllShown(filteredNewTestCandidates)}
+                            className="text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            {selectAllShown ? 'Deselect All Shown' : 'Select All Shown'}
+                          </button>
+                        </div>
+                      </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Name
                         </th>
@@ -2003,7 +1987,7 @@ export default function TestsAdmin() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {filterCandidatesByTags(candidates).map((candidate) => (
+                      {filteredNewTestCandidates.map((candidate) => (
                         <tr key={candidate.id}>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <input 
@@ -2170,33 +2154,9 @@ export default function TestsAdmin() {
             
             {/* Assigned Candidates Section */}
             <div className="mb-8">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="font-medium text-lg">Assigned Candidates</h4>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={handleSendEmailInvitations}
-                    disabled={isSendingEmails || selectedAssignedCandidates.length === 0}
-                    className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${
-                      isSendingEmails || selectedAssignedCandidates.length === 0
-                        ? 'bg-gray-400 text-white cursor-not-allowed' 
-                        : 'bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
-                    }`}
-                  >
-                    {isSendingEmails ? 'Sending...' : `Send Email Invitations (${selectedAssignedCandidates.length})`}
-                  </button>
-                  <button
-                    onClick={handleRemoveSelected}
-                    disabled={isSendingEmails || selectedAssignedCandidates.length === 0}
-                    className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm ${
-                      isSendingEmails || selectedAssignedCandidates.length === 0
-                        ? 'bg-gray-400 text-white cursor-not-allowed'
-                        : 'bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
-                    }`}
-                  >
-                    {isSendingEmails ? 'Sending...' : `Remove Selected (${selectedAssignedCandidates.length})`}
-                  </button>
-                </div>
-              </div>
+      <div className="mb-2">
+        <h4 className="font-medium text-lg">Assigned Candidates</h4>
+      </div>
               {testCandidates.assigned && testCandidates.assigned.length > 0 ? (
                 <div className="space-y-4">
                   {/* Tag Filter Section for Assigned Candidates */}
@@ -2226,16 +2186,8 @@ export default function TestsAdmin() {
                     )}
                   </div>
 
-                  <div className="bg-gray-50 px-4 py-2 flex justify-between items-center rounded-t-md">
-                    <span className="text-sm text-gray-600">
-                      {filterAssignedCandidatesByTags(testCandidates.assigned).length} candidates shown
-                    </span>
-                    <button
-                      onClick={() => handleSelectAllAssignedShown(filterAssignedCandidatesByTags(testCandidates.assigned))}
-                      className="inline-flex items-center px-3 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      {selectAllAssignedShown ? 'Deselect All Shown' : 'Select All Shown'}
-                    </button>
+                  <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600 rounded-t-md">
+                    {filteredAssignedCandidates.length} candidates shown
                   </div>
 
                   <div className="overflow-x-auto">
@@ -2244,7 +2196,16 @@ export default function TestsAdmin() {
                       <thead className="bg-gray-50">
                         <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Select
+                              <div className="flex flex-col items-start gap-1">
+                                <span>Select</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectAllAssignedShown(filteredAssignedCandidates)}
+                                  className="text-xs text-blue-600 hover:text-blue-800"
+                                >
+                                  {selectAllAssignedShown ? 'Deselect All Shown' : 'Select All Shown'}
+                                </button>
+                              </div>
                             </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Name
@@ -2267,7 +2228,7 @@ export default function TestsAdmin() {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {filterAssignedCandidatesByTags(testCandidates.assigned).map((candidate) => {
+                        {filteredAssignedCandidates.map((candidate) => {
                           const isCompleted = interpretCompletion(candidate.test_completed);
                           const isInvited = interpretCompletion(candidate.invited);
 
@@ -2548,16 +2509,8 @@ export default function TestsAdmin() {
                     </p>
                   </div>
 
-                  <div className="bg-gray-50 px-4 py-2 flex justify-between items-center rounded-t-md">
-                    <span className="text-sm text-gray-600">
-                      {filteredAvailableCandidates.length} candidates shown
-                    </span>
-                    <button
-                      onClick={() => handleSelectAllAvailableShown(filteredAvailableCandidates)}
-                      className="inline-flex items-center px-3 py-1 text-sm font-medium text-blue-600 bg-transparent border border-transparent rounded-md hover:text-blue-800 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      {selectAllAvailableShown ? 'Deselect All Shown' : 'Select All Shown'}
-                    </button>
+                  <div className="bg-gray-50 px-4 py-2 text-sm text-gray-600 rounded-t-md">
+                    {filteredAvailableCandidates.length} candidates shown
                   </div>
 
                   <div className="overflow-x-auto overflow-y-auto max-h-96">
@@ -2566,7 +2519,16 @@ export default function TestsAdmin() {
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Select
+                              <div className="flex flex-col items-start gap-1">
+                                <span>Select</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectAllAvailableShown(filteredAvailableCandidates)}
+                                  className="text-xs text-blue-600 hover:text-blue-800"
+                                >
+                                  {selectAllAvailableShown ? 'Deselect All Shown' : 'Select All Shown'}
+                                </button>
+                              </div>
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Name
