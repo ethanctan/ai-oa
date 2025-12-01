@@ -747,7 +747,9 @@ function openChat() {
       const stopInstance = message.stopInstance !== false;
       const submissionPromise = submitWorkspaceContent(message.instanceId, message.content, { 
         stopInstance,
-        skipReport: message.skipReport === true
+        skipReport: message.skipReport === true,
+        reportOnly: message.reportOnly === true,
+        workspaceDiff: message.workspaceDiff
       })
         .then((result) => {
           console.log('Workspace content submitted successfully');
@@ -1529,10 +1531,13 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
   console.log(`Submitting workspace content for instance ${instanceId}`);
   
   // Get server URLs dynamically
-  const { SERVER_URL } = getServerUrls();
+  const { SERVER_URL, SERVER_CHAT_URL } = getServerUrls();
+
+  const reportOnly = options.reportOnly === true;
+  const workspaceDiffOverride = typeof options.workspaceDiff === 'string' ? options.workspaceDiff : '';
 
   let reportWorkspaceContent = content || '';
-  let reportWorkspaceDiff = '';
+  let reportWorkspaceDiff = workspaceDiffOverride;
   const shouldSubmitReport = options.skipReport ? false : true;
 
   async function submitReportPayload(contentValue, diffValue) {
@@ -1566,6 +1571,62 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
     } catch (error) {
       console.error(`Error submitting workspace content for report: ${error.message}`);
     }
+  }
+
+  async function finalizeInstance() {
+    if (options.skipReport) {
+      return;
+    }
+
+    try {
+      await fetch(`${SERVER_CHAT_URL}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instanceId,
+          message: { role: 'system', content: 'PHASE_MARKER: final_completed', metadata: { phase: 'final_completed' } }
+        })
+      });
+      console.log('Wrote PHASE_MARKER: final_completed');
+    } catch (e) {
+      console.error(`Failed writing final_completed marker: ${e.message}`);
+    }
+
+    if (options.stopInstance !== false) {
+      try {
+        console.log('Requesting instance shutdown...');
+        const stopResponse = await fetch(`${SERVER_URL}/instances/${instanceId}/stop`, { method: 'POST' });
+        const stopData = await stopResponse.json().catch(() => ({}));
+        if (!stopResponse.ok) {
+          console.error(`Failed to stop instance: ${stopResponse.status} - ${JSON.stringify(stopData)}`);
+        } else {
+          console.log(`Instance stop response: ${JSON.stringify(stopData)}`);
+        }
+      } catch (e) {
+        console.error(`Error calling stop instance: ${e.message}`);
+      }
+    }
+  }
+
+  if (reportOnly) {
+    if (!reportWorkspaceContent) {
+      console.warn('Report-only submission invoked without workspace content.');
+    }
+
+    if (shouldSubmitReport && reportWorkspaceContent) {
+      await submitReportPayload(reportWorkspaceContent, reportWorkspaceDiff);
+    } else if (shouldSubmitReport) {
+      console.warn('Skipping report submission because no workspace content was provided.');
+    }
+
+    await finalizeInstance();
+
+    return {
+      success: Boolean(reportWorkspaceContent),
+      workspaceContent: reportWorkspaceContent,
+      diff: reportWorkspaceDiff,
+      reportOnly: true
+    };
   }
 
   // 2. Gather files, ZIP them, and upload to GitHub
@@ -1669,44 +1730,16 @@ async function submitWorkspaceContent(instanceId, content, options = {}) {
     if (workspaceDiffFromUpload) {
       reportWorkspaceDiff = workspaceDiffFromUpload;
     }
-
-    // Persist phase marker and wind down only for the final submission
-    if (!options.skipReport) {
-      try {
-        const { SERVER_CHAT_URL } = getServerUrls();
-        await fetch(`${SERVER_CHAT_URL}/message`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            instanceId,
-            message: { role: 'system', content: 'PHASE_MARKER: final_completed', metadata: { phase: 'final_completed' } }
-          })
-        });
-        console.log('Wrote PHASE_MARKER: final_completed');
-      } catch (e) {
-        console.error(`Failed writing final_completed marker: ${e.message}`);
-      }
-
-      if (options.stopInstance !== false) {
-        try {
-          console.log('Requesting instance shutdown...');
-          const stopResponse = await fetch(`${SERVER_URL}/instances/${instanceId}/stop`, { method: 'POST' });
-          const stopData = await stopResponse.json().catch(() => ({}));
-          if (!stopResponse.ok) {
-            console.error(`Failed to stop instance: ${stopResponse.status} - ${JSON.stringify(stopData)}`);
-          } else {
-            console.log(`Instance stop response: ${JSON.stringify(stopData)}`);
-          }
-        } catch (e) {
-          console.error(`Error calling stop instance: ${e.message}`);
-        }
-      }
+    if (!reportWorkspaceDiff && typeof diff_text === 'string' && diff_text.length) {
+      reportWorkspaceDiff = diff_text;
     }
 
     // After successful upload, submit for report generation using enriched content/diff
     if (shouldSubmitReport) {
       await submitReportPayload(reportWorkspaceContent, reportWorkspaceDiff);
     }
+
+    await finalizeInstance();
 
     return normalizedUploadResult; // Contains success flag, workspace content, and original response
 

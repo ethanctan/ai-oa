@@ -418,6 +418,7 @@
       let chatHistory = [];
       let workspaceContext = '';
       let finalInterviewWorkspaceContent = '';
+      let finalInterviewWorkspaceDiff = '';
       let initialPrompt = '';
       let finalPrompt = '';
       let assessmentPrompt = '';
@@ -634,6 +635,23 @@
         return '';
       }
 
+      function extractWorkspaceDiffFromResultPayload(resultPayload) {
+        if (!resultPayload) return '';
+        if (typeof resultPayload.diff === 'string') return resultPayload.diff;
+        if (typeof resultPayload.workspaceDiff === 'string') return resultPayload.workspaceDiff;
+        if (typeof resultPayload.workspaceContent === 'string') {
+          const match = resultPayload.workspaceContent.match(/<codebase_diff>\s*([\s\S]*?)\s*<\/codebase_diff>/i);
+          if (match) return match[1];
+        }
+        if (resultPayload.uploadResponse) {
+          return extractWorkspaceDiffFromResultPayload(resultPayload.uploadResponse);
+        }
+        if (resultPayload.data) {
+          return extractWorkspaceDiffFromResultPayload(resultPayload.data);
+        }
+        return '';
+      }
+
       function uploadWorkspaceBeforeFinal() {
         if (!instanceId) {
           console.warn('Cannot submit workspace: no instance ID available.');
@@ -642,8 +660,8 @@
 
         return new Promise((resolve) => {
           const requestId = `final-upload-${Date.now()}`;
-          const finish = (success, workspaceContent = '') => {
-            resolve({ success, workspaceContent });
+          const finish = (success, workspaceContent = '', workspaceDiff = '') => {
+            resolve({ success, workspaceContent, workspaceDiff });
           };
 
           const listener = (event) => {
@@ -651,6 +669,7 @@
             if (data.command === 'workspaceSubmissionComplete' && (!data.requestId || data.requestId === requestId)) {
               window.removeEventListener('message', listener);
               let workspaceContent = '';
+              let workspaceDiff = '';
               if (!data.success) {
                 console.error('Workspace submission failed before final interview:', data.error);
               } else {
@@ -659,8 +678,12 @@
                 if (workspaceContent) {
                   finalInterviewWorkspaceContent = workspaceContent;
                 }
+                workspaceDiff = extractWorkspaceDiffFromResultPayload(data.result);
+                if (workspaceDiff) {
+                  finalInterviewWorkspaceDiff = workspaceDiff;
+                }
               }
-              finish(data.success !== false, workspaceContent);
+              finish(data.success !== false, workspaceContent, workspaceDiff);
             }
           };
 
@@ -678,7 +701,7 @@
           setTimeout(() => {
             window.removeEventListener('message', listener);
             console.warn('Timed out waiting for workspace submission confirmation.');
-            finish(false);
+            finish(false, '', '');
           }, 20000);
         });
       }
@@ -1869,6 +1892,9 @@
             if (uploadResult && uploadResult.workspaceContent) {
               finalInterviewWorkspaceContent = uploadResult.workspaceContent;
             }
+          if (uploadResult && uploadResult.workspaceDiff) {
+            finalInterviewWorkspaceDiff = uploadResult.workspaceDiff;
+          }
           } catch (uploadError) {
             console.error('Error uploading workspace prior to final interview:', uploadError);
           }
@@ -1994,35 +2020,53 @@
       // Function to submit final report when interview ends
       function submitFinalReport() {
         console.log('FINAL REPORT API: Starting final report submission process...');
-        
-        // Request fresh workspace content
+        const diffForReport = finalInterviewWorkspaceDiff || '';
+
+        const sendReportSubmission = (contentValue) => {
+          if (!contentValue) {
+            console.error('FINAL REPORT API: No workspace content available for final report submission.');
+            return;
+          }
+
+          console.log(`FINAL REPORT API: Using workspace content size ${contentValue.length} chars for report.`);
+          vscode.postMessage({
+            command: 'submitWorkspaceContent',
+            instanceId,
+            content: contentValue,
+            workspaceDiff: diffForReport,
+            reportOnly: true
+          });
+          
+          console.log('FINAL REPORT API: submitWorkspaceContent command sent successfully (report-only mode)');
+        };
+
+        if (finalInterviewWorkspaceContent) {
+          sendReportSubmission(finalInterviewWorkspaceContent);
+          return;
+        }
+
+        console.warn('FINAL REPORT API: No cached workspace content; requesting latest workspace snapshot as fallback.');
         vscode.postMessage({ command: 'getWorkspaceContent' });
-        
-        // Set up a one-time listener for the response with workspace content
-        window.addEventListener('message', function workspaceContentListener(event) {
+
+        function workspaceContentListener(event) {
           if (event.data.command === 'workspaceContent') {
-            // Remove this one-time listener
             window.removeEventListener('message', workspaceContentListener);
-            
-            const content = event.data.content;
+
             if (event.data.error) {
               console.error('FINAL REPORT API: Error getting workspace content:', event.data.error);
               return;
             }
-            
-            console.log(`FINAL REPORT API: Got workspace content, size: ${content.length} chars`);
-            console.log('FINAL REPORT API: Calling submitWorkspaceContent command...');
-            
-            // Submit the workspace content to the backend for final report generation
-            vscode.postMessage({
-              command: 'submitWorkspaceContent',
-              instanceId,
-              content
-            });
-            
-            console.log('FINAL REPORT API: submitWorkspaceContent command sent successfully');
+
+            const content = event.data.content || workspaceContext || '';
+            if (content) {
+              workspaceContext = content;
+            }
+
+            sendReportSubmission(content);
           }
-        });
+        }
+
+        window.addEventListener('message', workspaceContentListener);
       }
     }());
   </script>
