@@ -1190,8 +1190,8 @@ def create_report(instance_id, workspace_content, workspace_diff=None):
 
     **Input Data:**
     You will be provided with the following data, encapsulated in tags:
-    - `<codebase>`: The complete source code submitted by the candidate.
-    - `<codebase_diff>`: The precise git diff showing the candidate's changes against the original template. This is crucial for understanding the scope and nature of their work.
+    - `<input_codebase>`: The complete source code submitted by the candidate.
+    - `<input_code_diff>`: The precise git diff showing the candidate's changes against the original template. This is crucial for understanding the scope and nature of their work.
     - `<chat_history>`: Transcripts of interviews conducted before, during (if applicable), and after the coding session. This provides insight into their thought process, communication skills, and problem-solving approach.
     - `<evaluation_criteria>`: A set of qualitative and quantitative criteria that you *must* use for the evaluation.
 
