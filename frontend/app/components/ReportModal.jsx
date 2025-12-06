@@ -15,6 +15,7 @@ function ReportModal({ isOpen, report, onClose, isLoading = false, title = "Test
   };
 
   const hasReportPayload = report && !report.message;
+  const submissionRepoLink = report?.submission_repo_link;
 
   return (
     <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
@@ -56,20 +57,23 @@ function ReportModal({ isOpen, report, onClose, isLoading = false, title = "Test
               </div>
             ) : (
               <div className="space-y-6">
-                {report?.submission_repo_link && (
+                {submissionRepoLink && (
                   <div>
                     <h4 className="text-lg font-semibold mb-2">Submission Repository</h4>
                     <a
-                      href={report.submission_repo_link}
+                      href={submissionRepoLink}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-indigo-600 hover:text-indigo-800 break-all"
                     >
-                      {report.submission_repo_link}
+                      {submissionRepoLink}
                     </a>
                     {report?.target_repository && (
                       <p className="text-xs text-gray-500 mt-1">
                         Base repository: {report.target_repository}
+                        {report?.target_repository_branch && (
+                          <span> · Branch: {report.target_repository_branch}</span>
+                        )}
                       </p>
                     )}
                   </div>

@@ -1155,10 +1155,13 @@ def get_report(instance_id):
         if target_repo_url and candidate_id:
             base_repo_url = target_repo_url[:-4] if target_repo_url.endswith('.git') else target_repo_url
             submission_dir_name = f"submission_candidate_{candidate_id}_instance_{instance_id}"
-            submission_link = base_repo_url.rstrip('/') + '/' + submission_dir_name
+            submission_branch = test_data.get('target_github_branch') or 'main'
+            normalized_base = base_repo_url.rstrip('/')
+            submission_link = f"{normalized_base}/tree/{submission_branch}/{submission_dir_name}"
             report_payload['submission_repo_link'] = submission_link
             report_payload['submission_repo_folder'] = submission_dir_name
-            report_payload['target_repository'] = base_repo_url.rstrip('/')
+            report_payload['target_repository'] = normalized_base
+            report_payload['target_repository_branch'] = submission_branch
         
         return report_payload
         
