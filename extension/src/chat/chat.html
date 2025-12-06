@@ -422,8 +422,8 @@
       let initialPrompt = '';
       let finalPrompt = '';
       let assessmentPrompt = '';
-      let initialQuestionBudget = 5;
-      let finalQuestionBudget = 5;
+      let initialQuestionBudget = null;
+      let finalQuestionBudget = null;
       let initialInterviewStarted = false;
       let finalInterviewStarted = false;
       let initialInterviewEnded = false;
@@ -1355,11 +1355,11 @@
             finalPrompt = message.finalPrompt || '';
             assessmentPrompt = message.assessmentPrompt || '';
             instanceId = message.instanceId;
-            if (message.initialQuestionBudget) {
-              initialQuestionBudget = message.initialQuestionBudget;
+            if (message.initialQuestionBudget !== undefined && message.initialQuestionBudget !== null) {
+              initialQuestionBudget = Number(message.initialQuestionBudget);
             }
-            if (message.finalQuestionBudget) {
-              finalQuestionBudget = message.finalQuestionBudget;
+            if (message.finalQuestionBudget !== undefined && message.finalQuestionBudget !== null) {
+              finalQuestionBudget = Number(message.finalQuestionBudget);
             }
             projectHelperEnabled = !!message.projectHelperEnabled;
             projectHelperPrompt = message.projectHelperPrompt || projectHelperPrompt || '';

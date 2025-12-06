@@ -1367,9 +1367,24 @@ export default function TestsAdmin() {
                   // Get project timer configuration
                   const enableProjectTimer = formData.get('enableProjectTimer') === 'on';
                   const projectTimerDuration = parseInt(formData.get('projectTimerDuration'), 10) || 60;
-                  
-                  const initialQuestionBudget = Math.max(1, parseInt(formData.get('initialQuestionBudget'), 10) || 5);
-                  const finalQuestionBudget = Math.max(1, parseInt(formData.get('finalQuestionBudget'), 10) || 5);
+
+                  const parseQuestionBudget = (fieldName, label) => {
+                    const raw = formData.get(fieldName);
+                    if (typeof raw !== 'string' || !raw.trim()) {
+                      throw new Error(`${label} is required and must be a positive integer.`);
+                    }
+                    if (!/^\d+$/.test(raw.trim())) {
+                      throw new Error(`${label} must be a positive integer.`);
+                    }
+                    const parsed = parseInt(raw.trim(), 10);
+                    if (!Number.isFinite(parsed) || parsed < 1) {
+                      throw new Error(`${label} must be a positive integer.`);
+                    }
+                    return parsed;
+                  };
+
+                  const initialQuestionBudget = parseQuestionBudget('initialQuestionBudget', 'Initial interview question budget');
+                  const finalQuestionBudget = parseQuestionBudget('finalQuestionBudget', 'Final interview question budget');
                   
                   // Create the payload object for the API
                   const payload = {
@@ -1716,8 +1731,12 @@ export default function TestsAdmin() {
                       id="initialQuestionBudget"
                       name="initialQuestionBudget"
                       min="1"
+                      step="1"
                       max="20"
                       defaultValue="5"
+                      required
+                      inputMode="numeric"
+                      pattern="\d*"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="text-xs text-gray-500 mt-1">
@@ -1733,8 +1752,12 @@ export default function TestsAdmin() {
                       id="finalQuestionBudget"
                       name="finalQuestionBudget"
                       min="1"
+                      step="1"
                       max="20"
                       defaultValue="5"
+                      required
+                      inputMode="numeric"
+                      pattern="\d*"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     />
                     <p className="text-xs text-gray-500 mt-1">

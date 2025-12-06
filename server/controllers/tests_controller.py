@@ -223,6 +223,17 @@ def create_test(data):
             return default
         return bool(value)
 
+    def parse_positive_int(value, label):
+        if value is None:
+            raise ValueError(f"{label} is required and must be a positive integer")
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{label} must be a positive integer")
+        if parsed <= 0:
+            raise ValueError(f"{label} must be greater than zero")
+        return parsed
+
     initial_question_budget = parse_budget(
         data.get('initialQuestionBudget', data.get('initial_question_budget')), 5
     )
@@ -398,6 +409,8 @@ def update_test(test_id, data, company_id=None):
                 value = data[js_field]
                 if db_field == 'project_helper_enabled':
                     value = parse_bool(value)
+                elif db_field in ('initial_question_budget', 'final_question_budget'):
+                    value = parse_positive_int(value, js_field)
                 update_fields.append(f'{db_field} = %s')
                 update_values.append(value)
         
