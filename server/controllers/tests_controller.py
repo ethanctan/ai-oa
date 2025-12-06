@@ -485,6 +485,12 @@ def delete_test(test_id, company_id=None):
                     'DELETE FROM instance_access_tokens WHERE instance_id = ANY(%s)',
                     (instance_ids,)
                 )
+
+            # Remove reports tied to these instances to prevent FK violations
+            cursor.execute(
+                'DELETE FROM reports WHERE instance_id = ANY(%s)',
+                (instance_ids,)
+            )
         
         # Delete test instances
         instance_count = len(instances)
